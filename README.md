@@ -1,6 +1,6 @@
 # CrystaLyse.AI
 
-CrystaLyse.AI is an autonomous materials discovery platform built on the OpenAI Agents Python SDK. It features a dual-mode system that seamlessly bridges creative AI-driven exploration with rigorous computational validation using SMACT (Semiconducting Materials from Analogy and Chemical Theory) tools via the Model Context Protocol (MCP).
+CrystaLyse.AI is an autonomous materials discovery platform built on the OpenAI Agents Python SDK. It features a dual-mode system that bridges creative AI-driven exploration with rigorous computational validation using Chem-informatics tools integrated via the Model Context Protocol (MCP).
 
 ## 🚀 Quick Start
 
@@ -8,7 +8,8 @@ CrystaLyse.AI is an autonomous materials discovery platform built on the OpenAI 
 
 - Python 3.11+ (recommended: conda environment)
 - OpenAI API key (set as `OPENAI_MDG_API_KEY` or `OPENAI_API_KEY`)
-- SMACT library (integrated via MCP server)
+- SMACT library - for heuristics based screening (integrated via MCP server)
+- Chemeleon-DNG - for 3D crystal structure generation (integrated via MCP Server)
 
 ### Installation
 
@@ -315,6 +316,11 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ## 🙏 Acknowledgments
 
+Special thanks to Aron Walsh and Hyunsoo Park for supervising, advising and guiding this project.
+
+And lots of thanks to the teams and community developers who helped build:
+
 - SMACT library for materials science tools
+- CHEMELEON library for 3D Structure generation
 - OpenAI Agents SDK for the agent framework
 - Model Context Protocol for tool integration 
