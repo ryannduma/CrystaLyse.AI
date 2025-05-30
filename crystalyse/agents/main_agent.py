@@ -54,32 +54,9 @@ class CrystaLyseAgent:
             model: The LLM model to use (gpt-4o, gpt-4.1, o4-mini etc.)
             temperature: Temperature for generation (0.0-1.0)
         """
-        # Initialize SMACT MCP server
-        smact_path = Path(__file__).parent.parent.parent.parent / "smact-mcp-server"
-        self.smact_server = MCPServerStdio(
-            name="SMACT Tools",
-            params={
-                "command": "python",
-                "args": ["-m", "smact_mcp.server"],
-                "cwd": str(smact_path)
-            }
-        )
-        
-        # Create the main agent
-        self.agent = Agent(
-            name="CrystaLyse",
-            model=model,
-            instructions=CRYSTALYSE_SYSTEM_PROMPT,
-            model_settings=ModelSettings(temperature=temperature),
-            mcp_servers=[self.smact_server],
-            tools=[
-                design_material_for_application,
-                generate_compositions,
-                predict_structure_types,
-                explain_chemical_reasoning,
-            ],
-            # output_type=CrystalAnalysisResult,  # Enable structured output
-        )
+        self.model = model
+        self.temperature = temperature
+        self.smact_path = Path(__file__).parent.parent.parent / "smact-mcp-server"
         
     async def analyze(self, query: str) -> str:
         """
@@ -91,13 +68,38 @@ class CrystaLyseAgent:
         Returns:
             Analysis result with top material candidates
         """
-        response = await Runner.run(
-            starting_agent=self.agent,
-            input=query
-        )
-        
-        # Extract the final response
-        return response.final_output
+        # Use async context manager for proper MCP server connection
+        async with MCPServerStdio(
+            name="SMACT Tools",
+            params={
+                "command": "python",
+                "args": ["-m", "smact_mcp.server"],
+                "cwd": str(self.smact_path)
+            }
+        ) as smact_server:
+            # Create agent with MCP server
+            agent = Agent(
+                name="CrystaLyse",
+                model=self.model,
+                instructions=CRYSTALYSE_SYSTEM_PROMPT,
+                model_settings=ModelSettings(temperature=self.temperature),
+                mcp_servers=[smact_server],
+                tools=[
+                    design_material_for_application,
+                    generate_compositions,
+                    predict_structure_types,
+                    explain_chemical_reasoning,
+                ],
+                # output_type=CrystalAnalysisResult,  # Enable structured output
+            )
+            
+            # Run the analysis
+            response = await Runner.run(
+                starting_agent=agent,
+                input=query
+            )
+            
+            return response.final_output
         
     async def analyze_streamed(self, query: str):
         """
@@ -109,8 +111,36 @@ class CrystaLyseAgent:
         Yields:
             Stream events including partial responses and tool calls
         """
-        async for event in Runner.run_streamed(
-            starting_agent=self.agent,
-            input=query
-        ):
-            yield event
+        # Use async context manager for proper MCP server connection
+        async with MCPServerStdio(
+            name="SMACT Tools",
+            params={
+                "command": "python",
+                "args": ["-m", "smact_mcp.server"],
+                "cwd": str(self.smact_path)
+            }
+        ) as smact_server:
+            # Create agent with MCP server
+            agent = Agent(
+                name="CrystaLyse",
+                model=self.model,
+                instructions=CRYSTALYSE_SYSTEM_PROMPT,
+                model_settings=ModelSettings(temperature=self.temperature),
+                mcp_servers=[smact_server],
+                tools=[
+                    design_material_for_application,
+                    generate_compositions,
+                    predict_structure_types,
+                    explain_chemical_reasoning,
+                ],
+                # output_type=CrystalAnalysisResult,  # Enable structured output
+            )
+            
+            # Stream the analysis
+            result = Runner.run_streamed(
+                starting_agent=agent,
+                input=query
+            )
+            
+            async for event in result.stream_events():
+                yield event

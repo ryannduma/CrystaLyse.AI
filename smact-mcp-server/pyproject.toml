@@ -1,0 +1,30 @@
+[project]
+name = "smact-mcp-server"
+version = "0.1.0"
+description = "MCP server for SMACT materials discovery tools"
+requires-python = ">=3.9"
+dependencies = [
+    "mcp>=0.5.0",
+    "httpx>=0.25.0",
+    "pymatgen>=2024.1.0",
+    "numpy>=1.21.0",
+    "scikit-learn>=1.0.0",
+    "smact>=2.7",
+]
+
+[project.scripts]
+smact-mcp = "smact_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/smact_mcp"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+]

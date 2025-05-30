@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "smact": {
+            "command": "/home/ryan/.local/bin/uv",
+            "args": [
+                "run",
+                "--directory",
+                "/home/ryan/crystalyseai/smact-mcp-server",
+                "smact-mcp"
+            ]
+        }
+    }
+}
