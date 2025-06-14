@@ -302,9 +302,10 @@ async def main():
     print("=" * 80)
     
     # Check environment
-    if not os.getenv('OPENAI_API_KEY'):
-        print("⚠️ Warning: OPENAI_API_KEY not set. Some features may not work.")
-        print("   Set your API key: export OPENAI_API_KEY='your-key-here'")
+    if not os.getenv('OPENAI_MDG_API_KEY'):
+        print("❌ OPENAI_MDG_API_KEY not set. Please set this environment variable.")
+        print("   export OPENAI_MDG_API_KEY='your-mdg-key-here'")
+        return
     
     # Demo sections
     demos = [

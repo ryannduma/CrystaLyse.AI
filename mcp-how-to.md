@@ -303,9 +303,9 @@ from your_agent import YourAgent
 
 async def test_deployment():
     # Check API key
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_MDG_API_KEY")
     if not api_key:
-        print("❌ API key not found!")
+        print("❌ MDG API key not found! Set OPENAI_MDG_API_KEY")
         return False
     
     # Basic functionality test

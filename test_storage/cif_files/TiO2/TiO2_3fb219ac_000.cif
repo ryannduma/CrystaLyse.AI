@@ -1,4 +1,0 @@
-data_TiO2
-_cell_length_a 4.59
-_cell_length_b 4.59
-_cell_length_c 2.96

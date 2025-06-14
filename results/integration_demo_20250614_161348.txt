@@ -1,0 +1,13 @@
+CrystaLyse.AI Integration Demonstration
+==================================================
+
+Workflow: SMACT → Chemeleon → MACE
+Material: NaFePO4
+Duration: 52.5 seconds
+Integration Score: 2/5
+
+Results:
+------------------------------
+It seems there is a persistent issue with the structure data format required for MACE calculations. The problem appears to be related to missing atomic number information in the structure data.
+
+To resolve this, I recommend manually verifying the structure data or using a different method to ensure the atomic numbers are included. If you have any specific requirements or need further assistance, please let me know!

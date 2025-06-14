@@ -47,7 +47,12 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .agents import CrystaLyseAgent
-from .models import CrystalAnalysisResult
+from .config import get_agent_config, verify_rate_limits, DEFAULT_MODEL
+try:
+    from .models import CrystalAnalysisResult
+except ImportError:
+    # Handle case where models module might not exist
+    CrystalAnalysisResult = None
 
 console = Console()
 
@@ -59,8 +64,54 @@ def cli():
 
 
 @cli.command()
+def status():
+    """Show CrystaLyse.AI configuration and rate limits status."""
+    rate_limits = verify_rate_limits()
+    
+    # Create status table
+    status_table = Table(title="🚀 CrystaLyse.AI Configuration Status")
+    status_table.add_column("Setting", style="cyan")
+    status_table.add_column("Value", style="green")
+    status_table.add_column("Status", style="yellow")
+    
+    # API Configuration
+    api_status = "✅ Configured" if rate_limits["mdg_api_configured"] else "❌ Missing"
+    api_key_status = "MDG API Key" if rate_limits["mdg_api_configured"] else "Not Set"
+    
+    status_table.add_row("OPENAI_MDG_API_KEY", api_key_status, api_status)
+    status_table.add_row("Default Model", DEFAULT_MODEL, "✅ Optimized")
+    
+    # Rate Limits
+    if rate_limits["mdg_api_configured"]:
+        status_table.add_row("Tokens/Minute", "2,000,000", "🚀 High Performance")
+        status_table.add_row("Requests/Minute", "10,000", "🚀 High Performance")
+        status_table.add_row("Tokens/Day", "200,000,000", "🚀 High Performance")
+        status_table.add_row("Batch Size", str(rate_limits["recommended_batch_size"]), "🚀 Optimized")
+    else:
+        status_table.add_row("Status", "API Key Required", "❌ Cannot operate")
+        status_table.add_row("Batch Size", str(rate_limits["recommended_batch_size"]), "❌ Disabled")
+    
+    console.print(status_table)
+    
+    # Requirements message
+    if not rate_limits["mdg_api_configured"]:
+        console.print()
+        console.print(Panel(
+            "🔑 [red]REQUIRED[/red]: Set OPENAI_MDG_API_KEY environment variable\n\n"
+            "[yellow]export OPENAI_MDG_API_KEY=\"your_mdg_key_here\"[/yellow]\n\n"
+            "This provides:\n"
+            "   • 2,000,000 tokens per minute\n"
+            "   • 10,000 requests per minute\n"
+            "   • 200,000,000 tokens per day\n"
+            "   • Optimized batch processing for materials discovery",
+            title="API Key Required",
+            border_style="red"
+        ))
+
+
+@cli.command()
 @click.argument("query")
-@click.option("--model", default="gpt-4", help="LLM model to use")
+@click.option("--model", default=DEFAULT_MODEL, help="LLM model to use (optimized default: gpt-4o)")
 @click.option("--temperature", default=0.7, type=float, help="Temperature for generation")
 @click.option("--output", "-o", help="Output file for results (JSON)")
 @click.option("--stream", is_flag=True, help="Enable streaming output")

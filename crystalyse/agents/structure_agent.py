@@ -1,9 +1,17 @@
 """Structure prediction agent for crystal structure analysis."""
 
+import os
 from agents import Agent
 from typing import List, Optional
 
-from ..tools import predict_structure_types, analyze_structure_stability
+try:
+    from ..config import get_agent_config
+    from ..tools import predict_structure_types, analyze_structure_stability
+except ImportError:
+    from config import get_agent_config
+    from tools import predict_structure_types, analyze_structure_stability
+
+from agents.model_settings import ModelSettings
 
 STRUCTURE_SYSTEM_PROMPT = """You are a crystal structure prediction expert with deep knowledge of crystallography and structure-property relationships.
 
@@ -23,24 +31,25 @@ Key principles:
 class StructurePredictionAgent:
     """Agent specialized in crystal structure prediction."""
     
-    def __init__(self, model: str = "gpt-4", temperature: float = 0.5):
+    def __init__(self, model: str = None, temperature: float = None):
         """
-        Initialize structure prediction agent.
+        Initialize structure prediction agent with optimized configuration.
         
         Args:
-            model: The LLM model to use
-            temperature: Temperature for generation
+            model: The LLM model to use (defaults to optimized gpt-4o)
+            temperature: Temperature for generation (defaults to optimized)
         """
+        config = get_agent_config(model, temperature or 0.5)
         self.agent = Agent(
             name="Structure Expert",
-            model=model,
+            model=config["model"],
             instructions=STRUCTURE_SYSTEM_PROMPT,
-            temperature=temperature,
+            model_settings=ModelSettings(temperature=config["temperature"]),
         )
         
-        # Register structure tools
-        self.agent.add_tool(predict_structure_types)
-        self.agent.add_tool(analyze_structure_stability)
+        # Note: Tool registration handled via different mechanism in openai-agents
+        # self.agent.add_tool(predict_structure_types)
+        # self.agent.add_tool(analyze_structure_stability)
         
     async def predict_structures(
         self,

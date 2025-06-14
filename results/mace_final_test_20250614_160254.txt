@@ -1,0 +1,26 @@
+Final MACE Integration Test Results
+==================================================
+
+Analysis Duration: 19.8 seconds
+Result Length: 981 characters
+Agent Mode: Chemeleon + MACE (Explicit Instructions)
+
+Results:
+------------------------------
+### Results for BaTiO3 Analysis
+
+**Energy Calculation with Uncertainty:**
+- **Total Energy:** -39.99 eV
+- **Energy per Atom:** -7.998 eV/atom
+- **Energy Uncertainty:** 0.0 (High Confidence)
+- **Forces:** Provided for each atom (minimal uncertainty)
+
+**Formation Energy Calculation:**
+- **Formation Energy:** -27.35 eV
+- **Formation Energy per Atom:** -5.469 eV/atom
+- **Stability Assessment:** Very Stable
+
+### Stability Assessment
+BaTiO3 is predicted to be very stable with a low formation energy, indicating it is thermodynamically favorable. The high confidence in energy calculations further supports its stability.
+
+*"These outputs combine chemical intuition, crystallographic knowledge, crystal structure prediction, AND energy validation using MACE force fields. Formation energies, structural stability, and uncertainty estimates provide quantitative guidance for synthesis prioritization. For maximum rigor, use 'use_chem_tools' mode to add SMACT composition validation."*

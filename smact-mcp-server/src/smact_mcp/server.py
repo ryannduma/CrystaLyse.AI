@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 # Add the SMACT library to the path
-SMACT_PATH = Path(__file__).parent.parent.parent.parent / "CrystaLyse.AI" / "smact"
+SMACT_PATH = Path(__file__).parent.parent.parent.parent / "smact"
 sys.path.insert(0, str(SMACT_PATH))
 
 from mcp.server.fastmcp import FastMCP

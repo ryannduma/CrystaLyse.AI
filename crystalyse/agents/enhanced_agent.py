@@ -9,12 +9,18 @@ generation to interactive 3D structure visualization.
 
 import json
 import re
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
 from .main_agent import CrystaLyseAgent
-from ..visualization import CrystalVisualizer, StructureStorage
+try:
+    from ..config import get_agent_config
+    from ..visualization import CrystalVisualizer, StructureStorage
+except ImportError:
+    from config import get_agent_config
+    from visualization import CrystalVisualizer, StructureStorage
 
 
 class EnhancedCrystaLyseAgent(CrystaLyseAgent):
@@ -26,7 +32,7 @@ class EnhancedCrystaLyseAgent(CrystaLyseAgent):
     a complete materials discovery workflow.
     """
     
-    def __init__(self, model: str = "gpt-4", temperature: float = 0.7, 
+    def __init__(self, model: str = None, temperature: float = None, 
                  use_chem_tools: bool = False, storage_dir: str = None,
                  auto_visualize: bool = True, auto_store: bool = True):
         """Initialize enhanced agent with visualization and storage capabilities.

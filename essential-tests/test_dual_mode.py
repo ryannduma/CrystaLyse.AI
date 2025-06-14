@@ -5,7 +5,10 @@ import os
 import asyncio
 
 # Set up environment
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_MDG_API_KEY", "")
+# Verify MDG API key is set
+if not os.getenv("OPENAI_MDG_API_KEY"):
+    print("❌ OPENAI_MDG_API_KEY not set. Please set this environment variable.")
+    sys.exit(1)
 
 from crystalyse.agents.main_agent import CrystaLyseAgent
 

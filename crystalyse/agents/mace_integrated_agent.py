@@ -28,12 +28,21 @@ from agents import Agent, Runner
 from agents.mcp import MCPServerStdio
 from agents.model_settings import ModelSettings
 import os
+try:
+    from .mcp_utils import RobustMCPServer, MCPConnectionError, log_mcp_status, create_mcp_servers
+    from ..config import get_agent_config
+except ImportError:
+    from mcp_utils import RobustMCPServer, MCPConnectionError, log_mcp_status, create_mcp_servers
+    from config import get_agent_config
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import json
 import asyncio
 
-from .main_agent import CrystaLyseAgent
+try:
+    from .main_agent import CrystaLyseAgent
+except ImportError:
+    from main_agent import CrystaLyseAgent
 
 
 # Enhanced system prompts with MACE integration
@@ -258,28 +267,31 @@ class MACEIntegratedAgent(CrystaLyseAgent):
         batch_size (int): Default batch size for high-throughput calculations
     """
     
-    def __init__(self, model: str = "gpt-4", temperature: float = 0.7, 
+    def __init__(self, model: str = None, temperature: float = None, 
                  use_chem_tools: bool = False, enable_mace: bool = True,
                  energy_focus: bool = False, uncertainty_threshold: float = 0.1,
                  batch_size: int = 10):
         """
-        Initialize MACE-integrated CrystaLyse agent.
+        Initialize MACE-integrated CrystaLyse agent with optimized configuration.
         
         Args:
-            model: The OpenAI language model to use
-            temperature: Temperature for generation (0.0-1.0)
+            model: The OpenAI language model to use (defaults to optimized gpt-4o)
+            temperature: Temperature for generation (defaults to optimized 0.7)
             use_chem_tools: Enable SMACT validation tools for rigorous mode
             enable_mace: Enable MACE energy calculations
             energy_focus: Enable specialized energy analysis mode
             uncertainty_threshold: MACE uncertainty threshold for DFT routing (eV/atom)
-            batch_size: Default batch size for high-throughput calculations
+            batch_size: Default batch size optimized for MDG API rate limits
         """
-        super().__init__(model, temperature, use_chem_tools)
+        # Get optimized configuration with MDG API key
+        config = get_agent_config(model, temperature)
+        super().__init__(config["model"], config["temperature"], use_chem_tools)
         
         self.enable_mace = enable_mace
         self.energy_focus = energy_focus
         self.uncertainty_threshold = uncertainty_threshold
-        self.batch_size = batch_size
+        # Optimize batch size for MDG API rate limits
+        self.batch_size = batch_size if batch_size != 10 else (50 if config["api_configured"] else 10)
         
         # Path to MACE MCP server
         self.mace_path = Path(__file__).parent.parent.parent / "mace-mcp-server"
@@ -299,49 +311,37 @@ class MACEIntegratedAgent(CrystaLyseAgent):
         Returns:
             Comprehensive analysis with energy-guided recommendations
         """
-        # Determine which MCP servers to use
-        mcp_servers = []
+        # Prepare server configurations
+        servers_config = {}
         
         # Always include Chemeleon for structure generation
-        chemeleon_server = MCPServerStdio(
-            name="Chemeleon CSP",
-            params={
-                "command": "python",
-                "args": ["-m", "chemeleon_mcp"],
-                "cwd": str(self.chemeleon_path)
-            },
-            cache_tools_list=False,
-            client_session_timeout_seconds=30
-        )
-        mcp_servers.append(chemeleon_server)
+        servers_config["Chemeleon CSP"] = {
+            "command": "python",
+            "args": ["-m", "chemeleon_mcp"],
+            "cwd": str(self.chemeleon_path),
+            "timeout_seconds": 30,
+            "max_retries": 3
+        }
         
         # Add MACE server if enabled
         if self.enable_mace:
-            mace_server = MCPServerStdio(
-                name="MACE Energy Calculator",
-                params={
-                    "command": "python", 
-                    "args": ["-m", "mace_mcp"],
-                    "cwd": str(self.mace_path)
-                },
-                cache_tools_list=False,
-                client_session_timeout_seconds=60  # Longer timeout for MACE calculations
-            )
-            mcp_servers.append(mace_server)
+            servers_config["MACE Energy Calculator"] = {
+                "command": "python",
+                "args": ["-m", "mace_mcp"],
+                "cwd": str(self.mace_path),
+                "timeout_seconds": 60,  # Longer timeout for MACE calculations
+                "max_retries": 3
+            }
         
         # Add SMACT server if in rigorous mode
         if self.use_chem_tools:
-            smact_server = MCPServerStdio(
-                name="SMACT Tools",
-                params={
-                    "command": "python",
-                    "args": ["-m", "smact_mcp"], 
-                    "cwd": str(self.smact_path)
-                },
-                cache_tools_list=False,
-                client_session_timeout_seconds=10
-            )
-            mcp_servers.append(smact_server)
+            servers_config["SMACT Tools"] = {
+                "command": "python",
+                "args": ["-m", "smact_mcp"],
+                "cwd": str(self.smact_path),
+                "timeout_seconds": 10,
+                "max_retries": 3
+            }
         
         # Select appropriate system prompt
         if self.energy_focus:
@@ -357,14 +357,21 @@ class MACEIntegratedAgent(CrystaLyseAgent):
             # Fallback to parent class behavior
             return await super().analyze(query)
         
-        # Create agent with selected MCP servers
-        async with asyncio.gather(*[server.__aenter__() for server in mcp_servers]):
+        try:
+            # Create MCP servers with robust connection handling
+            mcp_servers = await create_mcp_servers(servers_config)
+            log_mcp_status(mcp_servers)
+            
+            # Extract the actual server objects
+            server_objects = [s.server for s in mcp_servers]
+            
+            # Create agent with connected MCP servers
             agent = Agent(
                 name=agent_name,
                 model=self.model,
                 instructions=prompt,
                 model_settings=ModelSettings(temperature=self.temperature),
-                mcp_servers=mcp_servers,
+                mcp_servers=server_objects,
             )
             
             # Run the analysis
@@ -373,7 +380,20 @@ class MACEIntegratedAgent(CrystaLyseAgent):
                 input=query
             )
             
+            # Clean up servers
+            for server in mcp_servers:
+                await server.__aexit__(None, None, None)
+            
             return response.final_output
+            
+        except MCPConnectionError as e:
+            print(f"Warning: Failed to connect to some MCP servers: {e}")
+            print("Attempting to run with available servers...")
+            
+            # Try running with whatever servers we could connect to
+            if not mcp_servers:
+                print("No MCP servers available. Falling back to parent class behavior.")
+                return await super().analyze(query)
     
     async def analyze_streamed(self, query: str):
         """

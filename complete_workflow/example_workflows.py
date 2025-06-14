@@ -10,9 +10,15 @@ calculations for various applications.
 import asyncio
 import json
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+
+# Configure OpenAI API key for high rate limits
+import openai
+if os.getenv("OPENAI_MDG_API_KEY"):
+    openai.api_key = os.getenv("OPENAI_MDG_API_KEY")
 
 # Add CrystaLyse to path
 crystalyse_path = Path(__file__).parent.parent
