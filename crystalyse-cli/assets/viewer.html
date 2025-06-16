@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystalyse Viewer</title>
+    <link rel="stylesheet" href="styles/viewer.css">
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js"></script>
+</head>
+<body>
+    <div class="viewer-container">
+        <header class="viewer-header">
+            <h1>Crystal Structure Viewer</h1>
+            <div class="controls">
+                <button id="reset-view">Reset View</button>
+                <button id="toggle-labels">Toggle Labels</button>
+                <select id="style-selector">
+                    <option value="stick">Stick</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cartoon">Cartoon</option>
+                    <option value="surface">Surface</option>
+                </select>
+            </div>
+        </header>
+        
+        <main class="viewer-main">
+            <div id="viewport" class="mol-container"></div>
+            
+            <aside class="info-panel">
+                <h2>Structure Information</h2>
+                <div id="structure-info">
+                    <p>Loading structure data...</p>
+                </div>
+                
+                <h3>Properties</h3>
+                <div id="properties-list">
+                    <!-- Properties will be populated here -->
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        // Structure data will be injected here
+        const structureData = window.structureData || {};
+        
+        // Initialize 3Dmol viewer
+        const container = document.getElementById('viewport');
+        const viewer = $3Dmol.createViewer(container, {
+            backgroundColor: 'white'
+        });
+
+        // Load structure
+        function loadStructure(data) {
+            viewer.addModel(data.structure, data.format);
+            viewer.setStyle({}, {stick: {}});
+            viewer.zoomTo();
+            viewer.render();
+        }
+
+        // UI Controls
+        document.getElementById('reset-view').addEventListener('click', () => {
+            viewer.zoomTo();
+            viewer.render();
+        });
+
+        document.getElementById('style-selector').addEventListener('change', (e) => {
+            const style = e.target.value;
+            viewer.setStyle({}, {[style]: {}});
+            viewer.render();
+        });
+
+        // Initialize with data
+        if (structureData.structure) {
+            loadStructure(structureData);
+        }
+    </script>
+</body>
+</html>

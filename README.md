@@ -43,7 +43,16 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install mace-torch
 ```
 
-4. Set your OpenAI API key:
+4. Install CLI dependencies (Node.js 16+):
+```bash
+# Install Node.js dependencies for interactive CLI
+cd crystalyse-cli
+npm install
+npm run build
+cd ..
+```
+
+5. Set your OpenAI API key:
 ```bash
 export OPENAI_MDG_API_KEY="your-mdg-api-key-here"
 ```
@@ -62,7 +71,56 @@ export OPENAI_MDG_API_KEY="your-mdg-api-key-here"
 - **Models**: gpt-4o (recommended for production)
 - **Best for**: Validated discovery, experimental planning, publication-quality results
 
-## 📖 Basic Usage
+## 📖 Usage
+
+### Interactive CLI (Recommended)
+
+CrystaLyse.AI features a sophisticated interactive CLI with 3D visualization, session management, and conversational interface:
+
+```bash
+# Start interactive shell
+crystalyse shell
+
+# Direct analysis
+crystalyse analyze "Design a battery cathode material"
+
+# View crystal structures in 3D
+crystalyse view structure.cif
+
+# Compare multiple structures
+crystalyse compare struct1.cif struct2.cif
+
+# Show help
+crystalyse --help
+```
+
+**Interactive Shell Features:**
+- 🎨 **Natural Language Interface**: "Design a sodium-ion battery cathode"
+- 🔬 **Dual Mode Support**: Switch between creative and rigorous modes
+- 📊 **3D Visualization**: Automatic browser-based structure viewing
+- 💾 **Session Management**: Save and restore research sessions
+- ⚡ **Real-time Progress**: Live feedback during analysis
+- 🎯 **Quick Actions**: One-click export, save, and visualization
+
+**Example Interactive Session:**
+```bash
+🔬 crystalyse > Design a lead-free ferroelectric material
+⚡ Analyzing query...
+✓ Analysis complete
+
+📊 Result: BiFeO3 (Bismuth Ferrite)
+• Space group: R3c (rhombohedral)
+• Polarization: ~90 μC/cm²
+• Curie temperature: 1103 K
+
+[V]iew 3D  [E]xport  [S]ave  [C]ontinue
+
+🔬 crystalyse > /view
+✨ Opening 3D viewer in browser...
+
+🔬 crystalyse > /save ferroelectric_research
+✅ Session saved as: ferroelectric_research
+```
 
 ### Python API
 
@@ -124,6 +182,41 @@ async def rigorous_discovery():
     return result
 
 asyncio.run(rigorous_discovery())
+```
+
+### CLI Commands Reference
+
+**Interactive Shell:**
+```bash
+crystalyse shell                    # Start interactive mode
+```
+
+**Analysis Commands:**
+```bash
+crystalyse analyze "<query>"         # Direct analysis
+crystalyse analyze --mode creative   # Use creative mode
+crystalyse analyze --output results.json  # Save to file
+```
+
+**Visualization Commands:**
+```bash
+crystalyse view structure.cif       # View 3D structure
+crystalyse view --style sphere       # Use sphere representation
+crystalyse view --theme dark         # Dark mode visualization
+crystalyse compare struct1.cif struct2.cif  # Side-by-side comparison
+```
+
+**Shell Commands (within interactive mode):**
+```bash
+/analyze <query>                    # Full materials analysis
+/view [structure]                   # Open 3D viewer
+/validate <composition>             # SMACT validation
+/mode [creative|rigorous]           # Switch modes
+/save [name]                        # Save session
+/load <session>                     # Load session
+/history                            # Command history
+/help                               # Show all commands
+/exit                               # Exit shell
 ```
 
 ## 🏗️ Architecture
@@ -223,12 +316,15 @@ python tests/test_integration_demo.py
 - **Structural**: High-entropy alloys, ceramics, composites
 
 ### Advanced Features
+- **Interactive CLI**: Conversational interface with 3D visualization and session management
 - **Complete Workflow**: Composition → Structure → Energy → Recommendations
 - **Energy Validation**: MACE force field calculations with uncertainty quantification
 - **Structure Prediction**: Chemeleon crystal structure generation
-- **Interactive Visualization**: 3D crystal structures with energy data
+- **3D Visualization**: Browser-based interactive structure viewing with multiple styles
+- **Session Management**: Save, load, and resume research sessions
 - **Dual-Mode Operation**: Creative exploration + rigorous validation
 - **High Rate Limits**: o4-mini support for ultra-fast reasoning
+- **Cross-Platform**: Windows, macOS, Linux support with automatic browser detection
 
 ### Technical Integration
 - **Model Context Protocol**: Seamless tool integration
@@ -283,7 +379,19 @@ CrystaLyse.AI/
 │   │   ├── main_agent.py    # Dual-mode CrystaLyse agent
 │   │   └── mcp_utils.py     # MCP server utilities
 │   ├── config.py            # Configuration and rate limits
+│   ├── cli_launcher.py      # CLI launcher (calls Node.js CLI)
 │   └── tools/               # Analysis tools
+├── crystalyse-cli/          # Interactive TypeScript CLI
+│   ├── src/                 # TypeScript source code
+│   │   ├── commands/        # CLI command implementations
+│   │   ├── ui/              # Terminal UI components
+│   │   ├── visualization/   # 3D visualization system
+│   │   ├── bridge/          # Python integration bridge
+│   │   ├── cache/           # Intelligent caching
+│   │   └── shell.ts         # Interactive shell
+│   ├── assets/              # HTML templates for 3D viewer
+│   ├── dist/                # Compiled JavaScript
+│   └── package.json         # Node.js dependencies
 ├── smact-mcp-server/        # SMACT validation server
 ├── chemeleon-mcp-server/    # Structure prediction server  
 ├── mace-mcp-server/         # Energy calculation server
@@ -342,14 +450,18 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ## 🎯 What's New in Latest Version
 
-🚀 **Dual-Mode Materials Discovery Revolution**
+🚀 **Interactive CLI & Dual-Mode Materials Discovery Revolution**
 
+- ✨ **NEW: Interactive CLI**: Revolutionary conversational interface with 3D visualization
+- ✨ **NEW: Browser-based 3D Viewer**: Automatic structure visualization with multiple rendering styles
+- ✨ **NEW: Session Management**: Save, load, and resume research sessions
+- ✨ **NEW: Real-time Progress**: Live feedback with progress indicators and status updates
 - ✅ **o4-mini Integration**: Ultra-high rate limits (10M TPM, 1B TPD) for creative mode
 - ✅ **Dual-Mode Operation**: Creative (fast) vs Rigorous (validated) workflows
 - ✅ **Complete MACE Integration**: Energy validation with ML force fields
 - ✅ **Performance Optimization**: 10-15x speed improvement in creative mode
 - ✅ **Production-Ready**: Comprehensive test suite and robust error handling
-- ✅ **Advanced Documentation**: Complete architecture diagrams and tutorials
+- ✅ **Cross-Platform Support**: Windows, macOS, Linux compatibility
 
 ## 🔬 Research Impact
 

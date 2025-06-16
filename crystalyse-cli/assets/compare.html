@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystalyse Compare</title>
+    <link rel="stylesheet" href="styles/viewer.css">
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js"></script>
+</head>
+<body>
+    <div class="compare-container">
+        <header class="viewer-header">
+            <h1>Crystal Structure Comparison</h1>
+            <div class="controls">
+                <button id="sync-views">Sync Views</button>
+                <button id="overlay-toggle">Toggle Overlay</button>
+                <select id="compare-mode">
+                    <option value="side-by-side">Side by Side</option>
+                    <option value="overlay">Overlay</option>
+                </select>
+            </div>
+        </header>
+        
+        <main class="compare-main">
+            <div class="compare-panels">
+                <div class="structure-panel">
+                    <h2>Structure 1</h2>
+                    <div id="viewport1" class="mol-container"></div>
+                    <div class="structure-controls">
+                        <select id="style1">
+                            <option value="stick">Stick</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="cartoon">Cartoon</option>
+                        </select>
+                        <input type="color" id="color1" value="#ff0000">
+                    </div>
+                </div>
+                
+                <div class="structure-panel">
+                    <h2>Structure 2</h2>
+                    <div id="viewport2" class="mol-container"></div>
+                    <div class="structure-controls">
+                        <select id="style2">
+                            <option value="stick">Stick</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="cartoon">Cartoon</option>
+                        </select>
+                        <input type="color" id="color2" value="#0000ff">
+                    </div>
+                </div>
+            </div>
+            
+            <aside class="comparison-results">
+                <h2>Comparison Results</h2>
+                <div id="comparison-metrics">
+                    <!-- Comparison metrics will be displayed here -->
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        // Structure data will be injected here
+        const structureData = window.structureData || {};
+        
+        // Initialize viewers
+        const viewer1 = $3Dmol.createViewer(document.getElementById('viewport1'), {
+            backgroundColor: 'white'
+        });
+        
+        const viewer2 = $3Dmol.createViewer(document.getElementById('viewport2'), {
+            backgroundColor: 'white'
+        });
+
+        // Load structures
+        function loadStructures(data) {
+            if (data.structure1) {
+                viewer1.addModel(data.structure1.data, data.structure1.format);
+                viewer1.setStyle({}, {stick: {color: 'red'}});
+                viewer1.zoomTo();
+                viewer1.render();
+            }
+            
+            if (data.structure2) {
+                viewer2.addModel(data.structure2.data, data.structure2.format);
+                viewer2.setStyle({}, {stick: {color: 'blue'}});
+                viewer2.zoomTo();
+                viewer2.render();
+            }
+        }
+
+        // Sync views
+        let syncEnabled = false;
+        document.getElementById('sync-views').addEventListener('click', () => {
+            syncEnabled = !syncEnabled;
+            document.getElementById('sync-views').textContent = 
+                syncEnabled ? 'Unsync Views' : 'Sync Views';
+        });
+
+        // Initialize with data
+        if (structureData) {
+            loadStructures(structureData);
+        }
+    </script>
+</body>
+</html>

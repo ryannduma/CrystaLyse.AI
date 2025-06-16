@@ -39,7 +39,8 @@ all = [
 ]
 
 [project.scripts]
-crystalyse = "crystalyse.cli:main"
+crystalyse = "crystalyse.cli_launcher:main"
+crystalyse-old = "crystalyse.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
