@@ -141,9 +141,9 @@ def predict_dimensionality(
         return "3D"  # Default framework structure
 
 
-def analyze_bonding(elements_info: Dict[str, Any]) -> str:
+def analyse_bonding(elements_info: Dict[str, Any]) -> str:
     """
-    Analyze bonding character based on element electronegativities.
+    Analyse bonding character based on element electronegativities.
     
     Args:
         elements_info: Element property information with electronegativities

@@ -483,7 +483,7 @@ crystalyse
 ### Constraint-Based Queries
 ```bash
 # Synthesis constraints
-> Find materials that can be synthesized using solution processing
+> Find materials that can be synthesised using solution processing
 > Design materials stable in ambient conditions
 
 # Cost constraints  

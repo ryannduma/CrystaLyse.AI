@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Import the MCP server instance
 from .server import mcp
 
-# Global model cache for performance optimization
+# Global model cache for performance optimisation
 _model_cache: Dict[str, Any] = {}
 
 # ==================================================================================
@@ -100,7 +100,7 @@ def get_mace_calculator(
     compile_model: bool = False,
     default_dtype: str = "float32"
 ) -> Any:
-    """Get or create MACE calculator with caching and optimization.
+    """Get or create MACE calculator with caching and optimisation.
     
     Args:
         model_type: Type of MACE model ('mace_mp', 'mace_off', or path to custom model)
@@ -317,7 +317,7 @@ def get_server_metrics() -> str:
                         "gpu_memory_used": f"{gpu.memoryUsed}MB",
                         "gpu_memory_total": f"{gpu.memoryTotal}MB",
                         "gpu_memory_free": f"{gpu.memoryFree}MB",
-                        "gpu_utilization": f"{gpu.load * 100:.1f}%",
+                        "gpu_utilisation": f"{gpu.load * 100:.1f}%",
                         "gpu_temperature": f"{gpu.temperature}°C"
                     }
             except Exception:
@@ -495,19 +495,24 @@ def relax_structure_monitored(
     size: str = "medium",
     fmax: float = 0.01,
     steps: int = 500,
-    optimizer: str = "BFGS",
+    optimiser: str = "BFGS",
     monitor_interval: int = 10,
     device: str = "auto"
 ) -> str:
-    """Relax structure with detailed convergence tracking for research insights.
-    
+    """Relax structure with detailed convergence monitoring and adaptive optimiser selection.
+
+    This tool performs structural relaxation using MACE and provides real-time
+    convergence monitoring and adaptive optimiser selection.
+
+    The tool monitors convergence and can provide insights into the relaxation process.
+
     Args:
         structure_dict: Initial crystal structure
         model_type: MACE model type to use
         size: Model size for foundation models
         fmax: Maximum force convergence criterion (eV/Å)
-        steps: Maximum optimization steps
-        optimizer: Optimization algorithm ('BFGS', 'FIRE', 'LBFGS')
+        steps: Maximum optimisation steps
+        optimiser: Optimisation algorithm ('BFGS', 'FIRE', 'LBFGS')
         monitor_interval: How often to record convergence data
         device: Device to use ('auto', 'cpu', 'cuda')
     
@@ -525,7 +530,7 @@ def relax_structure_monitored(
             model_type=model_type, 
             size=size, 
             device=device,
-            default_dtype="float64"  # Higher precision for optimization
+            default_dtype="float64"  # Higher precision for optimisation
         )
         atoms.calc = calc
         
@@ -545,18 +550,21 @@ def relax_structure_monitored(
         initial_positions = atoms.positions.copy()
         initial_volume = atoms.get_volume()
         
-        # Set up optimizer
-        if optimizer == "BFGS":
-            opt = BFGS(atoms, logfile=None)
-        elif optimizer == "FIRE":
-            opt = FIRE(atoms, logfile=None)
-        elif optimizer == "LBFGS":
-            opt = LBFGS(atoms, logfile=None)
+        # Select optimiser
+        if optimiser.upper() == "BFGS":
+            dyn_class = BFGS
+        elif optimiser.upper() == "FIRE":
+            dyn_class = FIRE
+        elif optimiser.upper() == "LBFGS":
+            dyn_class = LBFGS
         else:
-            return json.dumps({"error": f"Unknown optimizer: {optimizer}"}, indent=2)
+            return json.dumps({
+                "status": "error",
+                "message": f"Invalid optimiser '{optimiser}'. Choose from BFGS, FIRE, LBFGS."
+            })
         
         def monitor():
-            """Monitor convergence during optimization."""
+            """Monitor convergence during optimisation."""
             step = len(trajectory["energies"])
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
@@ -591,9 +599,10 @@ def relax_structure_monitored(
         
         # Add initial point
         monitor()
+        opt = dyn_class(atoms, logfile=None)
         opt.attach(monitor, interval=monitor_interval)
         
-        # Run optimization
+        # Run optimisation
         converged = opt.run(fmax=fmax, steps=steps)
         
         # Final monitoring
@@ -649,8 +658,8 @@ def relax_structure_monitored(
                 "final_rms_force": trajectory["rms_forces"][-1] if trajectory["rms_forces"] else None,
                 "convergence_quality": convergence_quality
             },
-            "optimization_settings": {
-                "optimizer": optimizer,
+            "optimisation_settings": {
+                "optimiser": optimiser,
                 "fmax": fmax,
                 "max_steps": steps,
                 "monitor_interval": monitor_interval
@@ -663,14 +672,14 @@ def relax_structure_monitored(
         return json.dumps({"error": str(e)}, indent=2)
 
 
-@mcp.tool(description="Relax crystal structure to minimize energy")
+@mcp.tool(description="Relax crystal structure to minimise energy")
 def relax_structure(
     structure_dict: dict,
     model_type: str = "mace_mp",
     size: str = "medium",
     fmax: float = 0.01,
     steps: int = 500,
-    optimizer: str = "BFGS",
+    optimiser: str = "BFGS",
     fix_cell: bool = False,
     device: str = "auto"
 ) -> str:
@@ -681,26 +690,27 @@ def relax_structure(
         model_type: MACE model type to use
         size: Model size for foundation models
         fmax: Maximum force convergence criterion (eV/Å)
-        steps: Maximum optimization steps
-        optimizer: Optimization algorithm ('BFGS', 'FIRE', 'LBFGS')
+        steps: Maximum optimisation steps
+        optimiser: Optimisation algorithm ('BFGS', 'FIRE', 'LBFGS')
         fix_cell: Whether to fix cell parameters (only relax positions)
         device: Device to use ('auto', 'cpu', 'cuda')
     
     Returns:
         JSON string with relaxed structure, energy change, and convergence info
     """
+    logger.info(f"Starting structure relaxation with {optimiser}")
     try:
         # Validate structure first
         valid, msg = validate_structure(structure_dict)
         if not valid:
-            return json.dumps({"error": f"Invalid structure: {msg}"}, indent=2)
+            return json.dumps({"status": "error", "message": f"Validation failed: {msg}"})
         
         atoms = dict_to_atoms(structure_dict)
         calc = get_mace_calculator(
             model_type=model_type, 
             size=size, 
             device=device,
-            default_dtype="float64"  # Higher precision for optimization
+            default_dtype="float64"  # Higher precision for optimisation
         )
         atoms.calc = calc
         
@@ -708,24 +718,28 @@ def relax_structure(
         initial_energy = float(atoms.get_potential_energy())
         initial_positions = atoms.positions.copy()
         
-        # Set up optimizer
-        if optimizer == "BFGS":
-            opt = BFGS(atoms, logfile=None)
-        elif optimizer == "FIRE":
-            opt = FIRE(atoms, logfile=None)
-        elif optimizer == "LBFGS":
-            opt = LBFGS(atoms, logfile=None)
+        # Select optimiser
+        if optimiser.upper() == "BFGS":
+            dyn_class = BFGS
+        elif optimiser.upper() == "FIRE":
+            dyn_class = FIRE
+        elif optimiser.upper() == "LBFGS":
+            dyn_class = LBFGS
         else:
-            return json.dumps({"error": f"Unknown optimizer: {optimizer}"}, indent=2)
+            return json.dumps({
+                "status": "error", 
+                "message": f"Invalid optimiser '{optimiser}'. Choose from BFGS, FIRE, LBFGS."
+            })
         
-        # Track optimization progress
+        # Track optimisation progress
         energies = [initial_energy]
         def track_energy():
             energies.append(float(atoms.get_potential_energy()))
         
+        opt = dyn_class(atoms, logfile=None)
         opt.attach(track_energy, interval=1)
         
-        # Run optimization
+        # Run optimisation
         converged = opt.run(fmax=fmax, steps=steps)
         
         # Calculate relaxation metrics
@@ -736,28 +750,31 @@ def relax_structure(
         )))
         
         results = {
-            "relaxed_structure": atoms_to_dict(atoms),
-            "converged": converged,
-            "initial_energy": initial_energy,
-            "final_energy": final_energy,
-            "energy_change": energy_change,
-            "max_displacement": max_displacement,
+            "status": "completed",
+            "converged": bool(converged),
+            "initial_energy": float(initial_energy),
+            "final_energy": float(final_energy),
+            "energy_change": float(energy_change),
+            "max_displacement": float(max_displacement),
             "n_steps": len(energies) - 1,
-            "energy_trajectory": energies,
-            "final_forces": atoms.get_forces().tolist(),
+            "relaxed_structure": atoms_to_dict(atoms),
+            "max_force_final": float(np.max(np.linalg.norm(atoms.get_forces(), axis=1))),
+            "displacement": float(max_displacement),
             "final_stress": atoms.get_stress(voigt=True).tolist(),
-            "optimization_settings": {
-                "optimizer": optimizer,
+            "optimisation_settings": {
+                "optimiser": optimiser,
                 "fmax": fmax,
                 "max_steps": steps,
                 "fix_cell": fix_cell
-            }
+            },
+            "energy_trajectory": energies
         }
         
         return json.dumps(results, indent=2)
         
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        logger.error(f"Relaxation failed: {e}")
+        return json.dumps({"status": "error", "message": f"Relaxation failed: {e}"})
 
 
 # ==================================================================================
@@ -772,7 +789,15 @@ def calculate_formation_energy(
     size: str = "medium",
     device: str = "auto"
 ) -> str:
-    """Calculate formation energy of a compound from elemental references.
+    """Calculate formation energy of a crystal from its constituent elements.
+    
+    This tool automates the process of:
+    1. Calculating the total energy of the provided crystal structure.
+    2. Calculating the energy of each constituent element in its standard state.
+    3. Computing the formation energy.
+    
+    It can use pre-computed reference energies or calculate them on the fly.
+    This provides a key metric for material stability.
     
     Args:
         structure_dict: Crystal structure in dictionary format
@@ -784,88 +809,83 @@ def calculate_formation_energy(
     Returns:
         JSON string with formation energy and stability analysis
     """
+    logger.info(f"Calculating formation energy for {structure_dict.get('formula', 'Unknown')}")
+    
     try:
         # Validate structure first
         valid, msg = validate_structure(structure_dict)
         if not valid:
-            return json.dumps({"error": f"Invalid structure: {msg}"}, indent=2)
+            return json.dumps({"status": "error", "message": f"Validation failed: {msg}"})
         
         atoms = dict_to_atoms(structure_dict)
         calc = get_mace_calculator(model_type=model_type, size=size, device=device)
         atoms.calc = calc
         
-        # Calculate compound energy
-        compound_energy = atoms.get_potential_energy()
+        # 1. Calculate energy of the compound
+        compound_atoms = dict_to_atoms(structure_dict)
+        compound_atoms.set_calculator(calc)
+        compound_energy = compound_atoms.get_potential_energy()
         
-        # Get composition
-        symbols = atoms.get_chemical_symbols()
-        composition = {}
-        for symbol in symbols:
-            composition[symbol] = composition.get(symbol, 0) + 1
+        # 2. Get reference energies for constituent elements
+        element_counts = {el: compound_atoms.get_atomic_numbers().tolist().count(el) 
+                          for el in set(compound_atoms.get_atomic_numbers())}
         
-        # Use provided references or estimate from MACE
-        if element_references is None:
-            # Calculate elemental reference energies using MACE
-            element_references = {}
-            for element in composition.keys():
-                try:
-                    # Create simple cubic structure for element
-                    ref_atoms = Atoms(
-                        symbols=[element],
-                        positions=[[0, 0, 0]],
-                        cell=[3.0, 3.0, 3.0],
-                        pbc=[True, True, True]
-                    )
-                    ref_atoms.calc = calc
-                    element_references[element] = ref_atoms.get_potential_energy()
-                except Exception as e:
-                    logger.warning(f"Could not calculate reference for {element}: {e}")
-                    element_references[element] = 0.0
+        total_reference_energy = 0
         
-        # Calculate formation energy
-        reference_energy = sum(
-            count * element_references.get(element, 0.0) 
-            for element, count in composition.items()
-        )
-        
-        formation_energy = compound_energy - reference_energy
-        formation_energy_per_atom = formation_energy / len(atoms)
-        
-        # Stability analysis
-        stability = "unknown"
-        if formation_energy_per_atom < -0.1:
-            stability = "very_stable"
-        elif formation_energy_per_atom < -0.05:
-            stability = "stable"
-        elif formation_energy_per_atom < 0.0:
-            stability = "marginally_stable"
-        elif formation_energy_per_atom < 0.1:
-            stability = "metastable"
+        # Use provided references if available
+        if element_references:
+            for Z, count in element_counts.items():
+                if str(Z) not in element_references:
+                    return json.dumps({
+                        "status": "error",
+                        "message": f"Missing reference energy for atomic number {Z}"
+                    })
+                total_reference_energy += element_references[str(Z)] * count
         else:
-            stability = "unstable"
+            # Calculate reference energies on the fly
+            logger.info("Calculating element references on the fly...")
+            from ase.build import bulk
+            for Z, count in element_counts.items():
+                # Using common stable structures for elements
+                try:
+                    if Z in [1, 2, 7, 8, 9, 10, 17, 18, 35, 36, 53, 54, 85, 86]: # Gases/Halogens
+                        ref_atoms = Atoms(f'{Z}{Z}', positions=[[0,0,0], [0,0,1.2]])
+                    elif Z in [11, 19, 37, 55, 87]: # Alkali
+                        ref_atoms = bulk(f'{Z}', 'bcc', a=5.0)
+                    else: # Default to fcc
+                        ref_atoms = bulk(f'{Z}', 'fcc', a=4.0)
+                        
+                    ref_atoms.set_calculator(calc)
+                    ref_energy = ref_atoms.get_potential_energy() / len(ref_atoms)
+                    total_reference_energy += ref_energy * count
+                    
+                except Exception as e:
+                    return json.dumps({
+                        "status": "error",
+                        "message": f"Could not calculate reference energy for atomic number {Z}: {e}"
+                    })
+
+        # 3. Calculate formation energy
+        formation_energy = (compound_energy - total_reference_energy) / len(compound_atoms)
         
-        results = {
-            "formation_energy": float(formation_energy),
-            "formation_energy_per_atom": float(formation_energy_per_atom),
-            "compound_energy": float(compound_energy),
-            "reference_energy": float(reference_energy),
-            "composition": composition,
-            "stability_assessment": stability,
-            "element_references": element_references,
-            "formula": atoms.get_chemical_formula()
-        }
-        
-        return json.dumps(results, indent=2)
-        
+        return json.dumps({
+            "status": "completed",
+            "formation_energy_per_atom": formation_energy,
+            "compound_total_energy": compound_energy,
+            "reference_total_energy": total_reference_energy,
+            "num_atoms": len(compound_atoms)
+        })
+
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        logger.error(f"Formation energy calculation failed: {e}")
+        return json.dumps({"status": "error", "message": f"Formation energy calculation failed: {e}"})
 
 
 # ==================================================================================
 # CHEMICAL SUBSTITUTION TOOLS
 # ==================================================================================
 
-@mcp.tool(description="Suggest chemical substitutions based on energy optimization")
+@mcp.tool(description="Suggest chemical substitutions based on energy optimisation")
 def suggest_substitutions(
     structure_dict: dict,
     target_elements: list = None,
@@ -875,7 +895,7 @@ def suggest_substitutions(
     size: str = "medium",
     device: str = "auto"
 ) -> str:
-    """Suggest favorable chemical substitutions using energy calculations.
+    """Suggest favourable chemical substitutions using energy calculations.
     
     Args:
         structure_dict: Original crystal structure
@@ -889,6 +909,8 @@ def suggest_substitutions(
     Returns:
         JSON string with ranked substitution suggestions and energy changes
     """
+    logger.info(f"Suggesting substitutions for {structure_dict.get('formula', 'Unknown')}")
+    
     try:
         # Validate structure first
         valid, msg = validate_structure(structure_dict)
@@ -899,689 +921,85 @@ def suggest_substitutions(
         calc = get_mace_calculator(model_type=model_type, size=size, device=device)
         atoms.calc = calc
         
-        # Calculate original energy
-        original_energy = atoms.get_potential_energy()
-        original_symbols = atoms.get_chemical_symbols()
+        # Prepare target elements for substitution
+        from .data.element_data import PERIODIC_TABLE
         
-        # Default substitution candidates
-        if target_elements is None:
-            target_elements = [
-                'Li', 'Na', 'K', 'Mg', 'Ca', 'Al', 'Si', 'Ti', 'V', 'Cr', 'Mn', 
-                'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'Zr', 'Nb', 'Mo'
-            ]
+        if not target_elements:
+            # Default to elements with similar properties
+            original_elements = set(atoms.get_atomic_numbers())
+            target_elements = []
+            for z in original_elements:
+                element_info = PERIODIC_TABLE.get(z, {})
+                group = element_info.get("group")
+                if group:
+                    group_elements = [el_z for el_z, el_info in PERIODIC_TABLE.items() if el_info.get("group") == group]
+                    target_elements.extend(group_elements)
+            target_elements = sorted(list(set(target_elements) - original_elements))
+
+        # Calculate initial energy
+        atoms.set_calculator(calc)
+        initial_energy = atoms.get_potential_energy()
+        logger.info(f"Initial energy: {initial_energy:.4f} eV")
         
-        substitutions = []
-        unique_elements = list(set(original_symbols))
+        suggestions = []
         
-        for original_element in unique_elements:
-            for new_element in target_elements:
-                if new_element == original_element:
+        # Iterate through each atom and try substituting it
+        for i in range(len(atoms)):
+            original_z = atoms.numbers[i]
+            
+            for sub_z in target_elements:
+                if sub_z == original_z:
                     continue
                 
+                # Create a copy and substitute
+                sub_atoms = atoms.copy()
+                sub_atoms.numbers[i] = sub_z
+                sub_atoms.set_calculator(calc)
+                
                 try:
-                    # Create substituted structure
-                    new_symbols = [new_element if s == original_element else s for s in original_symbols]
-                    sub_atoms = atoms.copy()
-                    sub_atoms.set_chemical_symbols(new_symbols)
-                    sub_atoms.calc = calc
-                    
                     # Calculate energy of substituted structure
-                    try:
-                        sub_energy = sub_atoms.get_potential_energy()
-                        energy_change = sub_energy - original_energy
-                        energy_change_per_atom = energy_change / len(atoms)
+                    sub_energy = sub_atoms.get_potential_energy()
+                    
+                    # Calculate energy change
+                    energy_change = sub_energy - initial_energy
+                    energy_change_per_atom = energy_change / len(atoms)
+                    
+                    # Check if this is a favourable substitution
+                    if abs(energy_change_per_atom) <= energy_threshold:
+                        from ase.data import chemical_symbols
+                        original_element = chemical_symbols[original_z]
+                        sub_element = chemical_symbols[sub_z]
                         
-                        # Check if substitution is favorable
-                        if abs(energy_change_per_atom) <= energy_threshold:
-                            substitutions.append({
-                                "original_element": original_element,
-                                "new_element": new_element,
-                                "energy_change": float(energy_change),
-                                "energy_change_per_atom": float(energy_change_per_atom),
-                                "new_formula": sub_atoms.get_chemical_formula(),
-                                "stability_score": float(-energy_change_per_atom),  # Lower energy = higher score
-                                "recommendation": "favorable" if energy_change_per_atom < -0.01 else "neutral"
-                            })
-                    except Exception as e:
-                        logger.warning(f"Energy calculation failed for {original_element} -> {new_element}: {e}")
-                        continue
+                        suggestion = {
+                            "position": i,
+                            "original_element": original_element,
+                            "substitute_element": sub_element,
+                            "energy_change": float(energy_change),
+                            "energy_change_per_atom": float(energy_change_per_atom),
+                            "substituted_formula": sub_atoms.get_chemical_formula(),
+                            "favourable": energy_change < 0
+                        }
+                        suggestions.append(suggestion)
                         
                 except Exception as e:
-                    logger.warning(f"Substitution failed for {original_element} -> {new_element}: {e}")
+                    logger.warning(f"Failed to calculate substitution {i}: {e}")
                     continue
         
-        # Sort by stability score (descending)
-        substitutions.sort(key=lambda x: x["stability_score"], reverse=True)
+        # Sort suggestions by energy change (most favourable first)
+        suggestions.sort(key=lambda x: x["energy_change"])
         
         # Limit to max_suggestions
-        top_substitutions = substitutions[:max_suggestions]
+        suggestions = suggestions[:max_suggestions]
         
-        results = {
+        result = {
             "original_formula": atoms.get_chemical_formula(),
-            "original_energy": float(original_energy),
-            "original_energy_per_atom": float(original_energy / len(atoms)),
-            "n_substitutions_tested": len(substitutions),
-            "viable_substitutions": len([s for s in substitutions if s["recommendation"] == "favorable"]),
-            "top_substitutions": top_substitutions,
-            "search_parameters": {
-                "target_elements": target_elements,
-                "energy_threshold": energy_threshold,
-                "max_suggestions": max_suggestions
-            }
+            "initial_energy": float(initial_energy),
+            "energy_threshold": energy_threshold,
+            "total_suggestions": len(suggestions),
+            "suggestions": suggestions
         }
         
-        return json.dumps(results, indent=2)
-        
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-# ==================================================================================
-# PHONON AND DYNAMICS TOOLS
-# ==================================================================================
-
-@mcp.tool(description="Calculate phonon properties using supercell approach")
-def calculate_phonons_supercell(
-    structure_dict: dict,
-    supercell_size: list = [2, 2, 2],
-    displacement: float = 0.01,
-    model_type: str = "mace_mp",
-    size: str = "medium",
-    device: str = "auto"
-) -> str:
-    """Calculate phonon properties using finite displacement supercell method.
-    
-    Args:
-        structure_dict: Crystal structure in dictionary format
-        supercell_size: Supercell dimensions [nx, ny, nz]
-        displacement: Atomic displacement for finite differences (Å)
-        model_type: MACE model type to use
-        size: Model size for foundation models
-        device: Device to use ('auto', 'cpu', 'cuda')
-    
-    Returns:
-        JSON string with phonon frequencies and thermodynamic properties
-    """
-    try:
-        # Check if phonopy is available
-        try:
-            from phonopy import Phonopy
-            from phonopy.structure.atoms import PhonopyAtoms
-        except ImportError:
-            return json.dumps({
-                "error": "Phonopy not available. Install with: pip install phonopy"
-            }, indent=2)
-        
-        # Validate structure first
-        valid, msg = validate_structure(structure_dict)
-        if not valid:
-            return json.dumps({"error": f"Invalid structure: {msg}"}, indent=2)
-        
-        atoms = dict_to_atoms(structure_dict)
-        calc = get_mace_calculator(model_type=model_type, size=size, device=device)
-        
-        # Convert to phonopy atoms
-        phonopy_atoms = PhonopyAtoms(
-            symbols=atoms.get_chemical_symbols(),
-            positions=atoms.get_positions(),
-            cell=atoms.get_cell()
-        )
-        
-        # Create phonopy object
-        phonon = Phonopy(phonopy_atoms, supercell_size)
-        
-        # Generate displacements
-        phonon.generate_displacements(distance=displacement)
-        
-        # Calculate forces for displaced structures
-        supercells = phonon.get_supercells_with_displacements()
-        forces = []
-        
-        logger.info(f"Calculating forces for {len(supercells)} displaced supercells...")
-        
-        for i, supercell in enumerate(supercells):
-            # Convert phonopy supercell to ASE atoms
-            sc_atoms = Atoms(
-                symbols=supercell.symbols,
-                positions=supercell.positions,
-                cell=supercell.cell,
-                pbc=[True, True, True]
-            )
-            sc_atoms.calc = calc
-            
-            try:
-                sc_forces = sc_atoms.get_forces()
-                forces.append(sc_forces)
-                
-                if (i + 1) % 10 == 0:
-                    logger.info(f"Completed {i + 1}/{len(supercells)} force calculations")
-                    
-            except Exception as e:
-                logger.error(f"Force calculation failed for supercell {i}: {e}")
-                return json.dumps({"error": f"Force calculation failed: {e}"}, indent=2)
-        
-        # Set forces
-        phonon.forces = forces
-        
-        # Calculate dynamical matrix
-        phonon.produce_force_constants()
-        
-        # Calculate phonon band structure at Gamma point
-        phonon.run_mesh([1, 1, 1])  # Gamma point only for simplicity
-        
-        # Get frequencies
-        frequencies = phonon.get_frequencies([0, 0, 0])  # Gamma point
-        
-        # Basic analysis
-        min_freq = float(np.min(frequencies))
-        max_freq = float(np.max(frequencies))
-        n_imaginary = int(np.sum(frequencies < -1e-3))  # Frequencies below -0.001 THz
-        
-        # Stability analysis based on imaginary frequencies
-        if n_imaginary == 0:
-            stability = "dynamically_stable"
-        elif n_imaginary <= 3:
-            stability = "marginally_stable"  # Could be acoustic modes
-        else:
-            stability = "dynamically_unstable"
-        
-        # Simple thermodynamic properties (at 300K)
-        temperature = 300.0  # K
-        kB = 8.617333e-5  # eV/K
-        
-        # Calculate zero-point energy
-        positive_freqs = frequencies[frequencies > 1e-3]  # Only positive frequencies
-        if len(positive_freqs) > 0:
-            # Convert THz to eV: 1 THz ≈ 4.136e-3 eV
-            freq_eV = positive_freqs * 4.136e-3
-            zero_point_energy = float(np.sum(freq_eV) / 2.0)
-        else:
-            zero_point_energy = 0.0
-        
-        results = {
-            "frequencies_THz": frequencies.tolist(),
-            "min_frequency": min_freq,
-            "max_frequency": max_freq,
-            "n_imaginary_modes": n_imaginary,
-            "stability_assessment": stability,
-            "zero_point_energy_eV": zero_point_energy,
-            "n_atoms": len(atoms),
-            "supercell_size": supercell_size,
-            "displacement": displacement,
-            "n_force_calculations": len(supercells),
-            "calculation_summary": {
-                "dynamically_stable": n_imaginary == 0,
-                "has_soft_modes": min_freq < -0.1,
-                "frequency_range_THz": [min_freq, max_freq]
-            }
-        }
-        
-        return json.dumps(results, indent=2)
-        
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-# ==================================================================================
-# ACTIVE LEARNING TOOLS
-# ==================================================================================
-
-@mcp.tool(description="Identify structures that would benefit from higher-fidelity calculations")
-def identify_active_learning_targets(
-    structure_list: list,
-    uncertainty_threshold: float = 0.05,
-    diversity_weight: float = 0.3,
-    max_targets: int = 10,
-    model_type: str = "mace_mp",
-    size: str = "medium",
-    device: str = "auto"
-) -> str:
-    """Identify structures most valuable for active learning using uncertainty and diversity.
-    
-    Args:
-        structure_list: List of crystal structures to evaluate
-        uncertainty_threshold: Minimum uncertainty to consider for active learning
-        diversity_weight: Weight for structural diversity in selection (0-1)
-        max_targets: Maximum number of structures to recommend
-        model_type: MACE model type to use
-        size: Model size for foundation models
-        device: Device to use ('auto', 'cpu', 'cuda')
-    
-    Returns:
-        JSON string with ranked structures for active learning
-    """
-    try:
-        if not structure_list:
-            return json.dumps({"error": "No structures provided"}, indent=2)
-        
-        calc = get_mace_calculator(model_type=model_type, size=size, device=device)
-        
-        candidates = []
-        descriptors = []
-        
-        for i, structure_dict in enumerate(structure_list):
-            try:
-                # Validate structure
-                valid, msg = validate_structure(structure_dict)
-                if not valid:
-                    logger.warning(f"Invalid structure {i}: {msg}")
-                    continue
-                
-                atoms = dict_to_atoms(structure_dict)
-                atoms.calc = calc
-                
-                # Calculate energy with uncertainty (simplified version)
-                energies = []
-                for _ in range(3):  # Small committee for efficiency
-                    energy = atoms.get_potential_energy()
-                    energies.append(energy)
-                
-                energy_mean = float(np.mean(energies))
-                energy_std = float(np.std(energies))
-                
-                # Calculate simple structural descriptor
-                volume = atoms.get_volume()
-                density = len(atoms) / volume
-                
-                # Coordination-based descriptor
-                positions = atoms.positions
-                n_atoms = len(atoms)
-                avg_neighbor_dist = 0.0
-                
-                if n_atoms > 1:
-                    from scipy.spatial.distance import cdist
-                    distances = cdist(positions, positions)
-                    # Get average distance to 3 nearest neighbors (excluding self)
-                    for j in range(n_atoms):
-                        neighbor_dists = np.sort(distances[j])[1:4]  # Exclude self (distance=0)
-                        avg_neighbor_dist += np.mean(neighbor_dists)
-                    avg_neighbor_dist /= n_atoms
-                
-                descriptor = [
-                    density,
-                    avg_neighbor_dist,
-                    energy_mean / len(atoms),  # Energy per atom
-                    len(set(atoms.get_chemical_symbols()))  # Number of unique elements
-                ]
-                
-                candidate = {
-                    "index": i,
-                    "energy": energy_mean,
-                    "uncertainty": energy_std,
-                    "formula": atoms.get_chemical_formula(),
-                    "n_atoms": len(atoms),
-                    "descriptor": descriptor,
-                    "uncertainty_score": energy_std,
-                    "diversity_score": 0.0  # Will be calculated later
-                }
-                
-                candidates.append(candidate)
-                descriptors.append(descriptor)
-                
-            except Exception as e:
-                logger.warning(f"Failed to process structure {i}: {e}")
-                continue
-        
-        if not candidates:
-            return json.dumps({"error": "No valid structures could be processed"}, indent=2)
-        
-        # Calculate diversity scores using descriptor distances
-        descriptors = np.array(descriptors)
-        if len(descriptors) > 1:
-            # Normalize descriptors
-            desc_std = np.std(descriptors, axis=0)
-            desc_std[desc_std == 0] = 1.0  # Avoid division by zero
-            descriptors_norm = (descriptors - np.mean(descriptors, axis=0)) / desc_std
-            
-            # Calculate diversity as average distance to all other structures
-            from scipy.spatial.distance import cdist
-            dist_matrix = cdist(descriptors_norm, descriptors_norm)
-            
-            for i, candidate in enumerate(candidates):
-                # Diversity = average distance to all other structures
-                other_distances = np.concatenate([dist_matrix[i][:i], dist_matrix[i][i+1:]])
-                candidate["diversity_score"] = float(np.mean(other_distances)) if len(other_distances) > 0 else 0.0
-        
-        # Filter by uncertainty threshold
-        high_uncertainty = [c for c in candidates if c["uncertainty"] >= uncertainty_threshold]
-        
-        # Calculate combined score
-        for candidate in candidates:
-            # Normalize scores (0-1)
-            max_uncertainty = max(c["uncertainty_score"] for c in candidates)
-            max_diversity = max(c["diversity_score"] for c in candidates) 
-            
-            norm_uncertainty = candidate["uncertainty_score"] / max_uncertainty if max_uncertainty > 0 else 0
-            norm_diversity = candidate["diversity_score"] / max_diversity if max_diversity > 0 else 0
-            
-            # Combined score: weighted sum of uncertainty and diversity
-            candidate["active_learning_score"] = (
-                (1 - diversity_weight) * norm_uncertainty + 
-                diversity_weight * norm_diversity
-            )
-            
-            # Classification
-            if candidate["uncertainty"] >= uncertainty_threshold:
-                if candidate["active_learning_score"] > 0.7:
-                    candidate["recommendation"] = "high_priority"
-                elif candidate["active_learning_score"] > 0.4:
-                    candidate["recommendation"] = "medium_priority"
-                else:
-                    candidate["recommendation"] = "low_priority"
-            else:
-                candidate["recommendation"] = "sufficient_confidence"
-        
-        # Sort by active learning score (descending)
-        candidates.sort(key=lambda x: x["active_learning_score"], reverse=True)
-        
-        # Select top candidates
-        top_candidates = candidates[:max_targets]
-        
-        results = {
-            "n_structures_evaluated": len(candidates),
-            "n_high_uncertainty": len(high_uncertainty),
-            "uncertainty_threshold": uncertainty_threshold,
-            "diversity_weight": diversity_weight,
-            "recommended_targets": top_candidates,
-            "summary": {
-                "high_priority": len([c for c in candidates if c["recommendation"] == "high_priority"]),
-                "medium_priority": len([c for c in candidates if c["recommendation"] == "medium_priority"]),
-                "low_priority": len([c for c in candidates if c["recommendation"] == "low_priority"]),
-                "sufficient_confidence": len([c for c in candidates if c["recommendation"] == "sufficient_confidence"])
-            }
-        }
-        
-        return json.dumps(results, indent=2)
-        
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-# ==================================================================================
-# BATCH PROCESSING TOOLS
-# ==================================================================================
-
-@mcp.tool(description="Adaptive batch processing with automatic resource management")
-def adaptive_batch_calculation(
-    structure_list: list,
-    calculation_type: str = "energy",
-    initial_batch_size: int = 10,
-    memory_limit_gb: float = 8.0,
-    model_type: str = "mace_mp",
-    size: str = "medium",
-    device: str = "auto"
-) -> str:
-    """Process multiple structures with adaptive batching based on system resources.
-    
-    Args:
-        structure_list: List of crystal structures to process
-        calculation_type: Type of calculation ('energy', 'forces', 'optimization')
-        initial_batch_size: Starting batch size
-        memory_limit_gb: Memory limit for batch processing
-        model_type: MACE model type to use
-        size: Model size for foundation models
-        device: Device to use ('auto', 'cpu', 'cuda')
-    
-    Returns:
-        JSON string with batch processing results and performance metrics
-    """
-    try:
-        if not structure_list:
-            return json.dumps({"error": "No structures provided"}, indent=2)
-        
-        calc = get_mace_calculator(model_type=model_type, size=size, device=device)
-        
-        results = []
-        batch_metrics = []
-        current_batch_size = initial_batch_size
-        total_structures = len(structure_list)
-        processed = 0
-        
-        logger.info(f"Starting adaptive batch processing of {total_structures} structures")
-        
-        while processed < total_structures:
-            batch_start = time.time()
-            batch_end_idx = min(processed + current_batch_size, total_structures)
-            batch = structure_list[processed:batch_end_idx]
-            actual_batch_size = len(batch)
-            
-            # Monitor memory before batch
-            memory_before = None
-            if psutil is not None:
-                memory_before = psutil.virtual_memory().percent
-            
-            batch_results = []
-            batch_errors = 0
-            
-            for i, structure_dict in enumerate(batch):
-                try:
-                    # Validate structure
-                    valid, msg = validate_structure(structure_dict)
-                    if not valid:
-                        batch_results.append({"error": f"Invalid structure: {msg}"})
-                        batch_errors += 1
-                        continue
-                    
-                    atoms = dict_to_atoms(structure_dict)
-                    atoms.calc = calc
-                    
-                    # Perform calculation based on type
-                    if calculation_type == "energy":
-                        energy = atoms.get_potential_energy()
-                        result = {
-                            "energy": float(energy),
-                            "energy_per_atom": float(energy / len(atoms)),
-                            "formula": atoms.get_chemical_formula()
-                        }
-                    elif calculation_type == "forces":
-                        energy = atoms.get_potential_energy()
-                        forces = atoms.get_forces()
-                        result = {
-                            "energy": float(energy),
-                            "forces": forces.tolist(),
-                            "max_force": float(np.max(np.linalg.norm(forces, axis=1))),
-                            "formula": atoms.get_chemical_formula()
-                        }
-                    elif calculation_type == "optimization":
-                        # Quick optimization
-                        initial_energy = atoms.get_potential_energy()
-                        opt = BFGS(atoms, logfile=None)
-                        try:
-                            converged = opt.run(fmax=0.05, steps=50)  # Quick optimization
-                            final_energy = atoms.get_potential_energy()
-                            result = {
-                                "initial_energy": float(initial_energy),
-                                "final_energy": float(final_energy),
-                                "energy_change": float(final_energy - initial_energy),
-                                "converged": converged,
-                                "formula": atoms.get_chemical_formula()
-                            }
-                        except Exception:
-                            result = {
-                                "error": "Optimization failed",
-                                "initial_energy": float(initial_energy),
-                                "formula": atoms.get_chemical_formula()
-                            }
-                    else:
-                        result = {"error": f"Unknown calculation type: {calculation_type}"}
-                        batch_errors += 1
-                    
-                    batch_results.append(result)
-                    
-                except Exception as e:
-                    batch_results.append({"error": str(e)})
-                    batch_errors += 1
-            
-            # Monitor memory after batch
-            memory_after = None
-            if psutil is not None:
-                memory_after = psutil.virtual_memory().percent
-            
-            batch_time = time.time() - batch_start
-            
-            # Calculate performance metrics
-            structures_per_second = actual_batch_size / batch_time if batch_time > 0 else 0
-            error_rate = batch_errors / actual_batch_size if actual_batch_size > 0 else 0
-            
-            batch_metric = {
-                "batch_number": len(batch_metrics) + 1,
-                "batch_size": actual_batch_size,
-                "processing_time": batch_time,
-                "structures_per_second": structures_per_second,
-                "error_rate": error_rate,
-                "memory_before": memory_before,
-                "memory_after": memory_after,
-                "memory_increase": memory_after - memory_before if memory_before and memory_after else None
-            }
-            
-            batch_metrics.append(batch_metric)
-            results.extend(batch_results)
-            processed += actual_batch_size
-            
-            # Adaptive batch size adjustment
-            if memory_after and memory_after > memory_limit_gb * 12.5:  # ~80% of limit
-                current_batch_size = max(1, int(current_batch_size * 0.7))
-                logger.info(f"Reducing batch size to {current_batch_size} due to memory usage")
-            elif error_rate > 0.1:  # High error rate
-                current_batch_size = max(1, int(current_batch_size * 0.8))
-                logger.info(f"Reducing batch size to {current_batch_size} due to high error rate")
-            elif structures_per_second > 2 and memory_after and memory_after < memory_limit_gb * 6.25:  # ~50% of limit
-                current_batch_size = min(50, int(current_batch_size * 1.2))
-                logger.info(f"Increasing batch size to {current_batch_size} - good performance")
-            
-            logger.info(f"Completed batch {len(batch_metrics)}: {processed}/{total_structures} structures")
-        
-        # Calculate overall statistics
-        total_time = sum(m["processing_time"] for m in batch_metrics)
-        avg_structures_per_second = total_structures / total_time if total_time > 0 else 0
-        total_errors = sum(1 for r in results if "error" in r)
-        overall_error_rate = total_errors / total_structures if total_structures > 0 else 0
-        
-        summary = {
-            "total_structures": total_structures,
-            "successful_calculations": total_structures - total_errors,
-            "total_errors": total_errors,
-            "overall_error_rate": overall_error_rate,
-            "total_processing_time": total_time,
-            "average_structures_per_second": avg_structures_per_second,
-            "n_batches": len(batch_metrics),
-            "adaptive_batching_used": True,
-            "final_batch_size": current_batch_size,
-            "calculation_type": calculation_type
-        }
-        
-        response = {
-            "results": results,
-            "batch_metrics": batch_metrics,
-            "summary": summary,
-            "performance_analysis": {
-                "fastest_batch": max(batch_metrics, key=lambda x: x["structures_per_second"]) if batch_metrics else None,
-                "slowest_batch": min(batch_metrics, key=lambda x: x["structures_per_second"]) if batch_metrics else None,
-                "memory_efficient": all(m.get("memory_increase", 0) < 10 for m in batch_metrics),
-                "stable_performance": max(m["structures_per_second"] for m in batch_metrics) / min(m["structures_per_second"] for m in batch_metrics) < 2 if batch_metrics else True
-            }
-        }
-        
-        return json.dumps(response, indent=2)
-        
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-@mcp.tool(description="Fast batch energy calculations with minimal overhead")
-def batch_energy_calculation(
-    structure_list: list,
-    model_type: str = "mace_mp",
-    size: str = "medium",
-    include_forces: bool = False,
-    include_stress: bool = False,
-    device: str = "auto"
-) -> str:
-    """Fast batch energy calculation optimized for high throughput screening.
-    
-    Args:
-        structure_list: List of crystal structures to process
-        model_type: MACE model type to use
-        size: Model size for foundation models
-        include_forces: Whether to calculate forces
-        include_stress: Whether to calculate stress
-        device: Device to use ('auto', 'cpu', 'cuda')
-    
-    Returns:
-        JSON string with energy results for all structures
-    """
-    try:
-        if not structure_list:
-            return json.dumps({"error": "No structures provided"}, indent=2)
-        
-        calc = get_mace_calculator(model_type=model_type, size=size, device=device)
-        
-        results = []
-        start_time = time.time()
-        
-        logger.info(f"Starting batch energy calculation for {len(structure_list)} structures")
-        
-        for i, structure_dict in enumerate(structure_list):
-            try:
-                # Quick validation
-                if not all(key in structure_dict for key in ["numbers", "positions", "cell"]):
-                    results.append({"error": "Missing required structure fields"})
-                    continue
-                
-                atoms = dict_to_atoms(structure_dict)
-                atoms.calc = calc
-                
-                # Calculate properties
-                energy = atoms.get_potential_energy()
-                result = {
-                    "energy": float(energy),
-                    "energy_per_atom": float(energy / len(atoms)),
-                    "formula": atoms.get_chemical_formula(),
-                    "n_atoms": len(atoms)
-                }
-                
-                if include_forces:
-                    forces = atoms.get_forces()
-                    result["max_force"] = float(np.max(np.linalg.norm(forces, axis=1)))
-                    result["rms_force"] = float(np.sqrt(np.mean(np.sum(forces**2, axis=1))))
-                
-                if include_stress:
-                    stress = atoms.get_stress(voigt=True)
-                    result["pressure"] = float(-np.mean(stress[:3]) * 160.21766)  # GPa
-                
-                results.append(result)
-                
-                # Log progress every 100 structures
-                if (i + 1) % 100 == 0:
-                    elapsed = time.time() - start_time
-                    rate = (i + 1) / elapsed
-                    logger.info(f"Processed {i + 1}/{len(structure_list)} structures ({rate:.1f} struct/s)")
-                
-            except Exception as e:
-                results.append({"error": str(e)})
-        
-        total_time = time.time() - start_time
-        successful = len([r for r in results if "error" not in r])
-        
-        summary = {
-            "total_structures": len(structure_list),
-            "successful_calculations": successful,
-            "failed_calculations": len(structure_list) - successful,
-            "processing_time": total_time,
-            "structures_per_second": len(structure_list) / total_time if total_time > 0 else 0,
-            "include_forces": include_forces,
-            "include_stress": include_stress,
-            "model_info": {
-                "model_type": model_type,
-                "size": size,
-                "device": device
-            }
-        }
-        
-        return json.dumps({
-            "results": results,
-            "summary": summary
-        }, indent=2)
+        return json.dumps(result, indent=2)
         
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
@@ -1685,26 +1103,26 @@ def extract_descriptors_robust(
                 n_atoms = len(atoms)
                 
                 if n_atoms > 1 and pdist is not None:
-                    # Calculate neighbor distances
+                    # Calculate neighbour distances
                     distances = pdist(positions)
-                    avg_nearest_neighbor = float(np.mean(np.sort(distances)[:n_atoms]))
+                    avg_nearest_neighbour = float(np.mean(np.sort(distances)[:n_atoms]))
                     
                     # Coordination numbers (simplified)
-                    cutoff = avg_nearest_neighbor * 1.5
+                    cutoff = avg_nearest_neighbour * 1.5
                     from scipy.spatial.distance import cdist
                     dist_matrix = cdist(positions, positions)
                     
                     coordination_numbers = []
                     for i in range(n_atoms):
-                        neighbors = np.sum((dist_matrix[i] < cutoff) & (dist_matrix[i] > 0.1))
-                        coordination_numbers.append(neighbors)
+                        neighbours = np.sum((dist_matrix[i] < cutoff) & (dist_matrix[i] > 0.1))
+                        coordination_numbers.append(neighbours)
                     
                     descriptors["coordination"] = {
                         "avg_coordination_number": float(np.mean(coordination_numbers)),
                         "max_coordination_number": int(np.max(coordination_numbers)),
                         "min_coordination_number": int(np.min(coordination_numbers)),
                         "coordination_variance": float(np.var(coordination_numbers)),
-                        "avg_nearest_neighbor_distance": avg_nearest_neighbor
+                        "avg_nearest_neighbour_distance": avg_nearest_neighbour
                     }
                 else:
                     descriptors["coordination"] = {
@@ -1843,6 +1261,127 @@ def extract_descriptors_robust(
         }
         
         return json.dumps(response, indent=2)
+        
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
+
+
+@mcp.tool(description="Adaptive batch processing with automatic resource management")
+def adaptive_batch_calculation(
+    structure_list: list,
+    calculation_type: str = "energy",
+    initial_batch_size: int = 10,
+    memory_limit_gb: float = 8.0,
+    model_type: str = "mace_mp",
+    size: str = "medium",
+    device: str = "auto"
+) -> str:
+    """Process multiple structures with adaptive batching based on system resources.
+    
+    Args:
+        structure_list: List of crystal structures to process
+        calculation_type: Type of calculation ('energy', 'forces', 'optimisation')
+        initial_batch_size: Starting batch size
+        memory_limit_gb: Memory limit for batch processing
+        model_type: MACE model type to use
+        size: Model size for foundation models
+        device: Device to use ('auto', 'cpu', 'cuda')
+    
+    Returns:
+        JSON string with results for each structure
+    """
+    try:
+        # Validate structure list
+        for structure_dict in structure_list:
+            valid, msg = validate_structure(structure_dict)
+            if not valid:
+                return json.dumps({"error": f"Invalid structure: {msg}"}, indent=2)
+        
+        results = []
+        start_time = time.time()
+        
+        # Process structures with adaptive batching
+        batch_size = initial_batch_size
+        while structure_list:
+            batch = structure_list[:batch_size]
+            structure_list = structure_list[batch_size:]
+            
+            # Calculate energy for the batch
+            for structure_dict in batch:
+                atoms = dict_to_atoms(structure_dict)
+                calc = get_mace_calculator(model_type=model_type, size=size, device=device)
+                atoms.calc = calc
+                
+                # Perform calculation based on type
+                if calculation_type == "energy":
+                    energy = atoms.get_potential_energy()
+                    result = {
+                        "energy": float(energy),
+                        "energy_per_atom": float(energy / len(atoms)),
+                        "formula": atoms.get_chemical_formula()
+                    }
+                elif calculation_type == "forces":
+                    forces = atoms.get_forces()
+                    result = {
+                        "forces": forces.tolist(),
+                        "max_force": float(np.max(np.linalg.norm(forces, axis=1))),
+                        "formula": atoms.get_chemical_formula()
+                    }
+                elif calculation_type == "optimisation":
+                    # Quick optimisation
+                    initial_energy = atoms.get_potential_energy()
+                    opt = BFGS(atoms, logfile=None)
+                    try:
+                        converged = opt.run(fmax=0.05, steps=50)  # Quick optimisation
+                        final_energy = atoms.get_potential_energy()
+                        result = {
+                            "initial_energy": float(initial_energy),
+                            "final_energy": float(final_energy),
+                            "converged": converged,
+                            "formula": atoms.get_chemical_formula()
+                        }
+                    except Exception:
+                        result = {
+                            "error": "Optimisation failed",
+                            "initial_energy": float(initial_energy),
+                            "formula": atoms.get_chemical_formula()
+                        }
+                else:
+                    result = {"error": f"Unknown calculation type: {calculation_type}"}
+                
+                results.append(result)
+            
+            # Log progress
+            elapsed = time.time() - start_time
+            rate = len(results) / elapsed
+            logger.info(f"Processed {len(results)} structures ({rate:.1f} struct/s)")
+            
+            # Adjust batch size based on memory usage
+            memory_usage = sum(len(atoms) * 500 for atoms in batch)  # Rough estimate
+            if memory_usage > memory_limit_gb * 1024**3:
+                batch_size = max(1, int(memory_limit_gb * 1024**3 / (len(atoms) * 500)))
+        
+        total_time = time.time() - start_time
+        successful = len([r for r in results if "error" not in r])
+        
+        summary = {
+            "total_structures": len(structure_list),
+            "successful_calculations": successful,
+            "failed_calculations": len(structure_list) - successful,
+            "processing_time": total_time,
+            "structures_per_second": len(structure_list) / total_time if total_time > 0 else 0,
+            "calculation_type": calculation_type,
+            "model_info": {
+                "model_type": model_type,
+                "size": size,
+                "device": device
+            }
+        }
+        
+        return json.dumps({
+            "results": results,
+            "summary": summary
+        }, indent=2)
         
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)

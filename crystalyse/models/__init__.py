@@ -62,7 +62,7 @@ class CrystalAnalysisResult:
     generation_summary: Dict[str, int]
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
+        """Convert to dictionary for JSON serialisation."""
         return {
             "application": self.application,
             "requirements": self.requirements,

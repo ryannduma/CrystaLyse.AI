@@ -14,7 +14,7 @@ async def main():
         print("Error: OPENAI_API_KEY environment variable not set!")
         return
         
-    print("🎯 CrystaLyse.AI - Advanced Constraint-Based Discovery")
+    print("CrystaLyse.AI - Advanced Constraint-Based Discovery")
     print("=" * 60)
     
     # Configure agent for rigorous constraint handling
@@ -56,23 +56,23 @@ async def main():
     result1 = await agent.discover_materials(constraints_query)
     
     if result1.get('status') == 'completed':
-        print("✅ Multi-constraint analysis completed!")
+        print("Multi-constraint analysis completed!")
         discovery = result1['discovery_result']
         print(f"Analysis length: {len(discovery)} characters")
         
         # Extract key findings
         lines = discovery.split('\n')
         compositions = [line for line in lines if any(element in line for element in ['Sb', 'Bi', 'Te', 'Se', 'Ge', 'Sn'])]
-        print(f"🧪 Found {len(compositions)} material candidates")
+        print(f"Found {len(compositions)} material candidates")
         
     else:
-        print(f"❌ Error: {result1.get('error', 'Unknown error')}")
+        print(f"Error: {result1.get('error', 'Unknown error')}")
     
     # Example 2: Application-specific optimization
-    print("\n\n2. Application-Specific Optimization - Solid Electrolytes")
+    print("\n\n2. Application-Specific Optimisation - Solid Electrolytes")
     
-    optimization_query = """
-    Optimize a solid electrolyte for next-generation batteries with these specifications:
+    optimisation_query = """
+    Optimise a solid electrolyte for next-generation batteries with these specifications:
     
     TARGET APPLICATION: All-solid-state lithium metal batteries
     
@@ -88,22 +88,22 @@ async def main():
     - Air-stable during handling
     - No fluorine or toxic elements
     
-    Suggest 2 optimized compositions and explain the design rationale.
+    Suggest 2 optimised compositions and explain the design rationale.
     """
     
-    print("Query:", optimization_query[:100] + "...")
-    result2 = await agent.discover_materials(optimization_query)
+    print("Query:", optimisation_query[:100] + "...")
+    result2 = await agent.discover_materials(optimisation_query)
     
     if result2.get('status') == 'completed':
-        print("✅ Application optimization completed!")
+        print("Application optimisation completed!")
         
         # Show performance metrics
         metrics = result2.get('metrics', {})
-        print(f"📊 Analysis time: {metrics.get('elapsed_time', 0):.1f}s")
-        print(f"🤖 Model: {metrics.get('model', 'unknown')} in {metrics.get('mode', 'unknown')} mode")
+        print(f"Analysis time: {metrics.get('elapsed_time', 0):.1f}s")
+        print(f"Model: {metrics.get('model', 'unknown')} in {metrics.get('mode', 'unknown')} mode")
         
     else:
-        print(f"❌ Error: {result2.get('error', 'Unknown error')}")
+        print(f"Error: {result2.get('error', 'Unknown error')}")
     
     # Example 3: Comparative analysis
     print("\n\n3. Comparative Analysis - Alternative Materials")
@@ -129,13 +129,13 @@ async def main():
     result3 = await agent.discover_materials(comparison_query)
     
     if result3.get('status') == 'completed':
-        print("✅ Comparative analysis completed!")
-        print("🎯 Advanced constraint-based discovery demonstration finished!")
+        print("Comparative analysis completed!")
+        print("Advanced constraint-based discovery demonstration finished!")
     else:
-        print(f"❌ Error: {result3.get('error', 'Unknown error')}")
+        print(f"Error: {result3.get('error', 'Unknown error')}")
     
     print("\n" + "=" * 60)
-    print("💡 Key Benefits of Unified Agent:")
+    print("Key Benefits of Unified Agent:")
     print("• Handles complex multi-constraint problems")
     print("• Maintains context across constraint categories") 
     print("• Provides detailed scientific reasoning")

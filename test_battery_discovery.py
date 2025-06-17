@@ -240,8 +240,8 @@ def test_performance_benchmarks():
     print("  • Batch processing: < 0.05s per item")
     print("  • Memory efficient: < 50MB for large operations")
 
-def test_agentic_behavior_simulation():
-    """Simulate agentic behavior using atomic tools"""
+def test_agentic_behaviour_simulation():
+    """Simulate agentic behaviour using atomic tools"""
     
     print("\n🤖 Agentic Behavior Simulation")
     print("=" * 60)
@@ -315,7 +315,7 @@ if __name__ == "__main__":
         test_performance_benchmarks()
         
         # Test 3: Agentic Behavior Simulation
-        test_agentic_behavior_simulation()
+        test_agentic_behaviour_simulation()
         
         if success:
             print("\n🎉 ALL TESTS PASSED!")

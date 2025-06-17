@@ -52,7 +52,7 @@ crystalyse examples
 
 #### 1.4 One-time Analysis
 ```bash
-crystalyse analyze "Design a simple oxide material" --temperature 0.3
+crystalyse analyse "Design a simple oxide material" --temperature 0.3
 ```
 **Expected:** 
 - Progress spinner
@@ -230,13 +230,13 @@ Create a magnetic semiconductor
 
 #### 8.2 Streaming Analysis
 ```bash
-crystalyse analyze "Design a complex multi-component alloy" --stream
+crystalyse analyse "Design a complex multi-component alloy" --stream
 ```
 **Expected:** Real-time output during analysis
 
 #### 8.3 JSON Output
 ```bash
-crystalyse analyze "Find a photovoltaic material" -o pv_result.json
+crystalyse analyse "Find a photovoltaic material" -o pv_result.json
 ```
 **Expected:** 
 - Results displayed
@@ -310,7 +310,7 @@ CRYSTALYSE_DEBUG=true crystalyse
 crystalyse status
 
 # Try simpler query
-crystalyse analyze "NaCl structure"
+crystalyse analyse "NaCl structure"
 ```
 
 ### If Visualization Fails:

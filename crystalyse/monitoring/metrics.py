@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ToolMetrics:
-    """Metrics for individual tool calls"""
+    """Metrics for individual tool calls with cost tracking"""
     name: str
     calls: int = 0
     successes: int = 0
@@ -26,6 +26,8 @@ class ToolMetrics:
     total_time: float = 0.0
     min_time: float = float('inf')
     max_time: float = 0.0
+    total_cost: float = 0.0  # USD
+    total_tokens: int = 0
     error_types: Dict[str, int] = field(default_factory=dict)
     
     @property
@@ -36,10 +38,13 @@ class ToolMetrics:
     def avg_time(self) -> float:
         return self.total_time / self.calls if self.calls > 0 else 0.0
     
-    def add_call(self, duration: float, success: bool, error_type: str = None):
-        """Add a tool call to metrics"""
+    def add_call(self, duration: float, success: bool, error_type: str = None, 
+                 cost: float = 0.0, tokens: int = 0):
+        """Add a tool call to metrics with cost tracking"""
         self.calls += 1
         self.total_time += duration
+        self.total_cost += cost
+        self.total_tokens += tokens
         self.min_time = min(self.min_time, duration)
         self.max_time = max(self.max_time, duration)
         
@@ -72,7 +77,7 @@ class WorkflowMetrics:
         return self.successful_steps / self.total_steps if self.total_steps > 0 else 0.0
 
 class MetricsCollector:
-    """Collect and analyze performance metrics with persistence"""
+    """Collect and analyse performance metrics with persistence"""
     
     def __init__(self, persistence_path: Optional[Path] = None):
         self.tool_metrics = defaultdict(lambda: ToolMetrics("unknown"))
@@ -266,7 +271,7 @@ class MetricsCollector:
             
         metrics_file = self.persistence_path / f"workflow_{workflow_id}.json"
         
-        # Prepare data for serialization
+        # Prepare data for serialisation
         data = {
             "workflow_id": workflow_id,
             "timestamp": datetime.utcnow().isoformat(),
@@ -359,7 +364,7 @@ class PerformanceReport:
                 if metrics['avg_time'] > 5.0
             ]
             if slow_tools:
-                report.append(f"  • Optimize slow tools: {', '.join(slow_tools)}")
+                report.append(f"  • Optimise slow tools: {', '.join(slow_tools)}")
                 
             # Find error-prone tools
             error_tools = [
@@ -372,19 +377,19 @@ class PerformanceReport:
         if "system" in summary:
             # Check resource usage
             if summary["system"].get("cpu_usage", {}).get("average", 0) > 80:
-                report.append("  • High CPU usage detected - consider parallel optimization")
+                report.append("  • High CPU usage detected - consider parallel optimisation")
                 
             if summary["system"].get("memory_usage", {}).get("average", 0) > 80:
                 report.append("  • High memory usage detected - consider batch size reduction")
                 
             if "gpu_usage" in summary["system"] and summary["system"]["gpu_usage"]["average"] < 30:
-                report.append("  • Low GPU utilization - check MACE parallelization")
+                report.append("  • Low GPU utilisation - check MACE parallelisation")
         
         return "\n".join(report)
     
     @staticmethod
     def generate_trend_analysis(historical_data: List[Dict[str, Any]]) -> str:
-        """Analyze performance trends over multiple workflows"""
+        """Analyse performance trends over multiple workflows"""
         if not historical_data:
             return "No historical data available for trend analysis."
             

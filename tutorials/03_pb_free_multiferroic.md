@@ -6,7 +6,7 @@ This tutorial explores the discovery of environmentally friendly multiferroic ma
 
 ---
 
-## 🎯 Tutorial Objectives
+## Tutorial Objectives
 
 Learn how to:
 - Understand multiferroic materials and their unique properties
@@ -16,7 +16,7 @@ Learn how to:
 
 ---
 
-## 🧲 Background: Multiferroic Materials
+## Background: Multiferroic Materials
 
 **Definition:**
 Multiferroics are materials that exhibit two or more primary ferroic properties simultaneously:
@@ -79,7 +79,7 @@ asyncio.run(creative_multiferroic())
 ### Expected Creative Mode Output
 
 ```
-🎨 CREATIVE MODE RESULTS - Pb-free Multiferroic Crystals
+CREATIVE MODE RESULTS - Pb-free Multiferroic Crystals
 
 ### 1. BiFe₀.₅Mn₀.₅O₃ - Mixed B-site Perovskite
 **Crystal Structure:** Distorted perovskite (R3c space group)
@@ -108,7 +108,7 @@ asyncio.run(creative_multiferroic())
 - **Magnetism**: Fe³⁺-Mn²⁺ superexchange through oxygen
 - **Coupling**: Ti displacement modulates magnetic exchange
 
-**Composition Optimization:**
+**Composition Optimisation:**
 - Ba/Ca ratio controls lattice parameter and polarization
 - Fe/Mn ratio tunes magnetic ordering temperature
 - Ti concentration determines ferroelectric strength
@@ -117,6 +117,7 @@ asyncio.run(creative_multiferroic())
 - All elements environmentally benign
 - Tunable properties through composition
 - High-temperature stability
+- Flexible/2D applications
 
 ### 3. AgCrS₂ - Layered Chalcogenide Multiferroic
 **Crystal Structure:** Layered trigonal (R3̄m space group)
@@ -157,6 +158,9 @@ asyncio.run(creative_multiferroic())
 - Hydrofluoric acid-free synthesis routes
 - Atmospheric stability issues to address
 - Single crystal growth methods
+
+**Limitations:**
+- Limited to compositions that pass current SMACT validation rules
 
 *"These outputs are based on my chemical intuition and knowledge. 
 For extra rigor and experimental validation, use 'use_chem_tools' mode 
@@ -208,11 +212,11 @@ asyncio.run(rigorous_multiferroic())
 ### Expected Rigorous Mode Output
 
 ```
-🔬 RIGOROUS MODE RESULTS - Pb-free Multiferroic Crystals (SMACT Validated)
+RIGOROUS MODE RESULTS - Pb-free Multiferroic Crystals (SMACT Validated)
 
 ### 1. BiFeO₃ - Bismuth Iron Oxide (Established Multiferroic)
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Bi(1), Fe(1), O(3)
 - **Charge Balance**: Bi³⁺(3) + Fe³⁺(3) = 6+ | O²⁻(3×2) = 6-
 - **Oxidation States**: Bi: +3, Fe: +3, O: -2
@@ -242,7 +246,7 @@ asyncio.run(rigorous_multiferroic())
 
 ### 2. BaCrO₃ - Barium Chromate Perovskite
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Ba(1), Cr(1), O(3)
 - **Charge Balance**: Ba²⁺(2) + Cr⁴⁺(4) = 6+ | O²⁻(3×2) = 6-
 - **Oxidation States**: Ba: +2, Cr: +4, O: -2
@@ -270,7 +274,7 @@ asyncio.run(rigorous_multiferroic())
 
 ### 3. CaMnO₃ - Calcium Manganese Oxide
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Ca(1), Mn(1), O(3)
 - **Charge Balance**: Ca²⁺(2) + Mn⁴⁺(4) = 6+ | O²⁻(3×2) = 6-
 - **Oxidation States**: Ca: +2, Mn: +4, O: -2

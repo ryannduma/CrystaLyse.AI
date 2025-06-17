@@ -4,9 +4,9 @@ from typing import List, Dict, Any, Optional, Tuple
 import re
 
 
-def analyze_application_requirements(application: str) -> Dict[str, Any]:
+def analyse_application_requirements(application: str) -> Dict[str, Any]:
     """
-    Analyze application string to extract material requirements.
+    Analyse application string to extract material requirements.
     
     Args:
         application: Description of the target application
@@ -42,7 +42,7 @@ def analyze_application_requirements(application: str) -> Dict[str, Any]:
             
     elif any(term in app_lower for term in ["ferroelectric", "multiferroic", "piezoelectric"]):
         requirements["application_type"] = "functional_ceramic"
-        requirements["key_properties"] = ["polarization", "piezoelectric_coefficient"]
+        requirements["key_properties"] = ["polarisation", "piezoelectric_coefficient"]
         if "pb-free" in app_lower or "lead-free" in app_lower:
             requirements["avoid_elements"].append("Pb")
             
@@ -52,7 +52,7 @@ def analyze_application_requirements(application: str) -> Dict[str, Any]:
         
     elif any(term in app_lower for term in ["magnet", "magnetic"]):
         requirements["application_type"] = "magnetic"
-        requirements["key_properties"] = ["magnetization", "coercivity", "curie_temperature"]
+        requirements["key_properties"] = ["magnetisation", "coercivity", "curie_temperature"]
         
     # Extract specific structure types if mentioned
     if "perovskite" in app_lower:
@@ -81,7 +81,7 @@ def select_element_space(
     Select appropriate elements based on application requirements.
     
     Args:
-        requirements: Application requirements from analyze_application_requirements
+        requirements: Application requirements from analyse_application_requirements
         exclude_elements: Additional elements to exclude
         prefer_elements: Additional elements to prefer
         

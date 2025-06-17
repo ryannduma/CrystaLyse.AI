@@ -11,13 +11,13 @@ Key Features:
     - Rich terminal output with formatted tables and panels
     - Streaming analysis with real-time progress display
     - JSON output export for integration with other tools
-    - Browser-based 3D structure visualization
+    - Browser-based 3D structure visualisation
     - Session management with history and export
     - Example queries for quick start and demonstration
 
 Commands:
     shell: Start interactive CrystaLyse.AI shell (default when no command given)
-    analyze: Perform one-time materials discovery analysis
+    analyse: Perform one-time materials discovery analysis
     examples: Display example queries for reference
     status: Show configuration and API status
     server: Start SMACT MCP server for testing and development
@@ -36,10 +36,10 @@ Example Usage:
         $ crystalyse shell
     
     One-time analysis:
-        $ crystalyse analyze "Design a battery cathode material"
+        $ crystalyse analyse "Design a battery cathode material"
     
     Streaming analysis with custom model:
-        $ crystalyse analyze "Find multiferroic materials" --model gpt-4o --stream
+        $ crystalyse analyse "Find multiferroic materials" --model gpt-4o --stream
     
     View example queries:
         $ crystalyse examples
@@ -53,6 +53,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.live import Live
+from prompt_toolkit import PromptSession
+from prompt_toolkit.styles import Style
+from prompt_toolkit.completion import FuzzyCompleter, WordCompleter
 
 from .unified_agent import CrystaLyseUnifiedAgent, AgentConfig
 from .config import config
@@ -70,7 +74,7 @@ def cli():
 def status():
     """Show CrystaLyse.AI configuration and unified agent status."""
     # Create status table
-    status_table = Table(title="🚀 CrystaLyse.AI Configuration Status")
+    status_table = Table(title="CrystaLyse.AI Configuration Status")
     status_table.add_column("Setting", style="cyan")
     status_table.add_column("Value", style="green")
     status_table.add_column("Status", style="yellow")
@@ -81,18 +85,19 @@ def status():
     
     # Configuration status
     status_table.add_row("OPENAI_API_KEY", "Set" if api_configured else "Not Set", 
-                        "✅ Configured" if api_configured else "❌ Missing")
-    status_table.add_row("Default Model", "o4-mini", "✅ OpenAI Agents SDK")
-    status_table.add_row("Agent Type", "CrystaLyseUnifiedAgent", "✅ Unified")
-    status_table.add_row("Architecture", "90% code reduction", "✅ Optimized")
+                        "Configured" if api_configured else "Missing")
+    status_table.add_row("Default Model", "o4-mini", "OpenAI Agents SDK")
+    status_table.add_row("Agent Type", "CrystaLyseUnifiedAgent", "Unified")
+    status_table.add_row("Architecture", "90% code reduction", "Optimised")
     
     # MCP Servers status
     try:
-        test_config = AgentConfig(enable_smact=False, enable_chemeleon=False, enable_mace=False)
+        # A more representative test config that would use tools
+        test_config = AgentConfig(enable_smact=True, enable_chemeleon=True, enable_mace=True)
         test_agent = CrystaLyseUnifiedAgent(test_config)
-        agent_status = "✅ Working"
+        agent_status = "Working"
     except Exception:
-        agent_status = "❌ Error"
+        agent_status = "Error"
     
     status_table.add_row("Agent Status", "Unified Agent", agent_status)
     
@@ -108,7 +113,7 @@ def status():
         mcp_servers.append("Chemistry-Unified")
         
     status_table.add_row("MCP Servers", f"{len(mcp_servers)} available", 
-                        "✅ Ready" if mcp_servers else "⚠️ Limited")
+                        "Ready" if mcp_servers else "Limited")
     
     console.print(status_table)
     
@@ -116,11 +121,11 @@ def status():
     if not api_configured:
         console.print()
         console.print(Panel(
-            "🔑 [red]REQUIRED[/red]: Set OPENAI_API_KEY environment variable\n\n"
+            "[red]REQUIRED[/red]: Set OPENAI_API_KEY environment variable\n\n"
             "[yellow]export OPENAI_API_KEY=\"your_api_key_here\"[/yellow]\n\n"
             "The unified agent provides:\n"
             "   • OpenAI o4-mini model integration\n"
-            "   • True agentic behavior with LLM control\n"
+            "   • True agentic behaviour with LLM control\n"
             "   • SMACT, Chemeleon, and MACE tool integration\n"
             "   • 90% code reduction vs legacy implementation",
             title="API Key Required",
@@ -129,7 +134,7 @@ def status():
     else:
         console.print()
         console.print(Panel(
-            f"🎯 [green]Ready![/green] MCP servers available: {', '.join(mcp_servers)}\n\n"
+            f"[green]Ready![/green] MCP servers available: {', '.join(mcp_servers)}\n\n"
             "• Knowledge-based analysis works without MCP servers\n"
             "• Full computational workflow requires MCP server connection\n"
             "• Use 'crystalyse shell' for interactive materials discovery",
@@ -142,11 +147,17 @@ def status():
 @click.argument("query")
 @click.option("--model", default="o4-mini", help="LLM model to use (default: o4-mini with OpenAI Agents SDK)")
 @click.option("--temperature", default=0.7, type=float, help="Temperature for generation")
+@click.option("--max-turns", default=25, type=int, help="Maximum number of conversational turns.")
 @click.option("--output", "-o", help="Output file for results (JSON)")
 @click.option("--stream", is_flag=True, help="Enable streaming output")
-def analyze(query: str, model: str, temperature: float, output: str, stream: bool):
+@click.option("--copilot", is_flag=True, help="Enable co-pilot mode with human checkpoints")
+@click.option("--pipeline", is_flag=True, help="Use three-stage pipeline (composition → structure → energy)")
+@click.option("--optimise", is_flag=True, help="Enable hill-climb optimisation with LLM reflection")
+@click.option("--budget", default=1.0, type=float, help="Budget limit in USD (default: $1.00)")
+def analyse(query: str, model: str, temperature: float, max_turns: int, output: str, stream: bool,
+           copilot: bool, pipeline: bool, optimise: bool, budget: float):
     """
-    Analyze a materials discovery query using CrystaLyse.AI.
+    Analyse a materials discovery query using CrystaLyse.AI.
     
     This command performs comprehensive materials discovery analysis on user queries,
     supporting both creative exploration and rigorous validation modes. Results are
@@ -157,27 +168,29 @@ def analyze(query: str, model: str, temperature: float, output: str, stream: boo
             application, desired properties, and any constraints.
         model (str): The OpenAI language model to use (default: gpt-4)
         temperature (float): Controls creativity vs precision (0.0-1.0, default: 0.7)
+        max_turns (int): The maximum number of turns for the agent conversation.
         output (str): Optional output file path for saving results in JSON format
         stream (bool): Enable real-time streaming output (default: False)
     
     Examples:
         Basic analysis:
-            crystalyse analyze "Design a cathode for Na-ion batteries"
+            crystalyse analyse "Design a cathode for Na-ion batteries"
         
         High-precision analysis:
-            crystalyse analyze "Find Pb-free ferroelectrics" --temperature 0.3
+            crystalyse analyse "Find Pb-free ferroelectrics" --temperature 0.3
         
         Streaming with file output:
-            crystalyse analyze "Solar cell materials" --stream -o results.json
+            crystalyse analyse "Solar cell materials" --stream -o results.json
     """
-    asyncio.run(_analyze(query, model, temperature, output, stream))
+    asyncio.run(_analyse(query, model, temperature, max_turns, output, stream, copilot, pipeline, optimise, budget))
 
 
-async def _analyze(query: str, model: str, temperature: float, output: str, stream: bool):
+async def _analyse(query: str, model: str, temperature: float, max_turns: int, output: str, stream: bool,
+                  copilot: bool, pipeline: bool, optimise: bool, budget: float):
     """
-    Asynchronous implementation of the analyze command.
+    Asynchronous implementation of the analyse command.
     
-    Handles the core logic for materials discovery analysis including agent initialization,
+    Handles the core logic for materials discovery analysis including agent initialisation,
     query processing, result formatting, and file output. Supports both streaming and
     non-streaming modes with comprehensive error handling and user feedback.
     
@@ -185,6 +198,7 @@ async def _analyze(query: str, model: str, temperature: float, output: str, stre
         query (str): Materials discovery query from user
         model (str): OpenAI model name to use for analysis
         temperature (float): Temperature setting for generation control
+        max_turns (int): Maximum number of conversational turns.
         output (str): Optional file path for saving results
         stream (bool): Whether to enable streaming output mode
     
@@ -192,7 +206,7 @@ async def _analyze(query: str, model: str, temperature: float, output: str, stre
         None: Results are displayed to console and optionally saved to file
         
     Raises:
-        SystemExit: If API key is not found or agent initialization fails
+        SystemExit: If API key is not found or agent initialisation fails
     """
     # Check for API key
     api_key = os.getenv("OPENAI_API_KEY")
@@ -200,74 +214,129 @@ async def _analyze(query: str, model: str, temperature: float, output: str, stre
         console.print("[red]Error: OpenAI API key not found![/red]")
         console.print("Set OPENAI_API_KEY environment variable.")
         return
-        
-    # Initialize unified agent
-    console.print(f"[cyan]Initializing CrystaLyse Unified Agent with {model}...[/cyan]")
+    
+    # Display analysis mode header
+    console.print(f"[cyan]CrystaLyse.AI Analysis[/cyan]")
+    console.print(f"Query: {query}")
+    console.print(f"Model: {model} | Temperature: {temperature} | Budget: ${budget:.2f}")
+    
+    # Display enabled patterns
+    patterns = []
+    if copilot:
+        patterns.append("Co-pilot Mode")
+    if pipeline:
+        patterns.append("Three-Stage Pipeline")
+    if optimise:
+        patterns.append("Hill-Climb Optimisation")
+    
+    if patterns:
+        console.print(f"Patterns: {' | '.join(patterns)}")
     
     try:
-        # Determine mode based on temperature
-        mode = "rigorous" if temperature < 0.5 else "creative"
-        # For now, disable MCP tools for demonstration (they need proper server setup)
-        agent_config = AgentConfig(
-            model=model,
-            mode=mode,
-            temperature=temperature,
-            enable_smact=False,  # Disable for demo until MCP servers are properly configured
-            enable_chemeleon=False,
-            enable_mace=False
-        )
-        agent = CrystaLyseUnifiedAgent(agent_config)
-        console.print(f"[green]✅ Agent initialized in {mode} mode[/green]")
-    except Exception as e:
-        console.print(f"[red]Error initializing agent: {e}[/red]")
-        return
-        
-    # Display query
-    console.print(Panel(query, title="Query", border_style="blue"))
-    
-    # Run analysis
-    if stream:
-        console.print("[cyan]Streaming analysis not supported with unified agent[/cyan]")
-        console.print("[yellow]Running standard analysis...[/yellow]\n")
-        
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        task = progress.add_task("Analyzing with unified agent...", total=None)
-        result = await agent.discover_materials(query, trace_workflow=False)
-        progress.remove_task(task)
-    
-    # Parse and display results
-    try:
-        if result and result.get('status') == 'completed':
-            discovery_result = result.get('discovery_result', '')
-            console.print(Panel(discovery_result, title="✅ Materials Discovery Result", border_style="green"))
+        # Choose analysis mode based on patterns
+        if copilot:
+            # Use co-pilot mode with human checkpoints
+            from .agents.copilot_agent import run_copilot_discovery
+            console.print("\nStarting Co-pilot Discovery Mode")
             
-            # Display metrics
-            metrics = result.get('metrics', {})
-            if metrics:
-                console.print(f"\n[dim]⚡ Analysis completed in {metrics.get('elapsed_time', 0):.2f}s using {metrics.get('model', 'unknown')} in {metrics.get('mode', 'unknown')} mode[/dim]")
-                
-        elif result and result.get('status') == 'failed':
-            error_msg = result.get('error', 'Unknown error')
-            console.print(Panel(f"❌ Analysis failed: {error_msg}", title="Error", border_style="red"))
+            result = await run_copilot_discovery(
+                query=query, 
+                enable_checkpoints=True,
+                requirements={"budget": budget, "model": model}
+            )
+            
+        elif pipeline:
+            # Use three-stage pipeline
+            from .agents.pipeline_agents import ThreeStageRunner
+            console.print("\nStarting Three-Stage Pipeline")
+            
+            runner = ThreeStageRunner(
+                query=query, 
+                model=model,
+                temperature=temperature,
+                max_turns=max_turns
+            )
+            result = await runner.run_pipeline()
+
+        elif optimise:
+            # Run hill-climb optimisation
+            from .agents.hill_climb_optimiser import HillClimbOptimiser
+            console.print("\nStarting Hill-Climb Optimisation")
+
+            # Need to get initial candidates first, maybe from a basic agent run?
+            # For now, let's assume we have some. This part needs better integration.
+            console.print("[yellow]Warning: Optimisation mode needs initial candidates.[/yellow]")
+            initial_candidates = [
+                {'formula': 'LiCoO2', 'stability': 0.8, 'energy_per_atom': -2.5},
+                {'formula': 'NaFePO4', 'stability': 0.7, 'energy_per_atom': -2.3}
+            ]
+            
+            optimiser = HillClimbOptimiser(max_iterations=10, population_size=8)
+            result = await optimiser.optimise_materials(
+                target_description=query,
+                initial_candidates=initial_candidates
+            )
+
         else:
-            console.print(Panel(str(result), title="Analysis Result", border_style="yellow"))
+            # Default: unified agent without special patterns
+            agent = CrystaLyseUnifiedAgent(
+                config=AgentConfig(
+                    model_name=model,
+                    temperature=temperature,
+                    max_turns=max_turns,
+                    stream_to_console=stream,
+                    budget=budget
+                )
+            )
             
-        # Save to file if requested
+            result = await agent.run_full_discovery(query)
+            
+        # Process and display results
         if output:
             with open(output, "w") as f:
                 json.dump(result, f, indent=2)
             console.print(f"\n[green]Results saved to {output}[/green]")
-            
+        else:
+            # Nicely formatted output
+            if isinstance(result, dict) and "candidates" in result:
+                display_results(result)
+            elif isinstance(result, str):
+                console.print(Panel(result, title="Final Answer", border_style="green"))
+            else:
+                console.print(result)
+
     except Exception as e:
-        console.print(f"[red]Error displaying results: {e}[/red]")
-        console.print(Panel(str(result), title="Raw Result", border_style="red"))
+        console.print(f"\n[red]An error occurred during analysis: {e}[/red]")
+        # Add more detailed error handling/logging here
 
+def display_results(result: dict):
+    """Display final results in a formatted table."""
+    
+    table = Table(title="Top Material Candidates")
+    table.add_column("Formula", style="cyan")
+    table.add_column("Stability Score", style="magenta")
+    table.add_column("Predicted Properties", style="green")
+    
+    candidates = result.get("candidates", [])
+    for cand in candidates:
+        props_str = ", ".join([f"{k}: {v}" for k, v in cand.get("properties", {}).items()])
+        table.add_row(
+            cand.get("formula", "N/A"),
+            f"{cand.get('stability', 0):.2f}",
+            props_str
+        )
+        
+    console.print(table)
+    
+    summary = result.get("summary", "No summary provided.")
+    console.print(Panel(summary, title="Analysis Summary", border_style="yellow"))
 
-
+    # Visualize best candidate if available
+    if candidates and "structure_data" in candidates[0]:
+        console.print("\n[bold]Visualising best candidate...[/bold]")
+        from .visualisation.crystal_viz import visualise_structure
+        visualise_structure(candidates[0]["structure_data"])
+        
 
 @cli.command()
 def examples():
@@ -290,7 +359,7 @@ def examples():
         ])
     ]
     
-    console.print("[bold]🔬 CrystaLyse.AI Unified Agent Examples[/bold]\n")
+    console.print("[bold]CrystaLyse.AI Unified Agent Examples[/bold]\n")
     
     for category, category_examples in examples:
         console.print(f"[cyan]{category}:[/cyan]")
@@ -299,44 +368,136 @@ def examples():
         console.print()
         
     console.print("[dim]Run any example with:[/dim]")
-    console.print('[cyan]crystalyse analyze "Your query here"[/cyan]')
+    console.print('[cyan]crystalyse analyse "Your query here"[/cyan]')
     console.print()
     console.print("[dim]For rigorous analysis (temperature < 0.5):[/dim]")
-    console.print('[cyan]crystalyse analyze "Your query" --temperature 0.3[/cyan]')
+    console.print('[cyan]crystalyse analyse "Your query" --temperature 0.3[/cyan]')
+    console.print()
+    console.print("[bold]Agent Laboratory Patterns:[/bold]")
+    console.print('[cyan]crystalyse analyse "Your query" --copilot[/cyan]      # Human checkpoints')
+    console.print('[cyan]crystalyse analyse "Your query" --pipeline[/cyan]     # Three-stage pipeline')
+    console.print('[cyan]crystalyse analyse "Your query" --optimise[/cyan]     # Hill-climb optimisation')
+    console.print('[cyan]crystalyse analyse "Your query" --budget 0.50[/cyan]  # Budget limit ($0.50)')
     console.print()
     console.print("[dim]View agent status:[/dim]")
     console.print('[cyan]crystalyse status[/cyan]')
 
 
 @cli.command()
-def shell():
-    """Start CrystaLyse.AI interactive shell."""
-    from .interactive_shell import CrystaLyseShell
-    import asyncio
+@click.option("--model", default=config.default_model, help="Model to use for the interactive session.")
+@click.option("--max-turns", default=15, help="Maximum number of conversation turns.")
+@click.option("--temperature", default=0.4, help="Set the creativity temperature (0.0 to 1.0).")
+def shell(model: str, max_turns: int, temperature: float):
+    """
+    Start an interactive shell for materials discovery with CrystaLyse.AI.
     
-    shell = CrystaLyseShell()
-    asyncio.run(shell.start())
+    Provides a conversational interface for iterative materials exploration.
+    Supports history, autocompletion, and multi-line input.
+    
+    Args:
+        model (str): The language model to be used in the session.
+        max_turns (int): Max turns for each conversation.
+        temperature (float): The creativity temperature for the model.
+    """
+    asyncio.run(_shell(model, max_turns, temperature))
 
 
-@cli.command()
-def server():
-    """Start the SMACT MCP server (for testing)."""
-    console.print("[cyan]Starting SMACT MCP server...[/cyan]")
-    smact_path = os.path.join(os.path.dirname(__file__), "..", "..", "smact-mcp-server")
-    os.system(f"cd {smact_path} && python -m smact_mcp.server")
+async def _shell(model: str, max_turns: int, temperature: float):
+    """Asynchronous implementation of the interactive shell."""
+    
+    display_splash_screen()
+    
+    agent = CrystaLyseUnifiedAgent(
+        config=AgentConfig(
+            model_name=model,
+            temperature=temperature,
+            max_turns=max_turns,
+            stream_to_console=True
+        )
+    )
+
+    # Setup prompt session
+    style = Style.from_dict({
+        'prompt': 'bold #00ff00',
+    })
+    
+    # Add example queries to completer
+    example_queries = [
+        "Design a new solar cell material", 
+        "Find a stable, non-toxic blue pigment",
+        "Analyse carbon-based superconductors"
+    ]
+    completer = FuzzyCompleter(WordCompleter(example_queries, ignore_case=True))
+    
+    session = PromptSession(
+        "CrystaLyse> ",
+        style=style,
+        completer=completer,
+        history=None # Could implement file-based history here
+    )
+
+    while True:
+        try:
+            user_input = await session.prompt_async()
+            
+            if user_input.lower() in ['exit', 'quit']:
+                break
+            if user_input.lower().startswith('!file'):
+                filepath = user_input.split(' ', 1)[1]
+                await run_from_file(filepath, agent)
+                continue
+                
+            if not user_input.strip():
+                continue
+
+            await agent.run_full_discovery(user_input)
+
+        except KeyboardInterrupt:
+            continue
+        except EOFError:
+            break
+            
+    console.print("\n[bold cyan]Exiting CrystaLyse.AI. Goodbye![/bold cyan]\n")
+
+
+def display_splash_screen():
+    """Displays a cool splash screen for the interactive shell."""
+    logo = """
+   ______           __         __  .__.__          
+  / ____/________  / /_  ___  / /_/  |  |   ____   
+ / /   / ___/ __ \/ __ \/ _ \/ __/ / |  |  /  _ \  
+/ /___/ /  / /_/ / / / /  __/ /_/ /|  |_(  <_> ) 
+\____/_/   \____/_/ /_/\___/\__/_/ |____/\____/  
+    """
+    console.print(f"[bold cyan]{logo}[/bold cyan]")
+    console.print("[bold]Welcome to the CrystaLyse.AI Interactive Shell[/bold]")
+    console.print("Type your materials science queries or 'exit' to quit.")
+    console.print("Example: 'Design a lead-free piezoelectric material'")
+    console.print("-" * 60)
+
+
+async def run_from_file(filepath: str, agent: CrystaLyseUnifiedAgent):
+    """Runs a discovery session from a file containing a list of queries."""
+    try:
+        with open(filepath, 'r') as f:
+            queries = [line.strip() for line in f if line.strip()]
+        
+        console.print(f"Found {len(queries)} queries in {filepath}.")
+        
+        for i, query in enumerate(queries):
+            console.print(f"\n--- Running Query {i+1}/{len(queries)}: {query} ---")
+            await agent.run_full_discovery(query)
+            
+    except FileNotFoundError:
+        console.print(f"[red]Error: File not found at '{filepath}'[/red]")
+    except Exception as e:
+        console.print(f"[red]An error occurred while running from file: {e}[/red]")
 
 
 def main():
-    """Main entry point."""
-    # If no command provided, start interactive shell
-    import sys
-    if len(sys.argv) == 1:
-        from .interactive_shell import CrystaLyseShell
-        import asyncio
-        shell = CrystaLyseShell()
-        asyncio.run(shell.start())
-    else:
-        cli()
+    """Main entry point for the CLI."""
+    # It's good practice to wrap the main entry point in a function.
+    cli()
 
 
 if __name__ == "__main__":

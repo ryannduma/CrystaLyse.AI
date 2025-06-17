@@ -1,6 +1,7 @@
 """Central configuration management for CrystaLyse.AI"""
 
 import os
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -18,23 +19,23 @@ class CrystaLyseConfig:
         self.mcp_servers = {
             "smact": {
                 "command": os.getenv("SMACT_MCP_COMMAND", "python"),
-                "args": os.getenv("SMACT_MCP_ARGS", "-m smact_mcp").split(),
-                "cwd": os.getenv("SMACT_MCP_PATH", str(self.base_dir / "smact-mcp-server"))
+                "args": os.getenv("SMACT_MCP_ARGS", "-m smact_mcp.server").split(),
+                "cwd": os.getenv("SMACT_MCP_PATH", str(self.base_dir / "smact-mcp-server" / "src"))
             },
             "chemeleon": {
                 "command": os.getenv("CHEMELEON_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMELEON_MCP_ARGS", "-m chemeleon_mcp").split(),
-                "cwd": os.getenv("CHEMELEON_MCP_PATH", str(self.base_dir / "chemeleon-mcp-server"))
+                "args": os.getenv("CHEMELEON_MCP_ARGS", "-m chemeleon_mcp.server").split(),
+                "cwd": os.getenv("CHEMELEON_MCP_PATH", str(self.base_dir / "chemeleon-mcp-server" / "src"))
             },
             "mace": {
                 "command": os.getenv("MACE_MCP_COMMAND", "python"),
-                "args": os.getenv("MACE_MCP_ARGS", "-m mace_mcp").split(),
-                "cwd": os.getenv("MACE_MCP_PATH", str(self.base_dir / "mace-mcp-server"))
+                "args": os.getenv("MACE_MCP_ARGS", "-m mace_mcp.server").split(),
+                "cwd": os.getenv("MACE_MCP_PATH", str(self.base_dir / "mace-mcp-server" / "src"))
             }
         }
         
         # Agent Configuration
-        self.default_model = os.getenv("CRYSTALYSE_MODEL", "claude-3-5-sonnet-20241022")
+        self.default_model = os.getenv("CRYSTALYSE_MODEL", "o4-mini")
         self.default_temperature = float(os.getenv("CRYSTALYSE_TEMPERATURE", "0.7"))
         self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "10"))
         
@@ -66,6 +67,16 @@ class CrystaLyseConfig:
             
         return config
         
+    def validate_dependencies(self):
+        """Perform validation of critical system dependencies."""
+        if not shutil.which("python"):
+            raise RuntimeError("Python interpreter not found in system PATH. CrystaLyse.AI requires Python.")
+        
+        try:
+            import mcp
+        except ImportError:
+            raise RuntimeError("MCP package not found. Please install it with: pip install mcp")
+
     def validate_environment(self) -> Dict[str, Any]:
         """Validate that all required components are available"""
         status = {
@@ -74,6 +85,13 @@ class CrystaLyseConfig:
             "overall": "healthy"
         }
         
+        # Check for python executable
+        if not shutil.which("python"):
+            status["dependencies"]["python"] = False
+            status["overall"] = "unhealthy"
+        else:
+            status["dependencies"]["python"] = True
+
         # Check server directories
         for server_name, server_config in self.mcp_servers.items():
             cwd_path = Path(server_config["cwd"])
@@ -87,10 +105,10 @@ class CrystaLyseConfig:
             
         # Check Python dependencies
         try:
-            import anthropic
-            status["dependencies"]["anthropic"] = True
+            import agents
+            status["dependencies"]["openai_agents"] = True
         except ImportError:
-            status["dependencies"]["anthropic"] = False
+            status["dependencies"]["openai_agents"] = False
             status["overall"] = "degraded"
             
         try:
@@ -104,6 +122,7 @@ class CrystaLyseConfig:
 
 # Global configuration instance
 config = CrystaLyseConfig()
+config.validate_dependencies()
 
 # Backward compatibility functions
 def get_agent_config():

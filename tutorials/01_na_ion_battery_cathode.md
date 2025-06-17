@@ -1,4 +1,4 @@
-# Tutorial 1: Designing Stable Cathode Materials for Na-ion Batteries
+# Tutorial 1: Designing Stable Cathode Materials for Na-ion Battery
 
 **Query:** "Design a stable cathode material for a Na-ion battery."
 
@@ -6,7 +6,7 @@ This tutorial demonstrates how CrystaLyse.AI's dual-mode system approaches mater
 
 ---
 
-## 🎯 Tutorial Objectives
+## Tutorial Objectives
 
 Learn how to:
 - Use both Creative and Rigorous modes for battery material design
@@ -16,7 +16,7 @@ Learn how to:
 
 ---
 
-## 🔋 Background: Na-ion Battery Cathodes
+## Background: Na-ion Battery Cathodes
 
 **Key Requirements:**
 - **High energy density**: >300 Wh/kg theoretical capacity
@@ -32,7 +32,7 @@ Learn how to:
 
 ---
 
-## 🎨 Creative Mode Analysis
+## Creative Mode Analysis
 
 ### Running the Query
 
@@ -63,7 +63,7 @@ asyncio.run(creative_mode_example())
 ### Expected Creative Mode Output
 
 ```
-🎨 CREATIVE MODE RESULTS - Na-ion Battery Cathodes
+CREATIVE MODE RESULTS - Na-ion Battery Cathodes
 
 ### 1. Na₂MnFe(PO₄)₂ - Mixed Olivine Structure
 **Structure Type:** Modified olivine (Pnma space group)
@@ -100,14 +100,13 @@ asyncio.run(creative_mode_example())
 - Co²⁺/Co³⁺ provides high voltage redox
 - Mn stabilizes structure and reduces cost
 - BO₃³⁻ triangular units create open framework
-- 1D channels optimized for Na⁺ transport
+- 1D channels optimised for Na⁺ transport
 
 **Synthesis Route:** Molten salt synthesis using NaCl/KCl flux at 700°C
 
 *"These outputs are based on my chemical intuition and knowledge. 
 For extra rigor and experimental validation, use 'use_chem_tools' mode 
 to verify compositions with SMACT computational tools."*
-```
 
 ### Analysis of Creative Mode
 
@@ -120,12 +119,12 @@ to verify compositions with SMACT computational tools."*
 **Limitations:**
 - No computational validation of compositions
 - Theoretical predictions may not match experimental reality
-- Some compositions may be difficult to synthesize
+- Some compositions may be difficult to synthesise
 - Lack of rigorous charge balance verification
 
 ---
 
-## 🔬 Rigorous Mode Analysis
+## Rigorous Mode Analysis
 
 ### Running the Query
 
@@ -156,11 +155,11 @@ asyncio.run(rigorous_mode_example())
 ### Expected Rigorous Mode Output
 
 ```
-🔬 RIGOROUS MODE RESULTS - Na-ion Battery Cathodes (SMACT Validated)
+RIGOROUS MODE RESULTS - Na-ion Battery Cathodes (SMACT Validated)
 
 ### 1. NaFePO₄ - Iron Phosphate Olivine
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Na(1), Fe(1), P(1), O(4)
 - **Charge Balance**: Na⁺(1) + Fe³⁺(3) + P⁵⁺(5) = 9+ | O²⁻(4×2) = 8-
 - **Oxidation States**: Na: +1, Fe: +3, P: +5, O: -2
@@ -183,7 +182,7 @@ asyncio.run(rigorous_mode_example())
 
 ### 2. NaMnO₂ - Layered Manganese Oxide  
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Na(1), Mn(1), O(2)
 - **Charge Balance**: Na⁺(1) + Mn⁴⁺(4) = 5+ | O²⁻(2×2) = 4-
 - **Oxidation States**: Na: +1, Mn: +4, O: -2
@@ -206,7 +205,7 @@ asyncio.run(rigorous_mode_example())
 
 ### 3. Na₃V₂(PO₄)₃ - NASICON-type Vanadium Phosphate
 **SMACT Validation Results:**
-- ✅ **Composition Valid**: True
+- **Composition Valid**: True
 - **Elemental Breakdown**: Na(3), V(2), P(3), O(12)
 - **Charge Balance**: Na⁺(3×1) + V³⁺(2×3) + P⁵⁺(3×5) = 24+ | O²⁻(12×2) = 24-
 - **Oxidation States**: Na: +1, V: +3, P: +5, O: -2
@@ -234,7 +233,6 @@ asyncio.run(rigorous_mode_example())
 - **Validation Success Rate**: 37.5%
 
 All recommended compositions passed rigorous SMACT computational validation.
-```
 
 ### Analysis of Rigorous Mode
 
@@ -252,7 +250,7 @@ All recommended compositions passed rigorous SMACT computational validation.
 
 ---
 
-## ⚖️ Mode Comparison
+## Mode Comparison
 
 | Aspect | Creative Mode | Rigorous Mode |
 |--------|---------------|---------------|
@@ -265,7 +263,7 @@ All recommended compositions passed rigorous SMACT computational validation.
 
 ---
 
-## 🎯 Practical Application Guide
+## Practical Application Guide
 
 ### When to Use Creative Mode
 - **Early research phase**: Exploring new material concepts
@@ -281,7 +279,7 @@ All recommended compositions passed rigorous SMACT computational validation.
 
 ---
 
-## 🧪 Recommended Workflow
+## Recommended Workflow
 
 ### Step-by-Step Approach
 
@@ -313,7 +311,7 @@ All recommended compositions passed rigorous SMACT computational validation.
 
 ---
 
-## 📊 Expected Performance Metrics
+## Expected Performance Metrics
 
 ### NaFePO₄ (Validated Candidate)
 - **Theoretical Capacity**: 154 mAh/g
@@ -330,7 +328,7 @@ All recommended compositions passed rigorous SMACT computational validation.
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 After completing this tutorial:
 

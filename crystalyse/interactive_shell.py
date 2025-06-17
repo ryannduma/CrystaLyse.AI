@@ -4,14 +4,14 @@ CrystaLyse.AI Interactive Shell
 
 An enhanced interactive shell for CrystaLyse.AI that provides a conversational
 interface for materials discovery with session management, history, and
-real-time visualization capabilities.
+real-time visualisation capabilities.
 
 Features:
     - Interactive command prompt with history and auto-suggestions
     - Session management for maintaining context across queries
     - Real-time streaming analysis with progress indicators
     - Built-in commands for mode switching, viewing results, and help
-    - Browser-based 3D structure visualization
+    - Browser-based 3D structure visualisation
     - Export capabilities for analysis results
 """
 
@@ -75,7 +75,7 @@ BANNER = """
 """
 
 HELP_TEXT = """
-🔬 CrystaLyse.AI Interactive Shell Help
+CrystaLyse.AI Interactive Shell Help
 
 BASIC USAGE:
   Simply type what kind of material you're looking for:
@@ -116,7 +116,7 @@ TIPS:
   • Use Ctrl+C to interrupt long analyses
   • Up/down arrows browse command history
   • Tab completion works for commands
-  • Rigorous mode saves CIF files and generates HTML visualizations
+  • Rigorous mode saves CIF files and generates HTML visualisations
 """
 
 EXAMPLE_QUERIES = [
@@ -153,9 +153,9 @@ class CrystaLyseShell:
         self.agent: Optional[CrystaLyseUnifiedAgent] = None
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Simplified for unified agent (no visualization dependencies for now)
+        # Simplified for unified agent (no visualisation dependencies for now)
         # self.storage = StructureStorage(Path.cwd() / "crystalyse_storage")
-        # self.visualizer = CrystalVisualizer(backend="py3dmol")
+        # self.visualiser = CrystalVisualiser(backend="py3dmol")
         
         # Command completer
         commands = [
@@ -164,11 +164,11 @@ class CrystaLyseShell:
         ]
         self.completer = WordCompleter(commands + EXAMPLE_QUERIES)
         
-    async def initialize_agent(self) -> bool:
-        """Initialize the unified CrystaLyse agent."""
+    async def initialise_agent(self) -> bool:
+        """Initialise the unified CrystaLyse agent."""
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            self.console.print("[red]❌ Error: OpenAI API key not found![/red]")
+            self.console.print("[red]Error: OpenAI API key not found![/red]")
             self.console.print("Set OPENAI_API_KEY environment variable.")
             return False
             
@@ -198,7 +198,7 @@ class CrystaLyseShell:
             self.agent = CrystaLyseUnifiedAgent(agent_config)
             return True
         except Exception as e:
-            self.console.print(f"[red]❌ Error initializing unified agent: {e}[/red]")
+            self.console.print(f"[red]Error initialising unified agent: {e}[/red]")
             return False
     
     async def start(self):
@@ -207,15 +207,15 @@ class CrystaLyseShell:
         dynamic_banner = BANNER.replace("Mode: rigorous", f"Mode: {self.mode}")
         self.console.print(dynamic_banner, style="cyan")
         
-        # Initialize agent quietly
-        if not await self.initialize_agent():
+        # Initialise agent quietly
+        if not await self.initialise_agent():
             return
         
         # Main interaction loop
         while True:
             try:
                 # Get user input with prompt
-                mode_emoji = "🔬" if self.mode == "rigorous" else "🎨"
+                mode_emoji = "[R]" if self.mode == "rigorous" else "[C]"
                 user_input = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: prompt(
@@ -232,7 +232,7 @@ class CrystaLyseShell:
                 if user_input.strip().startswith('/'):
                     await self.handle_command(user_input.strip())
                 else:
-                    await self.analyze_query(user_input.strip())
+                    await self.analyse_query(user_input.strip())
                     
             except KeyboardInterrupt:
                 self.console.print("\n[yellow]Analysis interrupted. Type /exit to quit.[/yellow]")
@@ -240,7 +240,7 @@ class CrystaLyseShell:
             except EOFError:
                 break
                 
-        self.console.print("\n[cyan]👋 Goodbye! Happy materials discovery![/cyan]")
+        self.console.print("\n[cyan]Goodbye! Happy materials discovery![/cyan]")
     
     async def handle_command(self, command: str):
         """Handle shell commands."""
@@ -256,20 +256,20 @@ class CrystaLyseShell:
                 if new_mode in ['creative', 'rigorous']:
                     if new_mode != self.mode:
                         self.mode = new_mode
-                        # Reinitialize agent with new mode settings
-                        self.console.print(f"[yellow]🔄 Switching to {self.mode} mode...[/yellow]")
-                        if await self.initialize_agent():
-                            self.console.print(f"[green]✅ Mode set to: {self.mode}[/green]")
+                        # Reinitialise agent with new mode settings
+                        self.console.print(f"[yellow]Switching to {self.mode} mode...[/yellow]")
+                        if await self.initialise_agent():
+                            self.console.print(f"[green]Mode set to: {self.mode}[/green]")
                             if self.mode == 'rigorous':
-                                self.console.print("[cyan]📊 Rigorous mode: SMACT validation + MACE energy calculations enabled[/cyan]")
+                                self.console.print("[cyan]Rigorous mode: SMACT validation + MACE energy calculations enabled[/cyan]")
                             else:
-                                self.console.print("[cyan]🎨 Creative mode: AI-driven exploration with chemical intuition[/cyan]")
+                                self.console.print("[cyan]Creative mode: AI-driven exploration with chemical intuition[/cyan]")
                         else:
-                            self.console.print("[red]❌ Failed to initialize agent for new mode[/red]")
+                            self.console.print("[red]Failed to initialise agent for new mode[/red]")
                     else:
                         self.console.print(f"[yellow]Already in {self.mode} mode[/yellow]")
                 else:
-                    self.console.print("[red]❌ Invalid mode. Use 'creative' or 'rigorous'[/red]")
+                    self.console.print("[red]Invalid mode. Use 'creative' or 'rigorous'[/red]")
             else:
                 self.console.print(f"[cyan]Current mode: {self.mode}[/cyan]")
                 self.console.print("Available modes:")
@@ -311,13 +311,13 @@ class CrystaLyseShell:
             raise EOFError
             
         else:
-            self.console.print(f"[red]❌ Unknown command: {cmd}[/red]")
+            self.console.print(f"[red]Unknown command: {cmd}[/red]")
             self.console.print("Type /help for available commands")
     
-    async def analyze_query(self, query: str):
-        """Analyze a materials discovery query."""
+    async def analyse_query(self, query: str):
+        """Analyse a materials discovery query."""
         if not self.agent:
-            self.console.print("[red]❌ Agent not initialized[/red]")
+            self.console.print("[red]Agent not initialised[/red]")
             return
             
         # Display query
@@ -331,7 +331,7 @@ class CrystaLyseShell:
                 BarColumn(),
                 console=self.console
             ) as progress:
-                task = progress.add_task(f"Analyzing query in {self.mode} mode...", total=None)
+                task = progress.add_task(f"Analysing query in {self.mode} mode...", total=None)
                 
                 result = await self.agent.discover_materials(query, trace_workflow=False)
                 progress.remove_task(task)
@@ -354,7 +354,7 @@ class CrystaLyseShell:
             
         except Exception as e:
             import traceback
-            self.console.print(f"[red]❌ Analysis failed: {e}[/red]")
+            self.console.print(f"[red]Analysis failed: {e}[/red]")
             self.console.print(f"[dim]Error type: {type(e).__name__}[/dim]")
             # In debug mode, show more details
             if os.getenv("CRYSTALYSE_DEBUG", "false").lower() == "true":
@@ -363,7 +363,7 @@ class CrystaLyseShell:
     async def display_results(self, result):
         """Display analysis results from unified agent."""
         if not result:
-            self.console.print("[yellow]⚠️ No results returned[/yellow]")
+            self.console.print("[yellow]No results returned[/yellow]")
             return
         
         # Handle unified agent response format
@@ -372,19 +372,19 @@ class CrystaLyseShell:
                 discovery_result = result.get('discovery_result', '')
                 self.console.print(Panel(
                     str(discovery_result), 
-                    title="✅ Materials Discovery Results", 
+                    title="Materials Discovery Results", 
                     border_style="green"
                 ))
                 
                 # Display metrics
                 metrics = result.get('metrics', {})
                 if metrics:
-                    self.console.print(f"\n[dim]⚡ Completed in {metrics.get('elapsed_time', 0):.2f}s using {metrics.get('model', 'unknown')} in {metrics.get('mode', 'unknown')} mode[/dim]")
+                    self.console.print(f"\n[dim]Completed in {metrics.get('elapsed_time', 0):.2f}s using {metrics.get('model', 'unknown')} in {metrics.get('mode', 'unknown')} mode[/dim]")
                     
             elif result.get('status') == 'failed':
                 error_msg = result.get('error', 'Unknown error')
                 self.console.print(Panel(
-                    f"❌ Analysis failed: {error_msg}", 
+                    f"Analysis failed: {error_msg}", 
                     title="Error", 
                     border_style="red"
                 ))
@@ -392,14 +392,14 @@ class CrystaLyseShell:
                 # Fallback display
                 self.console.print(Panel(
                     str(result), 
-                    title="📊 Analysis Results", 
+                    title="Analysis Results", 
                     border_style="yellow"
                 ))
         else:
             # String result
             self.console.print(Panel(
                 str(result), 
-                title="📊 Analysis Results", 
+                title="Analysis Results", 
                 border_style="green"
             ))
             
@@ -533,13 +533,13 @@ class CrystaLyseShell:
                     
                     # Generate HTML report if we have actual structure data
                     if not structures_for_comp[0].get('placeholder', False):
-                        html_content = self.visualizer.create_multi_structure_report(
+                        html_content = self.visualiser.create_multi_structure_report(
                             structures_for_comp, comp
                         )
-                        self.storage.store_visualization_report(comp, html_content)
+                        self.storage.store_visualisation_report(comp, html_content)
                     
         except Exception as e:
-            self.console.print(f"[yellow]⚠️ Warning: Could not store structures: {e}[/yellow]")
+            self.console.print(f"[yellow]Warning: Could not store structures: {e}[/yellow]")
     
     async def view_structure(self, composition: str = None):
         """Open structure viewer for specified composition or latest structures."""
@@ -549,7 +549,7 @@ class CrystaLyseShell:
                 # View specific composition
                 structures = self.storage.get_structures_for_composition(composition)
                 if not structures:
-                    self.console.print(f"[yellow]⚠️ No structures found for {composition}[/yellow]")
+                    self.console.print(f"[yellow]No structures found for {composition}[/yellow]")
                     # Try to regenerate structures for this composition
                     await self._regenerate_structures_for_composition(composition)
                     return
@@ -557,7 +557,7 @@ class CrystaLyseShell:
             else:
                 # View latest structures from current session
                 if not self.current_compositions:
-                    self.console.print("[yellow]⚠️ No structures available. Run an analysis first.[/yellow]")
+                    self.console.print("[yellow]No structures available. Run an analysis first.[/yellow]")
                     return
                 
                 # Use the first composition from the latest analysis
@@ -569,7 +569,7 @@ class CrystaLyseShell:
                     structures = [s for s in self.current_structures if s.get('composition') == target_composition or s.get('formula') == target_composition]
             
             if not structures:
-                self.console.print("[yellow]⚠️ No structure data available for visualization.[/yellow]")
+                self.console.print("[yellow]No structure data available for visualisation.[/yellow]")
                 return
             
             # Check if we need to regenerate structures (if they're placeholders)
@@ -587,22 +587,22 @@ class CrystaLyseShell:
                 temp_path = f.name
                 
             webbrowser.open(f'file://{temp_path}')
-            self.console.print(f"[green]✅ Structure viewer opened in browser for {target_composition}[/green]")
+            self.console.print(f"[green]Structure viewer opened in browser for {target_composition}[/green]")
             self.console.print(f"[dim]Structures: {len(structures)} | File: {temp_path}[/dim]")
             
         except Exception as e:
-            self.console.print(f"[red]❌ Error opening structure viewer: {e}[/red]")
+            self.console.print(f"[red]Error opening structure viewer: {e}[/red]")
             import traceback
             if os.getenv("CRYSTALYSE_DEBUG", "false").lower() == "true":
                 self.console.print(f"[dim]Traceback: {traceback.format_exc()}[/dim]")
     
     async def _regenerate_structures_for_composition(self, composition: str):
         """Regenerate crystal structures for a specific composition."""
-        self.console.print(f"[yellow]🔄 Generating crystal structures for {composition}...[/yellow]")
+        self.console.print(f"[yellow]Generating crystal structures for {composition}...[/yellow]")
         
         try:
             # Use Chemeleon to generate structures directly
-            query = f"Generate 3 crystal structures for {composition} using Chemeleon CSP tools. Include CIF data for visualization."
+            query = f"Generate 3 crystal structures for {composition} using Chemeleon CSP tools. Include CIF data for visualisation."
             
             with Progress(
                 SpinnerColumn(),
@@ -612,7 +612,7 @@ class CrystaLyseShell:
                 task = progress.add_task(f"Generating structures for {composition}...", total=None)
                 
                 # Run the agent to generate structures
-                result = await self.agent.analyze(query)
+                result = await self.agent.analyse(query)
                 progress.remove_task(task)
             
             # Extract CIF data from the result
@@ -628,12 +628,12 @@ class CrystaLyseShell:
                     temp_path = f.name
                     
                 webbrowser.open(f'file://{temp_path}')
-                self.console.print(f"[green]✅ Structure viewer opened for {composition}[/green]")
+                self.console.print(f"[green]Structure viewer opened for {composition}[/green]")
             else:
-                self.console.print(f"[yellow]⚠️ Could not generate viewable structures for {composition}[/yellow]")
+                self.console.print(f"[yellow]Could not generate viewable structures for {composition}[/yellow]")
                 
         except Exception as e:
-            self.console.print(f"[red]❌ Error generating structures: {e}[/red]")
+            self.console.print(f"[red]Error generating structures: {e}[/red]")
     
     def _generate_structure_viewer(self, structures: List[Dict], composition: str) -> str:
         """Generate HTML viewer for structures."""
@@ -642,12 +642,12 @@ class CrystaLyseShell:
             return generate_crystal_viewer(structures[0]['cif'], composition)
         else:
             # Multiple structures - use comprehensive report
-            return self.visualizer.create_multi_structure_report(structures, composition)
+            return self.visualiser.create_multi_structure_report(structures, composition)
     
     async def export_session(self, filename: str):
         """Export the current session to a JSON file."""
         if not self.session_history:
-            self.console.print("[yellow]⚠️ No analysis history to export[/yellow]")
+            self.console.print("[yellow]No analysis history to export[/yellow]")
             return
             
         try:
@@ -662,18 +662,18 @@ class CrystaLyseShell:
             with open(filename, 'w') as f:
                 json.dump(export_data, f, indent=2, default=str)
                 
-            self.console.print(f"[green]✅ Session exported to: {filename}[/green]")
+            self.console.print(f"[green]Session exported to: {filename}[/green]")
             
         except Exception as e:
-            self.console.print(f"[red]❌ Export failed: {e}[/red]")
+            self.console.print(f"[red]Export failed: {e}[/red]")
     
     def show_history(self):
         """Display analysis history."""
         if not self.session_history:
-            self.console.print("[yellow]⚠️ No analysis history[/yellow]")
+            self.console.print("[yellow]No analysis history[/yellow]")
             return
             
-        history_table = Table(title="📋 Analysis History")
+        history_table = Table(title="Analysis History")
         history_table.add_column("Time", style="cyan")
         history_table.add_column("Mode", style="yellow")
         history_table.add_column("Query", style="green")
@@ -692,27 +692,27 @@ class CrystaLyseShell:
         """Display system status."""
         rate_limits = verify_rate_limits()
         
-        status_table = Table(title="🚀 CrystaLyse.AI Status")
+        status_table = Table(title="CrystaLyse.AI Status")
         status_table.add_column("Component", style="cyan")
         status_table.add_column("Status", style="green")
         
         # API Status
-        api_status = "✅ Connected" if rate_limits["mdg_api_configured"] else "❌ Not configured"
+        api_status = "Connected" if rate_limits["mdg_api_configured"] else "Not configured"
         status_table.add_row("API Connection", api_status)
         
         # Agent status and configuration
         if self.agent:
             config = self.agent.get_agent_configuration()
-            mode_desc = f"🔬 {self.mode}"
+            mode_desc = f"[R] {self.mode}" if self.mode == "rigorous" else f"[C] {self.mode}"
             if config.get('use_chem_tools'):
                 mode_desc += " + SMACT"
             if config.get('enable_mace'):
                 mode_desc += " + MACE"
-            status_table.add_row("Analysis Agent", "✅ Ready")
+            status_table.add_row("Analysis Agent", "Ready")
             status_table.add_row("Current Mode", mode_desc)
         else:
-            status_table.add_row("Analysis Agent", "❌ Not initialized")
-            status_table.add_row("Current Mode", f"🔬 {self.mode}")
+            status_table.add_row("Analysis Agent", "Not initialised")
+            status_table.add_row("Current Mode", f"[R] {self.mode}" if self.mode == "rigorous" else f"[C] {self.mode}")
         
         # Session info
         status_table.add_row("Session ID", self.session_id)
@@ -736,14 +736,14 @@ class CrystaLyseShell:
             comp_text = ", ".join(storage_stats['compositions'][-5:])  # Show last 5
             if len(storage_stats['compositions']) > 5:
                 comp_text = f"...{comp_text} (showing latest 5)"
-            self.console.print(f"\n[cyan]📁 Available compositions: {comp_text}[/cyan]")
-            self.console.print("[dim]Use /view [composition] to visualize specific structures[/dim]")
+            self.console.print(f"\n[cyan]Available compositions: {comp_text}[/cyan]")
+            self.console.print("[dim]Use /view [composition] to visualise specific structures[/dim]")
     
     def show_examples(self):
         """Display example queries."""
         self.console.print(Panel(
             "\n".join(f"• {example}" for example in EXAMPLE_QUERIES),
-            title="💡 Example Queries",
+            title="Example Queries",
             border_style="blue"
         ))
 

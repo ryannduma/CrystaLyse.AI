@@ -182,7 +182,7 @@ class MaterialsKnowledgeBase:
     def predict_structure_types(self, composition: str) -> List[Dict]:
         # Perovskite, spinel, layered structure prediction
         
-    def analyze_application_requirements(self, app: str) -> Dict:
+    def analyse_application_requirements(self, app: str) -> Dict:
         # Map applications to element/property requirements
         
     def suggest_synthesis_routes(self, composition: str) -> List[str]:

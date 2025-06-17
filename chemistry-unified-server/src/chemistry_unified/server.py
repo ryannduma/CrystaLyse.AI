@@ -20,7 +20,7 @@ from mcp.server.fastmcp import FastMCP
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
-# Initialize unified server
+# Initialise unified server
 mcp = FastMCP("chemistry-unified")
 
 # Try to import existing tools with graceful fallbacks
@@ -320,7 +320,7 @@ async def generate_structures(
         return []
 
 @mcp.tool()
-async def analyze_structure(structure_data: Dict[str, Any]) -> Dict[str, Any]:
+async def analyse_structure(structure_data: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze crystal structure properties"""
     if CHEMELEON_AVAILABLE:
         try:
@@ -344,7 +344,7 @@ async def calculate_energies(
     parallel: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Calculate energies using MACE with parallelization.
+    Calculate energies using MACE with parallelisation.
     
     Args:
         structures: List of structure dictionaries
@@ -365,7 +365,7 @@ async def calculate_energies(
     results = []
     
     if parallel and len(structures) > 1:
-        # Process in parallel for better GPU utilization
+        # Process in parallel for better GPU utilisation
         tasks = []
         for i, structure in enumerate(structures):
             task = _calculate_single_energy(structure, properties, i)
@@ -436,7 +436,7 @@ async def batch_discovery_pipeline(
     calculate_energies: bool = True
 ) -> Dict[str, Any]:
     """
-    Complete pipeline for multiple compositions with parallelization.
+    Complete pipeline for multiple compositions with parallelisation.
     
     Args:
         compositions: List of chemical formulas

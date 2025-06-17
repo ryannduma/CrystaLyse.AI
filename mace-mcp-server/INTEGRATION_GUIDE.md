@@ -1,17 +1,17 @@
 # MACE MCP Server - CrystaLyse.AI Integration Guide
 
-## 🎉 Server Status: FULLY FUNCTIONAL ✅
+## Server Status: FULLY FUNCTIONAL
 
 The MACE MCP server has been successfully built, tested, and verified to work with real MACE calculations.
 
-## 📊 Test Results
+## Test Results
 
 ```
-✅ Structure Validation: PASSED
-✅ Energy Calculations: PASSED  
-✅ Server Metrics: PASSED
-✅ MACE Model Loading: PASSED
-✅ Real Calculation Test: PASSED
+Structure Validation: PASSED
+Energy Calculations: PASSED
+Server Metrics: PASSED
+MACE Model Loading: PASSED
+Real Calculation Test: PASSED
 ```
 
 ### Example Calculation Results
@@ -21,7 +21,7 @@ The MACE MCP server has been successfully built, tested, and verified to work wi
 - **Pressure**: -6.284 GPa
 - **Model**: MACE-MP (Materials Project trained)
 
-## 🚀 Integration Steps
+## Integration Steps
 
 ### 1. Install Dependencies
 ```bash
@@ -50,10 +50,10 @@ python -m mace_mcp
 #### Core Energy & Structure Tools
 - `calculate_energy()` - Single-point energy calculations
 - `calculate_energy_with_uncertainty()` - Energy with uncertainty estimation
-- `relax_structure()` - Structure optimization
-- `relax_structure_monitored()` - Detailed optimization tracking
+- `relax_structure()` - Structure optimisation
+- `relax_structure_monitored()` - Detailed optimisation tracking
 
-#### Advanced Analysis Tools  
+#### Advanced Analysis Tools
 - `calculate_formation_energy()` - Stability assessment
 - `suggest_substitutions()` - Chemical substitution recommendations
 - `calculate_phonons_supercell()` - Dynamical stability analysis
@@ -65,7 +65,7 @@ python -m mace_mcp
 - `adaptive_batch_calculation()` - Resource-aware processing
 - `identify_active_learning_targets()` - Uncertainty-based selection
 
-## 🔧 Integration with CrystaLyse.AI Main Agent
+## Integration with CrystaLyse.AI Main Agent
 
 ### Structure Format
 ```python
@@ -87,7 +87,7 @@ structures = get_structures_from_chemeleon_csp()
 energies = batch_energy_calculation(structures)
 
 # Filter by energy stability
-stable_structures = [s for s, e in zip(structures, energies) 
+stable_structures = [s for s, e in zip(structures, energies)
                     if e["energy_per_atom"] < threshold]
 ```
 
@@ -96,12 +96,12 @@ stable_structures = [s for s, e in zip(structures, energies)
 # 1. Generate candidates (Chemeleon + SMACT)
 candidates = generate_candidate_structures()
 
-# 2. Fast MACE screening  
+# 2. Fast MACE screening
 mace_results = batch_energy_calculation(candidates)
 
 # 3. Uncertainty-based active learning
 uncertain = identify_active_learning_targets(candidates)
-high_priority = [s for s in uncertain["recommended_targets"] 
+high_priority = [s for s in uncertain["recommended_targets"]
                 if s["recommendation"] == "high_priority"]
 
 # 4. Route high-uncertainty to DFT
@@ -115,27 +115,27 @@ for structure in high_priority:
 # Energy-guided substitutions
 base_structure = get_promising_structure()
 substitutions = suggest_substitutions(
-    base_structure, 
+    base_structure,
     target_elements=["Li", "Na", "K", "Mg", "Ca"],
     max_suggestions=10
 )
 
 # Relax and analyze substituted structures
 for sub in substitutions["top_substitutions"]:
-    if sub["recommendation"] == "favorable":
+    if sub["recommendation"] == "favourable":
         relaxed = relax_structure(create_substituted_structure(sub))
         stability = calculate_formation_energy(relaxed["relaxed_structure"])
 ```
 
-## 🎯 Recommended Usage Patterns
+## Recommended Usage Patterns
 
 ### Creative Mode Integration
 - **Fast screening**: Use `batch_energy_calculation()` for rapid evaluation
 - **Substitution exploration**: Use `suggest_substitutions()` for chemical space expansion
 - **Uncertainty quantification**: Use `calculate_energy_with_uncertainty()` for confidence
 
-### Rigorous Mode Integration  
-- **Detailed optimization**: Use `relax_structure_monitored()` for convergence analysis
+### Rigorous Mode Integration
+- **Detailed optimisation**: Use `relax_structure_monitored()` for convergence analysis
 - **Stability assessment**: Use `calculate_formation_energy()` for thermodynamic analysis
 - **Phonon validation**: Use `calculate_phonons_supercell()` for dynamical stability
 
@@ -144,7 +144,7 @@ for sub in substitutions["top_substitutions"]:
 - **Adaptive processing**: Use `adaptive_batch_calculation()` for large-scale screening
 - **Active learning**: Use `identify_active_learning_targets()` for intelligent sampling
 
-## ⚡ Performance Characteristics
+## Performance Characteristics
 
 ### Speed Benchmarks
 - **Single energy calculation**: ~0.1-1s (GPU) / ~1-10s (CPU)
@@ -161,49 +161,48 @@ for sub in substitutions["top_substitutions"]:
 - **GPU**: Optional but recommended for speed
 - **Storage**: ~100MB for cached MACE models
 
-## 🔄 Integration Workflow
+## Integration Workflow
 
 ### Phase 1: Basic Integration
-1. ✅ **COMPLETED**: MACE server built and tested
+1. **COMPLETED**: MACE server built and tested
 2. **Next**: Add MACE server to main CrystaLyse.AI agent
 3. **Test**: Basic energy calculations from Chemeleon structures
 
 ### Phase 2: Advanced Features
 1. **Multi-fidelity routing**: MACE → DFT based on uncertainty
 2. **Active learning**: Intelligent structure selection
-3. **Batch optimization**: High-throughput screening
+3. **Batch optimisation**: High-throughput screening
 
 ### Phase 3: Production Deployment
 1. **Resource monitoring**: Real-time performance tracking
 2. **Error handling**: Robust failure recovery
-3. **Scale optimization**: Adaptive batch processing
+3. **Scale optimisation**: Adaptive batch processing
 
-## 🎯 Key Benefits for CrystaLyse.AI
+## Key Benefits for CrystaLyse.AI
 
-### 1. **Speed**: 100-1000x faster than DFT
-- Enable exploration of millions of structures
+### 1. **Speed**: 100-1000x faster than. I will recreate the `INTEGRATION_GUIDE.md` file with the correct, cleaned-up content after my previous attempts to edit it failed and led to its deletion.
 - Real-time feedback for interactive discovery
 
 ### 2. **Uncertainty Quantification**: Intelligent routing
 - Identify when DFT validation is needed
-- Optimize computational resource allocation
+- Optimise computational resource allocation
 
 ### 3. **Chemical Intelligence**: Physics-informed suggestions
 - Energy-guided chemical substitutions
-- Stability-aware structure optimization
+- Stability-aware structure optimisation
 
 ### 4. **Production Ready**: Robust and scalable
 - Comprehensive error handling
 - Resource-aware batch processing
 - Real-time monitoring
 
-## 📞 Next Steps
+## Next Steps
 
 1. **Immediate**: Add MACE server to main CrystaLyse.AI agent tools
 2. **Short-term**: Test integration with Chemeleon CSP output
 3. **Medium-term**: Implement multi-fidelity discovery workflows
 4. **Long-term**: Deploy for large-scale materials screening
 
-## 🎉 Status: READY FOR PRODUCTION
+## Status: READY FOR PRODUCTION
 
-The MACE MCP server is fully functional, tested, and ready for immediate integration into CrystaLyse.AI's materials discovery pipeline!
+The MACE MCP server is fully functional, tested, and ready for immediate integration into CrystaLyse.AI's materials discovery pipeline! 

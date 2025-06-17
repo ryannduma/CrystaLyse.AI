@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 import time
+from contextlib import AsyncExitStack
 
 # Use OpenAI Agents SDK instead of Anthropic
 from agents import Agent, Runner, function_tool, gen_trace_id, trace
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class AgentConfig:
     """Configuration for the unified agent"""
     mode: Literal["creative", "rigorous"] = "rigorous"
-    model: str = "o4-mini"  # Use o4-mini as specified
+    model: str = None  # Will be auto-selected based on mode
     temperature: float = 0.7
     max_turns: int = 15
     enable_mace: bool = True
@@ -34,6 +35,18 @@ class AgentConfig:
     max_candidates: int = 100
     structure_samples: int = 5
     enable_metrics: bool = True
+    
+    def __post_init__(self):
+        """Auto-select model based on mode if not specified"""
+        if self.model is None:
+            if self.mode == "rigorous":
+                self.model = "o3"  # Use o3 for rigorous mode with MDG API key
+                # o3 doesn't support temperature parameter
+                self.temperature = None
+            else:
+                self.model = "o4-mini"  # Use o4-mini for creative mode
+                # o4-mini doesn't support temperature parameter
+                self.temperature = None
 
 # Response models for structured outputs
 class MaterialRecommendation(BaseModel):
@@ -50,6 +63,14 @@ class DiscoveryResult(BaseModel):
     methodology: str
     confidence: float
     next_steps: List[str]
+
+# Pydantic model for the clarification question structure
+class ClarificationQuestion(BaseModel):
+    """A structured question to ask the user for clarification."""
+    id: int
+    question: str
+    options: List[str]
+    why: str
 
 # Self-assessment tools for the agent
 @function_tool
@@ -68,7 +89,7 @@ def assess_progress(current_status: str, steps_completed: int) -> str:
     elif steps_completed < 6:
         return f"Making progress! {steps_completed} steps completed. Consider structure generation or energy analysis."
     else:
-        return f"Excellent progress! {steps_completed} steps done. Time to synthesize results and make recommendations."
+        return f"Excellent progress! {steps_completed} steps done. Time to synthesise results and make recommendations."
 
 @function_tool  
 def explore_alternatives(current_issue: str) -> str:
@@ -89,257 +110,207 @@ def explore_alternatives(current_issue: str) -> str:
     
     return f"Alternative approaches for '{current_issue}':\n" + "\n".join(f"• {alt}" for alt in alternatives)
 
+@function_tool
+def ask_clarifying_questions(questions: List[ClarificationQuestion]) -> str:
+    """
+    Asks the user a series of clarifying questions to narrow down the search space.
+    Call this tool if the user's initial query is too broad or ambiguous.
+    The user's answers will provide critical context for the subsequent analysis.
+
+    Args:
+        questions: A list of questions to ask the user. Each question should be a dictionary
+                   with keys 'id', 'question', 'options', and 'why'.
+    """
+    # In a real interactive session, this would present the questions to the user
+    # and wait for their input. For this simulation, we will just print them.
+    output = "To provide the best recommendations, I need to clarify a few things:\n\n"
+    for q in questions:
+        output += f"• **{q['question']}**\n"
+        if q.get('options'):
+            output += f"  Options: {', '.join(q['options'])}\n"
+        output += f"  *({q['why']})*\n\n"
+    
+    return output + "Please provide your answers to help me focus the search."
+
 class CrystaLyseUnifiedAgent:
     """
-    Unified agent using OpenAI Agents SDK with o4-mini model.
+    Unified agent using OpenAI Agents SDK.
     
-    This consolidates all functionality from the 5 redundant agent classes into
-    a single, truly agentic implementation that uses established tools properly.
+    This consolidates all functionality into a single, truly agentic implementation.
     """
     
-    def __init__(self, config: AgentConfig = None):
-        self.config = config or AgentConfig()
-        self.conversation_history = []
+    instructions = (
+        "You are CrystaLyse.AI, a world-class materials science research agent. "
+        "Your purpose is to accelerate the discovery of new crystalline materials using a suite of computational tools. "
+        "You have access to three powerful toolsets, accessible via a unified MCP (Materials Computation Platform):\n"
+        "1. `smact_tools`: For generating and validating novel chemical compositions using chemical principles.\n"
+        "2. `chemeleon_tools`: For performing crystal structure prediction (CSP) to find stable structures for a given composition.\n"
+        "3. `mace_tools`: For running high-accuracy, machine-learning-based potential calculations to determine material properties like energy and forces.\n\n"
+        "**Your Operational Workflow: Clarify, Plan, Execute**\n\n"
+        "1.  **Analyze and Clarify:** First, critically assess the user's request. If it is broad, ambiguous, or lacks specific constraints (e.g., 'find a new battery material'), your primary and immediate action MUST be to use the `ask_clarifying_questions` tool. Do not guess or proceed with a flawed premise. Wait for the user to provide the necessary details.\n\n"
+        "2.  **Formulate a Plan:** Once the query is specific and actionable (e.g., 'find a sodium-ion conductor with high stability and a band gap over 2 eV'), formulate a multi-step plan. Announce this plan to the user clearly. For example: 'Plan: First, I will use `smact_tools.generate_compositions` to find candidate materials. Second, I will predict their structures with `chemeleon_tools.predict_structure`. Finally, I will validate their stability using `mace_tools.calculate_energy`.'\n\n"
+        "3.  **Execute Autonomously:** After stating your plan, **immediately execute the first step** by calling the appropriate tool. Do not ask for permission or wait for confirmation. Continue executing the plan, step-by-step, analyzing the output of each tool call to inform the next, until you have a final answer or encounter a definitive failure.\n\n"
+        "Your goal is to be a proactive, autonomous research partner. Never ask a question if you can find the answer with a tool. Clarify ambiguity, then plan and execute with relentless forward momentum."
+    )
+
+    def __init__(self, agent_config: AgentConfig = None, system_config=None):
+        self.agent_config = agent_config or AgentConfig()
+        # Use the global config if a specific one isn't provided
+        self.system_config = system_config or config
         self.metrics = {"tool_calls": 0, "start_time": None, "errors": []}
         
-        # Initialize agent with OpenAI SDK
-        self._initialize_agent()
-        
-    def _initialize_agent(self):
-        """Initialize the OpenAI agent with proper configuration"""
-        
-        # Create mode-specific instructions
-        if self.config.mode == "rigorous":
-            instructions = self._create_rigorous_instructions()
-        else:
-            instructions = self._create_creative_instructions()
-        
-        # Initialize the agent with MCP servers
-        mcp_servers = self._get_mcp_servers()
-        
-        self.agent = Agent(
-            name="CrystaLyse Materials Discovery Agent",
-            instructions=instructions,
-            model=self.config.model,
-            mcp_servers=mcp_servers,
-            tools=[assess_progress, explore_alternatives]  # Add self-assessment tools
-        )
-        
-        logger.info(f"Initialized OpenAI agent with model {self.config.model} in {self.config.mode} mode")
-    
-    def _create_rigorous_instructions(self) -> str:
-        """Create instructions for rigorous mode"""
-        return """You are CrystaLyse, an expert materials scientist specializing in computational materials discovery.
+        self.temperature = self.agent_config.temperature
+        self.mode = self.agent_config.mode  # Use the mode from config directly
+        self.model_name = self.agent_config.model
+        self.max_turns = self.agent_config.max_turns
+        self.agent = None
 
-RIGOROUS MODE - Systematic and thorough analysis:
-
-Your approach:
-1. VALIDATE everything using SMACT tools (smact_validity, generate_compositions)
-2. Generate multiple structure candidates (5-10 per composition)
-3. Calculate energies with uncertainty quantification when possible
-4. Provide confidence scores and detailed explanations
-5. Use batch operations for efficiency
-6. Be systematic but adaptive - adjust based on results
-
-Available tools via MCP:
-- smact_validity: Validate compositions using SMACT charge neutrality and Pauling tests
-- generate_compositions: Generate chemically valid compositions from elements
-- quick_validity_check: Fast validation with explanations
-- generate_structures: Create crystal structures via Chemeleon
-- calculate_energies: Compute energies using MACE force fields
-- batch_discovery_pipeline: Complete pipeline for multiple compositions
-
-Key principles:
-- Use established chemistry tools (SMACT) rather than simplified heuristics
-- Every composition must pass rigorous validation
-- Provide scientific reasoning for all decisions
-- Calculate uncertainties and confidence intervals
-- Consider synthesis feasibility and experimental constraints
-
-Remember: You control the workflow. Use tools strategically, assess progress regularly, and adapt your approach based on results."""
-
-    def _create_creative_instructions(self) -> str:
-        """Create instructions for creative mode"""
-        return """You are CrystaLyse, an innovative materials scientist exploring novel compositions and structures.
-
-CREATIVE MODE - Exploratory and innovative approach:
-
-Your approach:
-1. Use chemical intuition alongside computational validation
-2. Explore novel compositional spaces and unusual combinations
-3. Generate 3-5 interesting candidates per query
-4. Focus on innovation over exhaustive validation
-5. Explain your chemical reasoning and insights
-6. Be bold but scientifically grounded
-
-Available tools via MCP:
-- smact_validity: Validate compositions (use for promising candidates)
-- generate_compositions: Generate compositions from elements
-- quick_validity_check: Fast validation with explanations
-- generate_structures: Create crystal structures via Chemeleon
-- calculate_energies: Compute energies using MACE force fields
-
-Key principles:
-- Balance innovation with chemical plausibility
-- Use your knowledge of materials science principles
-- Explore less common element combinations
-- Consider emerging applications (energy storage, quantum materials, etc.)
-- Provide creative insights and novel approaches
-
-Remember: You have full control. Be creative but use proper chemistry tools. Think outside the box while staying scientifically sound."""
-
-    def _get_mcp_servers(self) -> List[MCPServer]:
-        """Get configured MCP servers"""
-        servers = []
-        
-        # Only add chemistry unified server if any chemistry tools are enabled
-        if self.config.enable_smact or self.config.enable_chemeleon or self.config.enable_mace:
-            try:
-                chemistry_server = MCPServerStdio(
-                    name="Chemistry Unified Server",
-                    params={
-                        "command": "python",
-                        "args": ["-m", "chemistry_unified.server"],
-                        "cwd": str(Path(__file__).parent.parent / "chemistry-unified-server" / "src"),
-                    }
-                )
-                servers.append(chemistry_server)
-                logger.info("Added chemistry unified server")
-            except Exception as e:
-                logger.warning(f"Could not add chemistry server: {e}")
-        
-        # Add individual servers as fallbacks
-        if self.config.enable_smact:
-            try:
-                smact_config = config.get_server_config("smact")
-                smact_server = MCPServerStdio(
-                    name="SMACT Server",
-                    params={
-                        "command": smact_config["command"],
-                        "args": smact_config["args"],
-                        "cwd": smact_config["cwd"]
-                    }
-                )
-                servers.append(smact_server)
-            except Exception as e:
-                logger.warning(f"Could not add SMACT server: {e}")
-                
-        if self.config.enable_chemeleon:
-            try:
-                chemeleon_config = config.get_server_config("chemeleon")
-                chemeleon_server = MCPServerStdio(
-                    name="Chemeleon Server",
-                    params={
-                        "command": chemeleon_config["command"],
-                        "args": chemeleon_config["args"],
-                        "cwd": chemeleon_config["cwd"]
-                    }
-                )
-                servers.append(chemeleon_server)
-            except Exception as e:
-                logger.warning(f"Could not add Chemeleon server: {e}")
-                
-        if self.config.enable_mace:
-            try:
-                mace_config = config.get_server_config("mace")
-                mace_server = MCPServerStdio(
-                    name="MACE Server",
-                    params={
-                        "command": mace_config["command"],
-                        "args": mace_config["args"],
-                        "cwd": mace_config["cwd"]
-                    }
-                )
-                servers.append(mace_server)
-            except Exception as e:
-                logger.warning(f"Could not add MACE server: {e}")
-        
-        logger.info(f"Configured {len(servers)} MCP servers")
-        return servers
-    
-    async def discover_materials(self, query: str, trace_workflow: bool = True) -> Dict[str, Any]:
+    async def discover_materials(self, query: str, session: Optional[Agent] = None, trace_workflow: bool = True) -> dict:
         """
-        Main entry point for materials discovery using OpenAI Agents SDK.
-        
-        Args:
-            query: Materials discovery query
-            trace_workflow: Whether to enable OpenAI tracing
-            
-        Returns:
-            Discovery results with materials, methodology, and metadata
+        Asynchronously discovers materials based on a query, managing MCP server lifecycles.
         """
+        if session:
+            self.agent = session
+        
         self.metrics["start_time"] = time.time()
         
         try:
-            if trace_workflow:
-                # Use OpenAI tracing for observability
-                trace_id = gen_trace_id()
-                with trace(workflow_name="CrystaLyse Materials Discovery", trace_id=trace_id):
-                    logger.info(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
-                    result = await Runner.run(
-                        starting_agent=self.agent,
-                        input=query
-                    )
-            else:
-                result = await Runner.run(
-                    starting_agent=self.agent,
-                    input=query
-                )
-            
-            # Extract results and add metadata
-            final_result = {
-                "discovery_result": result.final_output.model_dump() if hasattr(result.final_output, 'model_dump') else result.final_output,
-                "agent_config": {
-                    "mode": self.config.mode,
-                    "model": self.config.model,
-                    "max_turns": self.config.max_turns
-                },
-                "metrics": self._get_metrics_summary(result),
-                "status": "completed"
-            }
-            
-            return final_result
-            
-        except Exception as e:
-            logger.error(f"Materials discovery failed: {e}")
-            return {
-                "error": str(e),
-                "agent_config": {"mode": self.config.mode, "model": self.config.model},
-                "metrics": self._get_metrics_summary(),
-                "status": "failed"
-            }
-    
-    def _get_metrics_summary(self, result=None) -> Dict[str, Any]:
-        """Get current metrics summary"""
-        elapsed_time = time.time() - self.metrics["start_time"] if self.metrics["start_time"] else 0
-        
-        base_metrics = {
-            "tool_calls": self.metrics["tool_calls"],
-            "elapsed_time": elapsed_time,
-            "errors": self.metrics["errors"],
-            "conversation_turns": len(self.conversation_history),
-            "mode": self.config.mode,
-            "model": self.config.model
-        }
-        
-        # Add result-specific metrics if available
-        if result and hasattr(result, 'steps'):
-            base_metrics["agent_steps"] = len(result.steps)
-            base_metrics["tool_calls"] = sum(1 for step in result.steps if hasattr(step, 'tool_calls') and step.tool_calls)
-            
-        return base_metrics
+            async with AsyncExitStack() as stack:
+                mcp_servers = []
+                extra_tools = [assess_progress, explore_alternatives, ask_clarifying_questions]
 
-# Convenience functions for backward compatibility
-async def analyze_materials(query: str, mode: str = "creative", **kwargs) -> Dict[str, Any]:
-    """Convenience function that maintains API compatibility"""
+                if self.agent_config.enable_smact:
+                    smact_config = self.system_config.get_server_config("smact")
+                    smact_server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name="SMACT",
+                            params={
+                                "command": smact_config["command"],
+                                "args": smact_config["args"],
+                                "cwd": smact_config["cwd"],
+                                "env": smact_config.get("env", {})
+                            }
+                        )
+                    )
+                    mcp_servers.append(smact_server)
+
+                if self.agent_config.enable_chemeleon:
+                    chemeleon_config = self.system_config.get_server_config("chemeleon")
+                    chemeleon_server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name="Chemeleon",
+                            params={
+                                "command": chemeleon_config["command"],
+                                "args": chemeleon_config["args"],
+                                "cwd": chemeleon_config["cwd"],
+                                "env": chemeleon_config.get("env", {})
+                            }
+                        )
+                    )
+                    mcp_servers.append(chemeleon_server)
+
+                if self.agent_config.enable_mace:
+                    mace_config = self.system_config.get_server_config("mace")
+                    mace_server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name="MACE",
+                            params={
+                                "command": mace_config["command"],
+                                "args": mace_config["args"],
+                                "cwd": mace_config["cwd"],
+                                "env": mace_config.get("env", {})
+                            }
+                        )
+                    )
+                    mcp_servers.append(mace_server)
+
+                logger.info(f"Initialised agent with {len(mcp_servers)} MCP servers in {self.mode} mode.")
+
+                if not self.agent:
+                    # Create model settings with temperature (only if temperature is not None)
+                    from agents.model_settings import ModelSettings
+                    model_settings = ModelSettings()
+                    if self.temperature is not None:
+                        model_settings = ModelSettings(temperature=self.temperature)
+                    
+                    self.agent = Agent(
+                        name="CrystaLyse",
+                        model=self.model_name,
+                        instructions=self.instructions,
+                        tools=extra_tools,
+                        mcp_servers=mcp_servers,
+                        model_settings=model_settings,
+                    )
+
+                # Run the agent with max_turns using MDG API key
+                from agents.run import RunConfig
+                from agents.models.openai_provider import OpenAIProvider
+                import os
+                
+                # Use MDG API key for better access to o3 and higher rate limits
+                mdg_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
+                model_provider = OpenAIProvider(api_key=mdg_api_key)
+                
+                run_config = RunConfig(
+                    trace_id=gen_trace_id(),
+                    model_provider=model_provider
+                )
+                
+                result = await Runner.run(
+                    starting_agent=self.agent, 
+                    input=query, 
+                    max_turns=self.max_turns,
+                    run_config=run_config
+                )
+                
+                # Simplified result preparation
+                elapsed_time = time.time() - self.metrics["start_time"]
+                
+                # Extract final output
+                final_content = str(result.final_output) if result.final_output else "No discovery result found."
+                
+                # Count tool calls from new_items
+                tool_call_count = sum(1 for item in result.new_items if hasattr(item, 'tool_calls') and item.tool_calls)
+
+                return {
+                    "status": "completed",
+                    "discovery_result": final_content,
+                    "metrics": {
+                        "tool_calls": tool_call_count,
+                        "elapsed_time": elapsed_time,
+                        "model": self.model_name,
+                        "mode": self.mode,
+                        "total_items": len(result.new_items),
+                        "raw_responses": len(result.raw_responses)
+                    },
+                    "new_items": [str(item) for item in result.new_items[:5]],  # Sample of items
+                }
+
+        except Exception as e:
+            logger.error(f"An error occurred during material discovery: {e}", exc_info=True)
+            self.metrics["errors"].append(str(e))
+            elapsed_time = time.time() - self.metrics["start_time"]
+            return {
+                "status": "failed",
+                "error": str(e),
+                "metrics": {
+                    "elapsed_time": elapsed_time,
+                    "model": self.model_name,
+                },
+            }
+
+async def analyse_materials(query: str, mode: str = "creative", **kwargs) -> Dict[str, Any]:
+    """Top-level analysis function for unified agent."""
     config = AgentConfig(mode=mode, **kwargs)
-    agent = CrystaLyseUnifiedAgent(config)
+    agent = CrystaLyseUnifiedAgent(agent_config=config)
     return await agent.discover_materials(query)
 
+
 async def rigorous_analysis(query: str, **kwargs) -> Dict[str, Any]:
-    """Rigorous mode analysis"""
-    return await analyze_materials(query, mode="rigorous", **kwargs)
+    """Rigorous analysis mode with lower temperature."""
+    return await analyse_materials(query, mode="rigorous", temperature=0.3, **kwargs)
+
 
 async def creative_analysis(query: str, **kwargs) -> Dict[str, Any]:
-    """Creative mode analysis"""
-    return await analyze_materials(query, mode="creative", **kwargs)
+    """Creative analysis mode with higher temperature."""
+    return await analyse_materials(query, mode="creative", temperature=0.8, **kwargs)

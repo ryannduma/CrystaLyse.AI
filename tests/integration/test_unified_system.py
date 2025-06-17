@@ -25,7 +25,7 @@ class TestUnifiedSystem:
     """Test the complete integrated system"""
     
     @pytest.mark.asyncio
-    async def test_unified_agent_initialization(self):
+    async def test_unified_agent_initialisation(self):
         """Test that unified agent initializes correctly"""
         config = AgentConfig(mode="creative", enable_mace=False)  # Disable MACE for faster tests
         agent = CrystaLyseUnifiedAgent(config)
@@ -224,7 +224,7 @@ class TestUnifiedSystem:
         # Should complete 30 operations in under 1 second
         assert duration < 1.0, f"Atomic tools too slow: {duration:.2f}s for 30 operations"
         
-        # Test agent initialization performance
+        # Test agent initialisation performance
         start_time = time.time()
         
         config = AgentConfig(enable_mace=False)
@@ -232,8 +232,8 @@ class TestUnifiedSystem:
         
         init_duration = time.time() - start_time
         
-        # Should initialize in under 0.1 seconds
-        assert init_duration < 0.1, f"Agent initialization too slow: {init_duration:.3f}s"
+        # Should initialise in under 0.1 seconds
+        assert init_duration < 0.1, f"Agent initialisation too slow: {init_duration:.3f}s"
     
     def test_code_consolidation_success(self):
         """Test that code consolidation was successful"""

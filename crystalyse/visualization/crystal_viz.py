@@ -1,9 +1,9 @@
 """
-Crystal structure visualization module using multiple backends.
+Crystal structure visualisation module using multiple backends.
 
-This module provides comprehensive crystal structure visualization capabilities
+This module provides comprehensive crystal structure visualisation capabilities
 using py3Dmol for interactive 3D web displays and Plotly as a fallback option.
-The visualizations are designed to be embedded in HTML reports for materials
+The visualisations are designed to be embedded in HTML reports for materials
 discovery workflows.
 """
 
@@ -35,11 +35,11 @@ except ImportError:
     HAS_STRUCTURE_LIBS = False
 
 
-class CrystalVisualizer:
-    """Interactive crystal structure visualization with multiple backends."""
+class CrystalVisualiser:
+    """Interactive crystal structure visualisation with multiple backends."""
     
     def __init__(self, backend: str = "py3dmol"):
-        """Initialize visualizer with preferred backend.
+        """Initialise visualiser with preferred backend.
         
         Args:
             backend: 'py3dmol', 'plotly', or 'auto'
@@ -49,12 +49,12 @@ class CrystalVisualizer:
             self.backend = "py3dmol" if HAS_PY3DMOL else "plotly"
         
         if not HAS_STRUCTURE_LIBS:
-            raise ImportError("pymatgen and ASE are required for crystal visualization")
+            raise ImportError("pymatgen and ASE are required for crystal visualisation")
         
         self.adaptor = AseAtomsAdaptor()
         
-        # Atomic color scheme (CPK colors)
-        self.element_colors = {
+        # Atomic colour scheme (CPK colours)
+        self.element_colours = {
             'H': '#FFFFFF', 'He': '#D9FFFF', 'Li': '#CC80FF', 'Be': '#C2FF00',
             'B': '#FFB5B5', 'C': '#909090', 'N': '#3050F8', 'O': '#FF0D0D',
             'F': '#90E050', 'Ne': '#B3E3F5', 'Na': '#AB5CF2', 'Mg': '#8AFF00',
@@ -67,7 +67,7 @@ class CrystalVisualizer:
             'Pb': '#575961', 'Bi': '#9E4FB5', 'U': '#008FFF'
         }
         
-        # Atomic radii for visualization (in Angstroms)
+        # Atomic radii for visualisation (in Angstroms)
         self.element_radii = {
             'H': 0.31, 'He': 0.28, 'Li': 1.28, 'Be': 0.96, 'B': 0.84,
             'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.57, 'Ne': 0.58,
@@ -79,13 +79,13 @@ class CrystalVisualizer:
             'Ce': 2.04, 'Pb': 1.75, 'Bi': 1.48, 'U': 1.96
         }
     
-    def visualize_structure(self, structure_input: Union[Dict, str, Path], 
+    def visualise_structure(self, structure_input: Union[Dict, str, Path], 
                           view_config: Dict = None) -> Union[Any, go.Figure]:
-        """Create interactive visualization of crystal structure.
+        """Create interactive visualisation of crystal structure.
         
         Args:
             structure_input: Structure dict, CIF string, or CIF file path
-            view_config: Configuration for visualization
+            view_config: Configuration for visualisation
         """
         if self.backend == "py3dmol" and HAS_PY3DMOL:
             return self._create_py3dmol_view(structure_input, view_config)
@@ -96,7 +96,7 @@ class CrystalVisualizer:
     
     def _create_py3dmol_view(self, structure_input: Union[Dict, str, Path], 
                            view_config: Dict = None):
-        """Create py3Dmol visualization (recommended for HTML export)."""
+        """Create py3Dmol visualisation (recommended for HTML export)."""
         if not HAS_PY3DMOL:
             raise ImportError("py3Dmol is required for this backend")
         
@@ -143,7 +143,7 @@ class CrystalVisualizer:
     
     def _create_plotly_view(self, structure_input: Union[Dict, str, Path], 
                           view_config: Dict = None) -> go.Figure:
-        """Create Plotly-based visualization (fallback option)."""
+        """Create Plotly-based visualisation (fallback option)."""
         if not HAS_PLOTLY:
             raise ImportError("Plotly is required for this backend")
         
@@ -177,14 +177,14 @@ class CrystalVisualizer:
         positions = atoms.get_positions()
         symbols = atoms.get_chemical_symbols()
         
-        # Group by element for coloring
+        # Group by element for colouring
         elements = list(set(symbols))
         
         for element in elements:
             mask = [s == element for s in symbols]
             element_positions = positions[mask]
             
-            color = self.element_colors.get(element, '#808080')
+            colour = self.element_colours.get(element, '#808080')
             size = self.element_radii.get(element, 1.0) * 20  # Scale for visibility
             
             fig.add_trace(go.Scatter3d(
@@ -195,8 +195,8 @@ class CrystalVisualizer:
                 name=element,
                 marker=dict(
                     size=size,
-                    color=color,
-                    line=dict(width=1, color='black')
+                    colour=colour,
+                    line=dict(width=1, colour='black')
                 )
             ))
         
@@ -208,7 +208,7 @@ class CrystalVisualizer:
                 y=edge[:, 1],
                 z=edge[:, 2],
                 mode='lines',
-                line=dict(color='gray', width=2),
+                line=dict(colour='grey', width=2),
                 showlegend=False
             ))
         
@@ -227,7 +227,7 @@ class CrystalVisualizer:
         return fig
     
     def _get_cell_edges(self, cell):
-        """Generate unit cell edge lines for visualization."""
+        """Generate unit cell edge lines for visualisation."""
         # Unit cell vertices
         vertices = np.array([
             [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],  # Bottom face
@@ -303,7 +303,7 @@ class CrystalVisualizer:
         </head>
         <body>
         <div class="header">
-            <h1>🔬 Crystal Structure Analysis: {composition}</h1>
+            <h1>Crystal Structure Analysis: {composition}</h1>
             <p>Generated by CrystaLyse.AI with Chemeleon CSP</p>
         </div>
         """)
@@ -317,10 +317,10 @@ class CrystalVisualizer:
             
             html_parts.append(f"""
             <div class="structure-container">
-                <h2>📊 Structure {i+1}</h2>
+                <h2>Structure {i+1}</h2>
                 <div class="structure-grid">
                     <div>
-                        <h3>🧊 3D Visualization</h3>
+                        <h3>3D Visualisation</h3>
                         <div class="viewer-container">
                             <div id="{viewer_id}" style="width: 100%; height: 400px;"></div>
                         </div>
@@ -334,7 +334,7 @@ class CrystalVisualizer:
                         </script>
                     </div>
                     <div>
-                        <h3>📋 Structural Analysis</h3>
+                        <h3>Structural Analysis</h3>
                         {self._create_analysis_table(struct.get('analysis', {}))}
                     </div>
                 </div>
@@ -347,7 +347,7 @@ class CrystalVisualizer:
     def _create_plotly_report(self, structures: List[Dict], composition: str) -> str:
         """Create HTML report using Plotly backend."""
         if not HAS_PLOTLY:
-            return "<html><body><h1>No visualization libraries available</h1></body></html>"
+            return "<html><body><h1>No visualisation libraries available</h1></body></html>"
         
         import plotly.io as pio
         
@@ -376,7 +376,7 @@ class CrystalVisualizer:
     def _create_analysis_table(self, analysis: Dict) -> str:
         """Create HTML table for structure analysis."""
         if not analysis:
-            return "<p class='error'>❌ No analysis data available</p>"
+            return "<p class='error'>No analysis data available</p>"
         
         rows = []
         if 'formula' in analysis:
@@ -403,14 +403,14 @@ class CrystalVisualizer:
                 rows.append(f"<tr><td>Point Group</td><td>{symmetry['point_group']}</td></tr>")
         
         if not rows:
-            return "<p class='error'>❌ No structural data available</p>"
+            return "<p class='error'>No structural data available</p>"
         
         return f'<table class="analysis-table"><tbody>{"".join(rows)}</tbody></table>'
     
     def save_interactive_view(self, structure_input: Union[Dict, str, Path], 
                              output_path: Path, title: str = "Crystal Structure"):
-        """Save standalone interactive visualization."""
-        view = self.visualize_structure(structure_input)
+        """Save standalone interactive visualisation."""
+        view = self.visualise_structure(structure_input)
         
         if hasattr(view, '_make_html'):  # py3Dmol
             html_content = view._make_html()
@@ -418,7 +418,7 @@ class CrystalVisualizer:
         elif hasattr(view, 'write_html'):  # Plotly
             view.write_html(str(output_path))
         else:
-            raise ValueError("Unable to save visualization")
+            raise ValueError("Unable to save visualisation")
         
         return output_path
 
@@ -427,7 +427,7 @@ def generate_crystal_viewer(structure_cif: str, composition: str = "Unknown") ->
     """
     Generate a standalone HTML viewer for a crystal structure.
     
-    This function creates a simple HTML page with 3DMol.js visualization
+    This function creates a simple HTML page with 3DMol.js visualisation
     that can be opened directly in a browser.
     
     Args:
@@ -523,14 +523,14 @@ def generate_crystal_viewer(structure_cif: str, composition: str = "Unknown") ->
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔬 Crystal Structure Viewer</h1>
+            <h1>Crystal Structure Viewer</h1>
             <p>Formula: <span class="formula">{composition}</span></p>
             <p>Generated by CrystaLyse.AI</p>
         </div>
         
         <div class="viewer-section">
             <div class="info-panel">
-                <strong>💡 Viewer Controls:</strong>
+                <strong>Viewer Controls:</strong>
                 <ul style="margin: 10px 0;">
                     <li><strong>Rotate:</strong> Click and drag</li>
                     <li><strong>Zoom:</strong> Mouse wheel or pinch</li>
@@ -540,10 +540,10 @@ def generate_crystal_viewer(structure_cif: str, composition: str = "Unknown") ->
             </div>
             
             <div class="controls">
-                <button class="control-button" onclick="resetView()">🏠 Reset View</button>
-                <button class="control-button" onclick="toggleStyle()">🎨 Toggle Style</button>
-                <button class="control-button" onclick="toggleUnitCell()">📦 Toggle Unit Cell</button>
-                <button class="control-button" onclick="toggleFullscreen()">🖼️ Fullscreen</button>
+                <button class="control-button" onclick="resetView()">Reset View</button>
+                <button class="control-button" onclick="toggleStyle()">Toggle Style</button>
+                <button class="control-button" onclick="toggleUnitCell()">Toggle Unit Cell</button>
+                <button class="control-button" onclick="toggleFullscreen()">Fullscreen</button>
             </div>
             
             <div class="viewer-container">

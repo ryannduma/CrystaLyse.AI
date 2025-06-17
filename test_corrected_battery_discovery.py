@@ -13,7 +13,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 def test_smact_directly():
-    """Test SMACT directly to show correct behavior"""
+    """Test SMACT directly to show correct behaviour"""
     
     print("🧪 Testing SMACT Directly (Correct Implementation)")
     print("=" * 60)

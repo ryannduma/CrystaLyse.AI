@@ -31,7 +31,7 @@
 
 5. **Analysis Utilities**
    - `utils/composition.py` provides composition parsing and manipulation
-   - `utils/crystal_space/` handles embedding and visualization
+   - `utils/crystal_space/` handles embedding and visualisation
    - `benchmarking/` compares performance with pymatgen
 
 ### Data Sources
@@ -122,7 +122,7 @@ Test data files are stored in `smact/tests/files/`.
 
 **1. `smact/benchmarking/`**
 - Performance comparison tools with pymatgen
-- Only useful for development/optimization
+- Only useful for development/optimisation
 - Not needed for core functionality
 
 **2. `smact/metallicity.py`**
@@ -131,9 +131,9 @@ Test data files are stored in `smact/tests/files/`.
 - Could be replaced with simpler heuristics
 
 **3. `smact/utils/crystal_space/`**
-- Visualization and embedding tools
+- Visualisation and embedding tools
 - Nice-to-have for analysis but not core
-- Primarily for creating plots/visualizations
+- Primarily for creating plots/visualisations
 
 **4. `smact/mainpage.py`**
 - Just contains documentation strings
@@ -141,7 +141,7 @@ Test data files are stored in `smact/tests/files/`.
 
 ### Least Essential Functions
 
-**5. Visualization functions**
+**5. Visualisation functions**
 - `plot_embedding()` in crystal_space
 - `plot_dopability()` in doper.py
 - Useful for papers but not essential
@@ -192,7 +192,7 @@ Test data files are stored in `smact/tests/files/`.
 ### 4. **Redundant Oxidation State Lookups**
 - Multiple oxidation state lists stored per element
 - Each access requires attribute lookup
-- Could be optimized with better data structure
+- Could be optimised with better data structure
 
 ### 5. **Database Operations in Structure Prediction**
 - `database.py` uses basic SQL without indexing strategy
@@ -206,17 +206,17 @@ Test data files are stored in `smact/tests/files/`.
 
 ### 7. **Inefficient Charge Neutrality Checking**
 - `neutral_ratios()` uses nested loops and GCD calculations
-- Could be optimized with vectorized operations
+- Could be optimised with vectorised operations
 - Generates many unnecessary combinations
 
 ### 8. **Multiple Data File Formats**
 - Mix of CSV, JSON, TXT formats requiring different parsers
 - Inconsistent data loading strategies
-- Should standardize on one efficient format
+- Should standardise on one efficient format
 
 ### 9. **No Parallel Processing in Core Functions**
 - `smact_filter()` processes combinations sequentially
-- Could parallelize independent composition checks
+- Could parallelise independent composition checks
 - Only examples show multiprocessing usage
 
 ### 10. **Repeated Property Calculations**
@@ -298,6 +298,18 @@ In `smact/structure_prediction/database.py`:
 2. **Use Generators**: Replace `itertools.product()` with lazy generators that yield combinations
 3. **Add Memoization**: Cache expensive calculations and object instantiations
 4. **Parallelize Core Functions**: Built-in multiprocessing for screening operations
-5. **Optimize Data Loading**: Standardize on efficient binary formats, use memory mapping for large files
+5. **Optimise Data Loading**: Standardise on efficient binary formats, use memory mapping for large files
 6. **Early Termination**: Short-circuit combinatorial searches when valid combinations are found
-7. **Vectorize Operations**: Use numpy for numerical operations instead of pure Python loops
+7. **Vectorise Operations**: Use numpy for numerical operations instead of pure Python loops
+
+### Recommendations for Future Development
+1. **Refactor Element Class**: Implement singleton or caching for Element objects
+2. **Use Iterators**: Replace list generation with iterators/generators
+3. **Add Memoization**: Cache expensive calculations and object instantiations
+4. **Parallelise Core Functions**: Built-in multiprocessing for screening operations
+5. **Optimise Data Loading**: Standardise on efficient binary formats, use memory mapping for large files
+6. **Early Termination**: Short-circuit combinatorial searches when valid combinations are found
+7. **Vectorise Operations**: Use numpy for numerical operations instead of pure Python loops
+8. **Standardise Data Formats**: Consolidate on a single, efficient data format like HDF5
+9. **Improve Database Interactions**: Use an ORM or implement connection pooling and indexing
+10. **Centralize Configuration**: Use a single config file for paths and parameters

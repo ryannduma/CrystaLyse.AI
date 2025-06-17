@@ -2,7 +2,7 @@
 
 Production-ready MACE force field calculations for materials discovery via Model Context Protocol (MCP).
 
-## 🚀 Features
+## Features
 
 ### Core Capabilities
 - **Energy Calculations**: Single-point energy with uncertainty quantification
@@ -17,11 +17,11 @@ Production-ready MACE force field calculations for materials discovery via Model
 ### Production Features
 - **Resource Monitoring**: Real-time CPU, memory, and GPU metrics
 - **Error Handling**: Robust validation and graceful failure recovery
-- **Model Caching**: Automatic caching for performance optimization
+- **Model Caching**: Automatic caching for performance optimisation
 - **Uncertainty Quantification**: Committee models for prediction confidence
 - **Adaptive Batching**: Dynamic batch size adjustment based on system resources
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 ```bash
@@ -58,7 +58,7 @@ pip install -e .
 pip install -e .[gpu]
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Offline Tests (No MACE Required)
 ```bash
@@ -71,7 +71,7 @@ python test_server_offline.py
 python test_server.py
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Start the Server
 ```bash
@@ -104,7 +104,7 @@ calculate_energy_with_uncertainty(structure_dict, committee_size=5)
 
 #### 3. Structure Relaxation
 ```python
-relax_structure(structure_dict, fmax=0.01, optimizer="BFGS")
+relax_structure(structure_dict, fmax=0.01, optimiser="BFGS")
 # Returns: Relaxed structure, energy change, convergence info
 
 relax_structure_monitored(structure_dict, monitor_interval=10)
@@ -150,7 +150,7 @@ extract_descriptors_robust(structure_dict, descriptor_types=None)
 # Returns: Comprehensive structural descriptors for ML
 ```
 
-## 🔧 Integration with CrystaLyse.AI
+## Integration with CrystaLyse.AI
 
 ### Structure Format
 All tools expect structures in this format:
@@ -189,7 +189,7 @@ for structure in high_priority:
         submit_to_dft_queue(structure)
 ```
 
-## 📊 Performance
+## Performance
 
 ### Benchmarks
 - **Single Energy**: ~0.1-1s per structure (GPU) / ~1-10s (CPU)
@@ -202,7 +202,7 @@ for structure in high_priority:
 - **mace_off** (Organic molecules): C, H, N, O focused  
 - **Custom models**: Load your own trained MACE models
 
-## 🔧 Configuration
+## Configuration
 
 ### Model Settings
 ```python
@@ -234,7 +234,7 @@ adaptive_batch_calculation(
 )
 ```
 
-## 🛠 Development
+## Development
 
 ### Project Structure
 ```
@@ -266,18 +266,18 @@ python -m mace_mcp
 python -c "from mace_mcp.server import mcp; print([t.name for t in mcp.get_tools()])"
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Follow existing code patterns and documentation style
 2. Add comprehensive error handling and validation  
 3. Include tests for new functionality
 4. Update this README for new features
 
-## 📄 License
+## License
 
 Part of CrystaLyse.AI - Advanced materials discovery platform.
 
-## 🔗 Related
+## Related
 
 - [MACE Force Fields](https://github.com/ACEsuit/mace)
 - [Model Context Protocol](https://github.com/modelcontextprotocol/python-sdk)

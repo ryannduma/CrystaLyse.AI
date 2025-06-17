@@ -18,7 +18,6 @@
    - Fundamental utility used throughout
    - Needed for processing user input
 
-### Element Data & Properties (Medium Priority)
 4. **`get_element_info`** - Element property lookup
    - Wraps `Element` class functionality
    - Provides oxidation states, electronegativity, radii
@@ -37,10 +36,10 @@
 - Implement proper async context manager pattern
 - Test basic tool listing and calling
 
-### Phase 2: Optimize Server Performance
+### Phase 2: Optimise Server Performance
 Based on SMACT analysis bottlenecks:
 - Cache Element objects to avoid repeated creation
-- Optimize combinatorial generation in neutral_ratios
+- Optimise combinatorial generation in neutral_ratios
 - Add early termination for large searches
 - Implement proper error handling
 
@@ -76,7 +75,7 @@ async with MCPServerStdio(
     result = await Runner.run(starting_agent=agent, input=query)
 ```
 
-## Performance Optimizations for MCP Server
+## Performance Optimisations for MCP Server
 
 ### Critical Fixes Based on SMACT Analysis:
 1. **Element Caching**: Implement singleton pattern for Element objects
@@ -85,22 +84,22 @@ async with MCPServerStdio(
 4. **Result Caching**: Cache expensive calculations
 5. **Reduced I/O**: Pre-load essential data at server startup
 
-### Tool-Specific Optimizations:
+### Tool-Specific Optimisations:
 - `check_smact_validity`: Cache validation results for repeated compositions
 - `calculate_neutral_ratios`: Limit combinatorial explosion with early exit
 - `parse_chemical_formula`: Cache parsed formulas
 - `get_element_info`: Pre-load all element data at startup
-- `test_pauling_rule`: Vectorize electronegativity calculations
+- `test_pauling_rule`: Vectorise electronegativity calculations
 
 ## Expected Integration Benefits
 
-### Real SMACT Capabilities:
-- ✅ Actual charge neutrality validation
-- ✅ Real electronegativity testing  
-- ✅ Proper oxidation state handling
-- ✅ Metallicity classification
-- ✅ Element property lookups
-- ✅ Formula parsing and validation
+### Real SMAT Capabilities:
+- Actual charge neutrality validation
+- Real electronegativity testing  
+- Proper oxidation state handling
+- Metallicity classification
+- Element property lookups
+- Formula parsing and validation
 
 ### Performance Improvements:
 - Eliminate combinatorial bottlenecks

@@ -189,7 +189,7 @@ def show_current_integration_status():
     print("\n✅ FULLY WORKING:")
     print("- MACE energy calculations with uncertainty")
     print("- Formation energy analysis") 
-    print("- Structure optimization")
+    print("- Structure optimisation")
     print("- Chemical substitution suggestions")
     print("- Batch processing for high-throughput")
     print("- Multi-fidelity decision logic")

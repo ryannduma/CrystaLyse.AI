@@ -8,7 +8,7 @@ All legacy agent implementations have been consolidated into a single, efficient
 from ..unified_agent import (
     CrystaLyseUnifiedAgent, 
     AgentConfig,
-    analyze_materials,
+    analyse_materials,
     rigorous_analysis, 
     creative_analysis
 )
@@ -20,7 +20,7 @@ __all__ = [
     "CrystaLyseUnifiedAgent",
     "CrystaLyseAgent",  # Backward compatibility alias
     "AgentConfig",
-    "analyze_materials",
+    "analyse_materials",
     "rigorous_analysis",
     "creative_analysis"
 ]

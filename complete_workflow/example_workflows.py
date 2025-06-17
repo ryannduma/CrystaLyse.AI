@@ -31,7 +31,7 @@ class WorkflowExamples:
     """Collection of example workflows for MACE-integrated materials discovery."""
     
     def __init__(self, save_results: bool = True):
-        """Initialize workflow examples with optional result saving."""
+        """Initialise workflow examples with optional result saving."""
         self.save_results = save_results
         self.results_dir = Path(__file__).parent / "workflow_results"
         if save_results:
@@ -78,7 +78,7 @@ class WorkflowExamples:
 Requirements:
 - High energy density (>160 mAh/g theoretical capacity)
 - Operating voltage 3.5-4.2V vs Li/Li+
-- Use earth-abundant elements (minimize Co, minimize cost)
+- Use earth-abundant elements (minimise Co, minimise cost)
 - Good structural stability during cycling
 - Consider layered, spinel, and olivine structures
 
@@ -94,7 +94,7 @@ Workflow:
 Target applications: Electric vehicles, grid storage"""
         
         print("Running comprehensive battery cathode analysis...")
-        result = await agent.analyze(query)
+        result = await agent.analyse(query)
         
         workflow_result = {
             'workflow_type': 'battery_cathode_discovery',
@@ -157,14 +157,14 @@ Target applications: Electric vehicles, grid storage"""
         
         return workflow_result
     
-    async def thermoelectric_optimization(self) -> Dict[str, Any]:
+    async def thermoelectric_optimisation(self) -> Dict[str, Any]:
         """
-        Workflow 3: Thermoelectric Material Optimization
+        Workflow 3: Thermoelectric Material Optimisation
         
-        Demonstrates energy-guided optimization and chemical substitution
+        Demonstrates energy-guided optimisation and chemical substitution
         for thermoelectric applications.
         """
-        print("\n🌡️ Workflow 3: Thermoelectric Material Optimization")
+        print("\n🌡️ Workflow 3: Thermoelectric Material Optimisation")
         print("=" * 50)
         
         agent = MACEIntegratedAgent(
@@ -173,7 +173,7 @@ Target applications: Electric vehicles, grid storage"""
             temperature=0.4
         )
         
-        query = """Optimize thermoelectric materials for high-temperature waste heat recovery.
+        query = """Optimise thermoelectric materials for high-temperature waste heat recovery.
 
 Base systems to explore:
 - Bi2Te3 and related compounds (established TE materials)
@@ -181,7 +181,7 @@ Base systems to explore:
 - Skutterudites (CoSb3-based)
 - Oxide thermoelectrics (SrTiO3, CaMnO3 family)
 
-Optimization strategy:
+Optimisation strategy:
 1. Start with known TE materials as base compositions
 2. Use SMACT to validate chemically reasonable substitutions
 3. Generate crystal structures for promising compositions
@@ -192,19 +192,19 @@ Optimization strategy:
 
 Target: Figure of merit ZT > 1.5 at 800K, good stability"""
         
-        print("Running thermoelectric optimization analysis...")
-        result = await agent.analyze(query)
+        print("Running thermoelectric optimisation analysis...")
+        result = await agent.analyse(query)
         
         workflow_result = {
-            'workflow_type': 'thermoelectric_optimization',
+            'workflow_type': 'thermoelectric_optimisation',
             'agent_config': agent.get_mace_configuration(),
             'query': query,
             'result': result,
             'timestamp': datetime.now().isoformat()
         }
         
-        saved_path = self._save_result('thermoelectric_optimization', workflow_result)
-        print(f"✅ Thermoelectric optimization completed")
+        saved_path = self._save_result('thermoelectric_optimisation', workflow_result)
+        print(f"✅ Thermoelectric optimisation completed")
         if saved_path:
             print(f"📁 Results saved to: {saved_path}")
         
@@ -235,7 +235,7 @@ Design requirements:
 - Target applications: memory devices, sensors, actuators
 
 Chemical design principles:
-- Ferroelectricity: Need off-center cations (Ti4+, Nb5+, W6+) or lone pair elements (Bi3+, Pb2+)
+- Ferroelectricity: Need off-centre cations (Ti4+, Nb5+, W6+) or lone pair elements (Bi3+, Pb2+)
 - Magnetism: Include transition metals (Fe, Mn, Cr, Co, Ni) with unpaired electrons
 - Structural coupling: Crystal structures that allow both distortions
 
@@ -250,7 +250,7 @@ Exploration approach:
 Be creative but grounded in solid-state chemistry principles."""
         
         print("Running creative multiferroic discovery...")
-        result = await agent.analyze(query)
+        result = await agent.analyse(query)
         
         workflow_result = {
             'workflow_type': 'multiferroic_discovery',
@@ -305,12 +305,12 @@ Analysis workflow:
 4. Calculate formation energies and assess thermodynamic stability
 5. Analyze structural descriptors for conductivity predictions
 6. Use relaxation studies to understand Li+ migration barriers
-7. Provide uncertainty assessment for experimental prioritization
+7. Provide uncertainty assessment for experimental prioritisation
 
 Focus on identifying the most promising candidates for synthesis."""
         
         print("Running solid-state electrolyte analysis...")
-        result = await agent.analyze(query)
+        result = await agent.analyse(query)
         
         workflow_result = {
             'workflow_type': 'energy_storage_electrolytes',
@@ -370,7 +370,7 @@ Multi-fidelity screening strategy:
 Provide quantitative confidence assessment and DFT routing recommendations."""
         
         print("Running multi-fidelity catalyst screening...")
-        result = await agent.analyze(query)
+        result = await agent.analyse(query)
         
         workflow_result = {
             'workflow_type': 'multifidelity_catalyst_screening',
@@ -394,7 +394,7 @@ async def run_example_workflow(workflow_name: str, examples: WorkflowExamples) -
     workflows = {
         'battery': examples.battery_cathode_discovery,
         'solar': examples.solar_cell_materials_screening,
-        'thermoelectric': examples.thermoelectric_optimization,
+        'thermoelectric': examples.thermoelectric_optimisation,
         'multiferroic': examples.multiferroic_discovery,
         'electrolyte': examples.energy_storage_electrolytes,
         'catalyst': examples.multifidelity_catalyst_screening
@@ -418,7 +418,7 @@ async def run_all_workflows():
     workflows = [
         ("Battery Cathode Discovery", examples.battery_cathode_discovery),
         ("Solar Cell Materials Screening", examples.solar_cell_materials_screening),
-        ("Thermoelectric Optimization", examples.thermoelectric_optimization),
+        ("Thermoelectric Optimisation", examples.thermoelectric_optimisation),
         ("Multiferroic Discovery", examples.multiferroic_discovery),
         ("Energy Storage Electrolytes", examples.energy_storage_electrolytes),
         ("Multi-Fidelity Catalyst Screening", examples.multifidelity_catalyst_screening)

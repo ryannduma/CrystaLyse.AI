@@ -446,7 +446,7 @@ Contributions welcome! This is a research project exploring the intersection of 
 
 ## 📝 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+This project is licenced under the MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🎯 What's New in Latest Version
 
