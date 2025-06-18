@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from crystalyse import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse import CrystaLyse, AgentConfig
 
 
 async def main():
@@ -29,7 +29,7 @@ async def main():
         enable_mace=False
     )
     
-    creative_agent = CrystaLyseUnifiedAgent(creative_config)
+    creative_agent = CrystaLyse(creative_config)
     
     query1 = "Design an innovative solid-state electrolyte for sodium-ion batteries"
     print(f"Query: {query1}")
@@ -52,7 +52,7 @@ async def main():
         enable_mace=False
     )
     
-    rigorous_agent = CrystaLyseUnifiedAgent(rigorous_config)
+    rigorous_agent = CrystaLyse(rigorous_config)
     
     query2 = "Find lead-free perovskite materials for solar cell applications"
     print(f"Query: {query2}")

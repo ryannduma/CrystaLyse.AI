@@ -6,7 +6,7 @@ Usage: python simple_query.py "your query here" [mode]
 
 import asyncio
 import sys
-from crystalyse.agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse.agents.unified_agent import CrystaLyse, AgentConfig
 
 async def query_agent(query_text, mode="rigorous"):
     """Query the CrystaLyse.AI agent"""
@@ -18,7 +18,7 @@ async def query_agent(query_text, mode="rigorous"):
     try:
         # Create agent
         config = AgentConfig(mode=mode)
-        agent = CrystaLyseUnifiedAgent(config)
+        agent = CrystaLyse(config)
         
         # Run query
         result = await agent.discover_materials(query_text)

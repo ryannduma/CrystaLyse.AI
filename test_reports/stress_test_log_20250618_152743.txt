@@ -1,0 +1,72 @@
+INFO:__main__:Starting CrystaLyse System Prompt Tests
+INFO:__main__:Running quick validation test...
+INFO:__main__:Starting smact-materials v0.1.0
+INFO:__main__:Starting chemeleon-csp v0.1.0
+2025-06-18 15:27:48,414 - mace_mcp.server - INFO - MACE tools loaded successfully
+2025-06-18 15:27:49,595 - mace_mcp.tools - INFO - GPUtil not available - GPU monitoring disabled
+/home/ryan/.conda/envs/perry/lib/python3.11/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+2025-06-18 15:27:51,284 - mace_mcp.tools - INFO - MACE calculators imported successfully
+2025-06-18 15:27:51,292 - __main__ - INFO - MACE tools loaded successfully
+2025-06-18 15:27:51,292 - __main__ - INFO - Starting MACE MCP Server v0.1.0
+2025-06-18 15:27:51,292 - __main__ - INFO - Features: Energy calculations, uncertainty quantification, resource monitoring
+2025-06-18 15:27:51,292 - __main__ - INFO - PyTorch version: 2.7.1+cu126
+2025-06-18 15:27:51,297 - __main__ - INFO - CUDA available: True
+2025-06-18 15:27:51,336 - __main__ - INFO - CUDA device count: 1
+INFO:crystalyse.agents.unified_agent:Initialised agent with 3 MCP servers in rigorous mode.
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+2025-06-18 15:27:51,354 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+INFO:__main__:✓ Rigorous mode working
+INFO:__main__:Starting smact-materials v0.1.0
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+INFO:__main__:Starting chemeleon-csp v0.1.0
+2025-06-18 15:28:53,041 - mace_mcp.server - INFO - MACE tools loaded successfully
+2025-06-18 15:28:54,051 - mace_mcp.tools - INFO - GPUtil not available - GPU monitoring disabled
+/home/ryan/.conda/envs/perry/lib/python3.11/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+2025-06-18 15:28:55,374 - mace_mcp.tools - INFO - MACE calculators imported successfully
+2025-06-18 15:28:55,382 - __main__ - INFO - MACE tools loaded successfully
+2025-06-18 15:28:55,382 - __main__ - INFO - Starting MACE MCP Server v0.1.0
+2025-06-18 15:28:55,382 - __main__ - INFO - Features: Energy calculations, uncertainty quantification, resource monitoring
+2025-06-18 15:28:55,382 - __main__ - INFO - PyTorch version: 2.7.1+cu126
+2025-06-18 15:28:55,387 - __main__ - INFO - CUDA available: True
+2025-06-18 15:28:55,425 - __main__ - INFO - CUDA device count: 1
+INFO:crystalyse.agents.unified_agent:Initialised agent with 3 MCP servers in creative mode.
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+2025-06-18 15:28:55,442 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+INFO:__main__:✓ Creative mode working
+INFO:__main__:
+Starting comprehensive tests...
+INFO:__main__:
+==================================================
+INFO:__main__:Testing RIGOROUS MODE
+INFO:__main__:==================================================
+
+INFO:__main__:
+Testing Specific Formulas...
+INFO:__main__:Testing in rigorous mode: Analyse NaFePO4 for battery applications
+INFO:__main__:Starting smact-materials v0.1.0
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+INFO:__main__:Starting chemeleon-csp v0.1.0
+2025-06-18 15:29:20,060 - mace_mcp.server - INFO - MACE tools loaded successfully
+2025-06-18 15:29:21,263 - mace_mcp.tools - INFO - GPUtil not available - GPU monitoring disabled
+/home/ryan/.conda/envs/perry/lib/python3.11/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+2025-06-18 15:29:22,694 - mace_mcp.tools - INFO - MACE calculators imported successfully
+2025-06-18 15:29:22,702 - __main__ - INFO - MACE tools loaded successfully
+2025-06-18 15:29:22,702 - __main__ - INFO - Starting MACE MCP Server v0.1.0
+2025-06-18 15:29:22,702 - __main__ - INFO - Features: Energy calculations, uncertainty quantification, resource monitoring
+2025-06-18 15:29:22,702 - __main__ - INFO - PyTorch version: 2.7.1+cu126
+2025-06-18 15:29:22,706 - __main__ - INFO - CUDA available: True
+2025-06-18 15:29:22,747 - __main__ - INFO - CUDA device count: 1
+INFO:crystalyse.agents.unified_agent:Initialised agent with 3 MCP servers in rigorous mode.
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+INFO:mcp.server.lowlevel.server:Processing request of type ListToolsRequest
+2025-06-18 15:29:22,763 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"

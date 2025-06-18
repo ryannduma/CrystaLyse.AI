@@ -42,7 +42,7 @@ from rich.syntax import Syntax
 from rich.columns import Columns
 from rich.text import Text
 
-from .agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from .agents.unified_agent import CrystaLyse, AgentConfig
 from .config import config
 
 
@@ -150,7 +150,7 @@ class CrystaLyseShell:
         self.current_compositions = []  # Store compositions from latest analysis
         self.current_result = None
         self.session_history: List[Dict[str, Any]] = []
-        self.agent: Optional[CrystaLyseUnifiedAgent] = None
+        self.agent: Optional[CrystaLyse] = None
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Simplified for unified agent (no visualisation dependencies for now)
@@ -195,7 +195,7 @@ class CrystaLyseShell:
                     max_turns=15
                 )
             
-            self.agent = CrystaLyseUnifiedAgent(agent_config)
+            self.agent = CrystaLyse(agent_config)
             return True
         except Exception as e:
             self.console.print(f"[red]Error initialising unified agent: {e}[/red]")

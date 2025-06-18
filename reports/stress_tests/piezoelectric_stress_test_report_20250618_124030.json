@@ -1,0 +1,47 @@
+{
+  "test_date": "2025-06-18T12:39:18.373924",
+  "test_type": "Piezoelectric Materials Discovery",
+  "creative_mode": {
+    "success": true,
+    "execution_time": 24.58433771133423,
+    "query": "Explore novel piezoelectric materials",
+    "model_used": "o4-mini",
+    "telemetry": {
+      "message": "No telemetry data"
+    },
+    "result_summary": {
+      "has_compositions": true,
+      "has_structures": true,
+      "has_energies": true,
+      "result_length": 33681
+    },
+    "compositions_generated": 9,
+    "error": null
+  },
+  "rigorous_mode": {
+    "success": true,
+    "execution_time": 45.98952341079712,
+    "query": "Find stable lead-free piezoelectric for medical devices",
+    "model_used": "o3",
+    "telemetry": {
+      "message": "No telemetry data"
+    },
+    "result_summary": {
+      "has_compositions": true,
+      "has_structures": true,
+      "has_energies": true,
+      "result_length": 34288
+    },
+    "compositions_validated": 10,
+    "structures_predicted": 52,
+    "energy_calculations": 25,
+    "error": null
+  },
+  "comparison": {
+    "time_difference": 21.40518569946289,
+    "speedup_factor": 1.870683845576786,
+    "creative_faster_by": "46.5%",
+    "validation_overhead": "SMACT validation + structure prediction + energy calculations",
+    "recommendation": "Use Creative Mode for initial exploration, Rigorous Mode for final validation"
+  }
+}

@@ -15,17 +15,17 @@ Use the unified agent for all materials discovery tasks.
 
 # Backward compatibility placeholders
 def generate_compositions(*args, **kwargs):
-    """Use CrystaLyseUnifiedAgent with SMACT MCP server instead."""
+    """Use CrystaLyse with SMACT MCP server instead."""
     raise NotImplementedError(
         "This function has been replaced by the unified agent with SMACT MCP server. "
-        "Use CrystaLyseUnifiedAgent for materials discovery."
+        "Use CrystaLyse for materials discovery."
     )
 
 def validate_composition_batch(*args, **kwargs):
-    """Use CrystaLyseUnifiedAgent with SMACT MCP server instead."""
+    """Use CrystaLyse with SMACT MCP server instead."""
     raise NotImplementedError(
         "This function has been replaced by the unified agent with SMACT MCP server. "
-        "Use CrystaLyseUnifiedAgent for materials discovery."
+        "Use CrystaLyse for materials discovery."
     )
 
 __all__ = []  # No public tools - use unified agent instead

@@ -18,23 +18,19 @@ __version__ = "0.2.0"
 
 # Import unified agent
 from .agents.unified_agent import (
-    CrystaLyseUnifiedAgent,
+    CrystaLyse,
     AgentConfig,
     analyse_materials,
     rigorous_analysis,
     creative_analysis
 )
 
-# For backward compatibility
-from .agents import CrystaLyseAgent  # This is aliased to CrystaLyseUnifiedAgent
-
 # Configuration
 from .config import config
 
 # Define exports
 __all__ = [
-    "CrystaLyseUnifiedAgent",
-    "CrystaLyseAgent",  # Backward compatibility alias
+    "CrystaLyse",
     "AgentConfig",
     "analyse_materials",
     "rigorous_analysis", 

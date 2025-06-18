@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from crystalyse.agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse.agents.unified_agent import CrystaLyse, AgentConfig
 
 def score_tool_usage(result, expected_tools):
     """Score how well the agent used the expected tools"""
@@ -115,7 +115,7 @@ async def test_o3_tool_usage():
         try:
             # Create rigorous mode agent (uses o3)
             rigorous_config = AgentConfig(mode="rigorous")
-            agent = CrystaLyseUnifiedAgent(rigorous_config)
+            agent = CrystaLyse(rigorous_config)
             
             print(f"🤖 Using model: {rigorous_config.model}")
             

@@ -132,26 +132,12 @@ def ask_clarifying_questions(questions: List[ClarificationQuestion]) -> str:
     
     return output + "Please provide your answers to help me focus the search."
 
-class CrystaLyseUnifiedAgent:
+class CrystaLyse:
     """
     Unified agent using OpenAI Agents SDK.
     
     This consolidates all functionality into a single, truly agentic implementation.
     """
-    
-    instructions = (
-        "You are CrystaLyse.AI, a world-class materials science research agent. "
-        "Your purpose is to accelerate the discovery of new crystalline materials using a suite of computational tools. "
-        "You have access to three powerful toolsets, accessible via a unified MCP (Materials Computation Platform):\n"
-        "1. `smact_tools`: For generating and validating novel chemical compositions using chemical principles.\n"
-        "2. `chemeleon_tools`: For performing crystal structure prediction (CSP) to find stable structures for a given composition.\n"
-        "3. `mace_tools`: For running high-accuracy, machine-learning-based potential calculations to determine material properties like energy and forces.\n\n"
-        "**Your Operational Workflow: Clarify, Plan, Execute**\n\n"
-        "1.  **Analyze and Clarify:** First, critically assess the user's request. If it is broad, ambiguous, or lacks specific constraints (e.g., 'find a new battery material'), your primary and immediate action MUST be to use the `ask_clarifying_questions` tool. Do not guess or proceed with a flawed premise. Wait for the user to provide the necessary details.\n\n"
-        "2.  **Formulate a Plan:** Once the query is specific and actionable (e.g., 'find a sodium-ion conductor with high stability and a band gap over 2 eV'), formulate a multi-step plan. Announce this plan to the user clearly. For example: 'Plan: First, I will use `smact_tools.generate_compositions` to find candidate materials. Second, I will predict their structures with `chemeleon_tools.predict_structure`. Finally, I will validate their stability using `mace_tools.calculate_energy`.'\n\n"
-        "3.  **Execute Autonomously:** After stating your plan, **immediately execute the first step** by calling the appropriate tool. Do not ask for permission or wait for confirmation. Continue executing the plan, step-by-step, analyzing the output of each tool call to inform the next, until you have a final answer or encounter a definitive failure.\n\n"
-        "Your goal is to be a proactive, autonomous research partner. Never ask a question if you can find the answer with a tool. Clarify ambiguity, then plan and execute with relentless forward momentum."
-    )
 
     def __init__(self, agent_config: AgentConfig = None, system_config=None):
         self.agent_config = agent_config or AgentConfig()
@@ -164,6 +150,27 @@ class CrystaLyseUnifiedAgent:
         self.model_name = self.agent_config.model
         self.max_turns = self.agent_config.max_turns
         self.agent = None
+        self.instructions = self._load_system_prompt()
+        
+    def _load_system_prompt(self) -> str:
+        """Load and process the system prompt from markdown file."""
+        # Get the path to the prompt file
+        prompt_path = Path(__file__).parent.parent / "prompts" / "unified_agent_prompt.md"
+        
+        # Read the prompt
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            prompt = f.read()
+        
+        # Add mode-specific additions
+        mode_additions = {
+            "rigorous": "\n\nCrystaLyse is currently operating in Rigorous Mode. Every composition must be validated, every structure must have calculated energies, and all results must include uncertainty estimates.",
+            "creative": "\n\nCrystaLyse is currently operating in Creative Mode. Explore boldly, validate the most promising candidates, and encourage novel thinking."
+        }
+        
+        if self.mode in mode_additions:
+            prompt += mode_additions[self.mode]
+            
+        return prompt
 
     async def discover_materials(self, query: str, session: Optional[Agent] = None, trace_workflow: bool = True) -> dict:
         """
@@ -302,7 +309,7 @@ class CrystaLyseUnifiedAgent:
 async def analyse_materials(query: str, mode: str = "creative", **kwargs) -> Dict[str, Any]:
     """Top-level analysis function for unified agent."""
     config = AgentConfig(mode=mode, **kwargs)
-    agent = CrystaLyseUnifiedAgent(agent_config=config)
+    agent = CrystaLyse(agent_config=config)
     return await agent.discover_materials(query)
 
 

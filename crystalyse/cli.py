@@ -58,7 +58,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 from prompt_toolkit.completion import FuzzyCompleter, WordCompleter
 
-from .agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from .agents.unified_agent import CrystaLyse, AgentConfig
 from .config import config
 
 console = Console()
@@ -87,14 +87,14 @@ def status():
     status_table.add_row("OPENAI_API_KEY", "Set" if api_configured else "Not Set", 
                         "Configured" if api_configured else "Missing")
     status_table.add_row("Default Model", "o4-mini", "OpenAI Agents SDK")
-    status_table.add_row("Agent Type", "CrystaLyseUnifiedAgent", "Unified")
+    status_table.add_row("Agent Type", "CrystaLyse", "Unified")
     status_table.add_row("Architecture", "90% code reduction", "Optimised")
     
     # MCP Servers status
     try:
         # A more representative test config that would use tools
         test_config = AgentConfig(enable_smact=True, enable_chemeleon=True, enable_mace=True)
-        test_agent = CrystaLyseUnifiedAgent(test_config)
+        test_agent = CrystaLyse(test_config)
         agent_status = "Working"
     except Exception:
         agent_status = "Error"
@@ -279,7 +279,7 @@ async def _analyse(query: str, model: str, temperature: float, max_turns: int, o
 
         else:
             # Default: unified agent without special patterns
-            agent = CrystaLyseUnifiedAgent(
+            agent = CrystaLyse(
                 config=AgentConfig(
                     model_name=model,
                     temperature=temperature,
@@ -407,7 +407,7 @@ async def _shell(model: str, max_turns: int, temperature: float):
     
     display_splash_screen()
     
-    agent = CrystaLyseUnifiedAgent(
+    agent = CrystaLyse(
         config=AgentConfig(
             model_name=model,
             temperature=temperature,
@@ -476,7 +476,7 @@ def display_splash_screen():
     console.print("-" * 60)
 
 
-async def run_from_file(filepath: str, agent: CrystaLyseUnifiedAgent):
+async def run_from_file(filepath: str, agent: CrystaLyse):
     """Runs a discovery session from a file containing a list of queries."""
     try:
         with open(filepath, 'r') as f:

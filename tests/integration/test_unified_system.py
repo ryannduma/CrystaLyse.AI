@@ -11,7 +11,7 @@ import tempfile
 import json
 
 # Test the unified system
-from crystalyse.agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse.agents.unified_agent import CrystaLyse, AgentConfig
 from crystalyse.tools.atomic_tools import (
     suggest_elements_for_application,
     generate_compositions_simple,
@@ -28,7 +28,7 @@ class TestUnifiedSystem:
     async def test_unified_agent_initialisation(self):
         """Test that unified agent initializes correctly"""
         config = AgentConfig(mode="creative", enable_mace=False)  # Disable MACE for faster tests
-        agent = CrystaLyseUnifiedAgent(config)
+        agent = CrystaLyse(config)
         
         assert agent.config.mode == "creative"
         assert agent.capabilities["validation"] == True
@@ -42,7 +42,7 @@ class TestUnifiedSystem:
         
         # Test creative mode
         creative_config = AgentConfig(mode="creative", enable_mace=False, max_turns=3)
-        creative_agent = CrystaLyseUnifiedAgent(creative_config)
+        creative_agent = CrystaLyse(creative_config)
         
         # Simple test query (may not complete full discovery due to MCP server setup)
         try:
@@ -58,7 +58,7 @@ class TestUnifiedSystem:
         
         # Test rigorous mode
         rigorous_config = AgentConfig(mode="rigorous", enable_mace=False, max_turns=3)
-        rigorous_agent = CrystaLyseUnifiedAgent(rigorous_config)
+        rigorous_agent = CrystaLyse(rigorous_config)
         
         try:
             rigorous_result = await rigorous_agent.discover_materials("Validate Li-ion conductor stability")
@@ -228,7 +228,7 @@ class TestUnifiedSystem:
         start_time = time.time()
         
         config = AgentConfig(enable_mace=False)
-        agent = CrystaLyseUnifiedAgent(config)
+        agent = CrystaLyse(config)
         
         init_duration = time.time() - start_time
         
@@ -255,7 +255,7 @@ class TestUnifiedSystem:
             content = unified_agent_path.read_text()
             
             # Should contain unified agent class
-            assert "CrystaLyseUnifiedAgent" in content
+            assert "CrystaLyse" in content
             assert "consolidates all functionality" in content.lower()
     
     @pytest.mark.asyncio
@@ -263,7 +263,7 @@ class TestUnifiedSystem:
         """Test graceful error recovery and alternative approaches"""
         
         config = AgentConfig(enable_mace=False, max_turns=2)
-        agent = CrystaLyseUnifiedAgent(config)
+        agent = CrystaLyse(config)
         
         # Test self-assessment tools
         progress_result = await agent._assess_progress("Testing error recovery")

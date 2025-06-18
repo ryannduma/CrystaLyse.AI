@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from crystalyse import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse import CrystaLyse, AgentConfig
 
 
 async def main():
@@ -28,7 +28,7 @@ async def main():
         max_turns=25  # More turns for complex constraints
     )
     
-    agent = CrystaLyseUnifiedAgent(config)
+    agent = CrystaLyse(config)
     
     # Example 1: Multi-constraint materials design
     print("\n1. Multi-Constraint Thermoelectric Materials")

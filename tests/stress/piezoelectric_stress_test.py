@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from crystalyse.agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse.agents.unified_agent import CrystaLyse, AgentConfig
 from crystalyse.monitoring.agent_telemetry import get_telemetry_summary, reset_telemetry
 
 class PiezoelectricStressTest:
@@ -36,7 +36,7 @@ class PiezoelectricStressTest:
         try:
             # Initialize agent in creative mode
             config = AgentConfig(mode="creative")
-            agent = CrystaLyseUnifiedAgent(config)
+            agent = CrystaLyse(config)
             
             # Run the query
             query = "Explore novel piezoelectric materials"
@@ -84,7 +84,7 @@ class PiezoelectricStressTest:
         try:
             # Initialize agent in rigorous mode
             config = AgentConfig(mode="rigorous")
-            agent = CrystaLyseUnifiedAgent(config)
+            agent = CrystaLyse(config)
             
             # Run the query
             query = "Find stable lead-free piezoelectric for medical devices"

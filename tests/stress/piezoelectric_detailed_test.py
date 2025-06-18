@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 import re
 
-from crystalyse.agents.unified_agent import CrystaLyseUnifiedAgent, AgentConfig
+from crystalyse.agents.unified_agent import CrystaLyse, AgentConfig
 from crystalyse.monitoring.agent_telemetry import get_telemetry_summary, reset_telemetry
 
 class DetailedPiezoelectricTest:
@@ -71,7 +71,7 @@ class DetailedPiezoelectricTest:
         
         try:
             config = AgentConfig(mode="creative")
-            agent = CrystaLyseUnifiedAgent(config)
+            agent = CrystaLyse(config)
             
             query = "Explore novel piezoelectric materials. Please provide specific compositions with their predicted properties."
             result = await agent.discover_materials(query)
@@ -128,7 +128,7 @@ class DetailedPiezoelectricTest:
         
         try:
             config = AgentConfig(mode="rigorous")
-            agent = CrystaLyseUnifiedAgent(config)
+            agent = CrystaLyse(config)
             
             query = """Find stable lead-free piezoelectric materials for medical devices. 
             For each candidate, provide:
