@@ -280,16 +280,14 @@ async def _analyse(query: str, model: str, temperature: float, max_turns: int, o
         else:
             # Default: unified agent without special patterns
             agent = CrystaLyse(
-                config=AgentConfig(
-                    model_name=model,
+                agent_config=AgentConfig(
+                    model=model,
                     temperature=temperature,
-                    max_turns=max_turns,
-                    stream_to_console=stream,
-                    budget=budget
+                    max_turns=max_turns
                 )
             )
             
-            result = await agent.run_full_discovery(query)
+            result = await agent.discover_materials(query)
             
         # Process and display results
         if output:
@@ -408,11 +406,10 @@ async def _shell(model: str, max_turns: int, temperature: float):
     display_splash_screen()
     
     agent = CrystaLyse(
-        config=AgentConfig(
-            model_name=model,
+        agent_config=AgentConfig(
+            model=model,
             temperature=temperature,
-            max_turns=max_turns,
-            stream_to_console=True
+            max_turns=max_turns
         )
     )
 
@@ -450,7 +447,7 @@ async def _shell(model: str, max_turns: int, temperature: float):
             if not user_input.strip():
                 continue
 
-            await agent.run_full_discovery(user_input)
+            await agent.discover_materials(user_input)
 
         except KeyboardInterrupt:
             continue
@@ -486,7 +483,7 @@ async def run_from_file(filepath: str, agent: CrystaLyse):
         
         for i, query in enumerate(queries):
             console.print(f"\n--- Running Query {i+1}/{len(queries)}: {query} ---")
-            await agent.run_full_discovery(query)
+            await agent.discover_materials(query)
             
     except FileNotFoundError:
         console.print(f"[red]Error: File not found at '{filepath}'[/red]")

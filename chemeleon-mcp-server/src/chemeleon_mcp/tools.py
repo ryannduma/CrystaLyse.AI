@@ -64,10 +64,68 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
     # Load model
     device = _get_device(prefer_gpu=prefer_gpu)
     logger.info(f"Loading model on device: {device}")
-    diffusion_module = DiffusionModule.load_from_checkpoint(
-        checkpoint_path, 
-        map_location=device
-    )
+    
+    # Handle version compatibility for DiffusionModule
+    try:
+        # First try standard checkpoint loading
+        diffusion_module = DiffusionModule.load_from_checkpoint(
+            checkpoint_path, 
+            map_location=device
+        )
+    except TypeError as e:
+        if "optimiser_configs" in str(e):
+            # Handle newer Chemeleon versions that require optimiser_configs
+            logger.info("Loading model with optimiser_configs compatibility mode")
+            
+            # Load checkpoint to extract hyperparameters
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            hparams = checkpoint.get('hyper_parameters', {})
+            
+            # Create a new DiffusionModule instance with required parameters
+            # Use create_diffusion_module function for proper initialization
+            try:
+                # Get task from hyperparameters and convert to string
+                task_param = hparams.get('task', 'csp')
+                if hasattr(task_param, 'name'):  # If it's an enum, get the name
+                    task_param = task_param.name.lower()
+                elif not isinstance(task_param, str):
+                    task_param = str(task_param).lower()
+                
+                diffusion_module = create_diffusion_module(
+                    task=task_param,
+                    model_configs=hparams.get('model_configs', {}),
+                    optimiser_configs=hparams.get('optimiser_configs', {
+                        "optimiser": "adam",
+                        "lr": 1e-4,
+                        "weight_decay": 0.01,
+                        "scheduler": "plateau",
+                        "patience": 10,
+                        "early_stopping": 20,
+                        "warmup_steps": 0
+                    }),
+                    num_timesteps=hparams.get('num_timesteps', 1000),
+                    beta_schedule_ddpm=hparams.get('beta_schedule_ddpm', 'cosine'),
+                    beta_schedule_d3pm=hparams.get('beta_schedule_d3pm', 'cosine'),
+                    max_atoms=hparams.get('max_atoms', 100),
+                    d3pm_hybrid_coeff=hparams.get('d3pm_hybrid_coeff', 0.01),
+                    sigma_begin=hparams.get('sigma_begin', 10.0),
+                    sigma_end=hparams.get('sigma_end', 0.01)
+                )
+                
+                # Load the state dict manually
+                diffusion_module.load_state_dict(checkpoint['state_dict'], strict=False)
+                diffusion_module.to(device)
+                
+            except Exception as create_error:
+                logger.error(f"Failed to create diffusion module: {create_error}")
+                # Final fallback - try direct loading with strict=False
+                diffusion_module = DiffusionModule.load_from_checkpoint(
+                    checkpoint_path,
+                    map_location=device,
+                    strict=False
+                )
+        else:
+            raise e
     diffusion_module.eval()
     
     # Cache the model

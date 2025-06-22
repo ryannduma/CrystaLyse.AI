@@ -18,6 +18,7 @@ from agents.mcp import MCPServer, MCPServerStdio
 from pydantic import BaseModel
 
 from ..config import config
+from ..validation import validate_computational_response, ValidationViolation
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,43 @@ def ask_clarifying_questions(questions: List[ClarificationQuestion]) -> str:
     
     return output + "Please provide your answers to help me focus the search."
 
+class ComputationalQueryClassifier:
+    """Classify queries to determine if they require computational tools."""
+    
+    def __init__(self):
+        self.computational_keywords = [
+            'validate', 'check', 'verify', 'stability', 'stable',
+            'energy', 'formation', 'calculate', 'compute',
+            'structure', 'crystal', 'polymorph', 'space group',
+            'synthesis', 'predict', 'generate', 'design',
+            'find', 'suggest', 'discover', 'novel', 'alternatives',
+            'compare', 'rank', 'optimise', 'optimize', 'improve'
+        ]
+        
+        self.chemical_formula_pattern = r'\b[A-Z][a-z]?\d*(?:[A-Z][a-z]?\d*)*\b'
+        
+    def requires_computation(self, query: str) -> bool:
+        """Determine if query requires computational tools."""
+        query_lower = query.lower()
+        
+        # Check for computational keywords
+        has_computational_keywords = any(
+            keyword in query_lower for keyword in self.computational_keywords
+        )
+        
+        # Check for chemical formulas
+        import re
+        has_formulas = bool(re.search(self.chemical_formula_pattern, query))
+        
+        return has_computational_keywords or has_formulas
+    
+    def get_enforcement_level(self, query: str) -> str:
+        """Determine tool choice enforcement level."""
+        if self.requires_computation(query):
+            return "required"  # Force tools for computational queries
+        else:
+            return "auto"      # Allow flexibility for general queries
+
 class CrystaLyse:
     """
     Unified agent using OpenAI Agents SDK.
@@ -151,6 +189,9 @@ class CrystaLyse:
         self.max_turns = self.agent_config.max_turns
         self.agent = None
         self.instructions = self._load_system_prompt()
+        
+        # Initialize query classifier for tool enforcement
+        self.query_classifier = ComputationalQueryClassifier()
         
     def _load_system_prompt(self) -> str:
         """Load and process the system prompt from markdown file."""
@@ -181,64 +222,58 @@ class CrystaLyse:
         
         self.metrics["start_time"] = time.time()
         
+        # Classify query to determine tool enforcement level
+        requires_computation = self.query_classifier.requires_computation(query)
+        tool_choice = self.query_classifier.get_enforcement_level(query)
+        
+        logger.info(f"Query classification: requires_computation={requires_computation}, tool_choice={tool_choice}")
+        
+        # Enhanced query for computational requirements
+        if requires_computation:
+            enhanced_query = f"""
+            COMPUTATIONAL QUERY DETECTED: This query requires actual tool usage.
+            DO NOT generate results without calling tools.
+            
+            Query: {query}
+            
+            Remember: Use tools for ANY computational claims. Report tool failures clearly if they occur.
+            """
+        else:
+            enhanced_query = query
+        
         try:
             async with AsyncExitStack() as stack:
                 mcp_servers = []
                 extra_tools = [assess_progress, explore_alternatives, ask_clarifying_questions]
 
-                if self.agent_config.enable_smact:
-                    smact_config = self.system_config.get_server_config("smact")
-                    smact_server = await stack.enter_async_context(
+                # Use unified chemistry server that combines all tools
+                if (self.agent_config.enable_smact or 
+                    self.agent_config.enable_chemeleon or 
+                    self.agent_config.enable_mace):
+                    
+                    chemistry_config = self.system_config.get_server_config("chemistry_unified")
+                    chemistry_server = await stack.enter_async_context(
                         MCPServerStdio(
-                            name="SMACT",
+                            name="ChemistryUnified",
                             params={
-                                "command": smact_config["command"],
-                                "args": smact_config["args"],
-                                "cwd": smact_config["cwd"],
-                                "env": smact_config.get("env", {})
-                            }
+                                "command": chemistry_config["command"],
+                                "args": chemistry_config["args"],
+                                "cwd": chemistry_config["cwd"],
+                                "env": chemistry_config.get("env", {})
+                            },
+                            client_session_timeout_seconds=60  # Allow 60s for model downloads
                         )
                     )
-                    mcp_servers.append(smact_server)
-
-                if self.agent_config.enable_chemeleon:
-                    chemeleon_config = self.system_config.get_server_config("chemeleon")
-                    chemeleon_server = await stack.enter_async_context(
-                        MCPServerStdio(
-                            name="Chemeleon",
-                            params={
-                                "command": chemeleon_config["command"],
-                                "args": chemeleon_config["args"],
-                                "cwd": chemeleon_config["cwd"],
-                                "env": chemeleon_config.get("env", {})
-                            }
-                        )
-                    )
-                    mcp_servers.append(chemeleon_server)
-
-                if self.agent_config.enable_mace:
-                    mace_config = self.system_config.get_server_config("mace")
-                    mace_server = await stack.enter_async_context(
-                        MCPServerStdio(
-                            name="MACE",
-                            params={
-                                "command": mace_config["command"],
-                                "args": mace_config["args"],
-                                "cwd": mace_config["cwd"],
-                                "env": mace_config.get("env", {})
-                            }
-                        )
-                    )
-                    mcp_servers.append(mace_server)
+                    mcp_servers.append(chemistry_server)
 
                 logger.info(f"Initialised agent with {len(mcp_servers)} MCP servers in {self.mode} mode.")
 
                 if not self.agent:
-                    # Create model settings with temperature and REQUIRED tool usage for computational queries
+                    # Create model settings with dynamic tool choice based on query classification
                     from agents.model_settings import ModelSettings
-                    model_settings = ModelSettings(tool_choice="required")
+                    model_settings = ModelSettings(tool_choice=tool_choice)
                     if self.temperature is not None:
-                        model_settings = ModelSettings(temperature=self.temperature, tool_choice="required")
+                        model_settings = ModelSettings(temperature=self.temperature, tool_choice=tool_choice)
                     
                     self.agent = Agent(
                         name="CrystaLyse",
@@ -265,7 +300,7 @@ class CrystaLyse:
                 
                 result = await Runner.run(
                     starting_agent=self.agent, 
-                    input=query, 
+                    input=enhanced_query, 
                     max_turns=self.max_turns,
                     run_config=run_config
                 )
@@ -276,11 +311,26 @@ class CrystaLyse:
                 # Extract final output
                 final_content = str(result.final_output) if result.final_output else "No discovery result found."
                 
-                # Count tool calls from new_items
-                tool_call_count = sum(1 for item in result.new_items if hasattr(item, 'tool_calls') and item.tool_calls)
+                # Extract tool calls from result
+                tool_calls = []
+                for item in result.new_items:
+                    if hasattr(item, 'tool_calls') and item.tool_calls:
+                        tool_calls.extend(item.tool_calls)
+                
+                tool_call_count = len(tool_calls)
                 
                 # Validate tool usage to detect potential hallucination
-                tool_validation = self._validate_tool_usage(result, query)
+                tool_validation = self._validate_tool_usage(result, query, requires_computation)
+
+                # Advanced response validation
+                response_validation = self._validate_response_integrity(
+                    query, final_content, tool_calls, requires_computation
+                )
+                
+                # Use sanitized response if validation failed
+                if not response_validation["is_valid"]:
+                    final_content = response_validation["sanitized_response"]
+                    logger.error(f"Response validation failed: {response_validation['violations']}")
 
                 return {
                     "status": "completed",
@@ -294,6 +344,7 @@ class CrystaLyse:
                         "raw_responses": len(result.raw_responses)
                     },
                     "tool_validation": tool_validation,
+                    "response_validation": response_validation,
                     "new_items": [str(item) for item in result.new_items[:5]],  # Sample of items
                 }
 
@@ -310,24 +361,43 @@ class CrystaLyse:
                 },
             }
     
-    def _validate_tool_usage(self, result, query: str) -> Dict[str, Any]:
+    def _validate_tool_usage(self, result, query: str, requires_computation: bool = None) -> Dict[str, Any]:
         """Validate that computational tools were actually used when expected."""
         tool_calls = getattr(result, 'tool_calls', []) or []
         
-        # Check if query requires computational analysis
-        computational_keywords = [
-            'find', 'suggest', 'design', 'calculate', 'formation energy', 
-            'stability', 'structure', 'validate', 'materials', 'battery',
-            'solar', 'thermoelectric', 'photocatalyst', 'electrolyte'
-        ]
-        
-        needs_computation = any(keyword in query.lower() for keyword in computational_keywords)
+        # Use the classifier result if provided, otherwise fallback to keyword check
+        if requires_computation is None:
+            needs_computation = self.query_classifier.requires_computation(query)
+        else:
+            needs_computation = requires_computation
         
         # Extract tool names from actual calls
         tools_used = []
         for call in tool_calls:
             if hasattr(call, 'function') and hasattr(call.function, 'name'):
                 tools_used.append(call.function.name)
+        
+        # Check for computational results in response without tool calls
+        response = str(result.final_output) if result.final_output else ""
+        
+        # Patterns that indicate computational results were reported
+        import re
+        computational_result_patterns = [
+            r'formation energy:.*-?\d+\.\d+\s*ev',
+            r'validation.*valid.*confidence.*\d+',
+            r'smact.*valid',
+            r'space group:.*[a-z0-9/-]+',
+            r'crystal system:.*[a-z]+',
+            r'stability.*stable',
+            r'confidence.*score.*\d+',
+            r'structure.*generated',
+            r'energy.*calculated'
+        ]
+        
+        contains_computational_results = any(
+            re.search(pattern, response.lower()) 
+            for pattern in computational_result_patterns
+        )
         
         validation = {
             "needs_computation": needs_computation,
@@ -336,13 +406,53 @@ class CrystaLyse:
             "smact_used": any('smact' in tool.lower() for tool in tools_used),
             "chemeleon_used": any('chemeleon' in tool.lower() for tool in tools_used),
             "mace_used": any('mace' in tool.lower() for tool in tools_used),
-            "potential_hallucination": needs_computation and len(tool_calls) == 0
+            "contains_computational_results": contains_computational_results,
+            "potential_hallucination": needs_computation and len(tool_calls) == 0 and contains_computational_results,
+            "critical_failure": needs_computation and len(tool_calls) == 0 and contains_computational_results
         }
         
         if validation["potential_hallucination"]:
-            logger.warning(f"⚠️ POTENTIAL HALLUCINATION: Query '{query[:50]}...' appears to need computation but no tools were called!")
+            logger.error(f"🚨 CRITICAL HALLUCINATION DETECTED: Query '{query[:50]}...' requires computation but response contains results without tool calls!")
+            
+        elif validation["critical_failure"]:
+            logger.error(f"💥 SYSTEM FAILURE: Computational results reported without actual calculations!")
             
         return validation
+
+    def _validate_response_integrity(
+        self, 
+        query: str, 
+        response: str, 
+        tool_calls: List[Any], 
+        requires_computation: bool
+    ) -> Dict[str, Any]:
+        """Validate response integrity using comprehensive validation system."""
+        
+        is_valid, sanitized_response, violations = validate_computational_response(
+            query=query,
+            response=response,
+            tool_calls=tool_calls,
+            requires_computation=requires_computation
+        )
+        
+        # Format violations for logging
+        violation_summaries = []
+        for violation in violations:
+            violation_summaries.append({
+                "type": violation.type.value,
+                "severity": violation.severity,
+                "pattern": violation.pattern,
+                "description": violation.description
+            })
+        
+        return {
+            "is_valid": is_valid,
+            "sanitized_response": sanitized_response,
+            "violations": violation_summaries,
+            "violation_count": len(violations),
+            "critical_violations": len([v for v in violations if v.severity == "critical"]),
+            "warning_violations": len([v for v in violations if v.severity == "warning"])
+        }
 
 async def analyse_materials(query: str, mode: str = "creative", **kwargs) -> Dict[str, Any]:
     """Top-level analysis function for unified agent."""

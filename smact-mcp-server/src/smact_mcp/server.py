@@ -25,6 +25,9 @@ SERVER_VERSION = "0.1.0"
 # Import tools (this registers them with the mcp server)
 from . import tools
 
+# Log that tools module was imported
+logger.info(f"Tools module imported successfully")
+
 def main():
     """Run the server."""
     try:
