@@ -17,7 +17,7 @@ Key Features:
 __version__ = "0.2.0"
 
 # Import unified agent
-from .agents.unified_agent import (
+from .agents.crystalyse_agent import (
     CrystaLyse,
     AgentConfig,
     analyse_materials,

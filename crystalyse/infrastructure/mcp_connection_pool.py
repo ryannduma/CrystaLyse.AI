@@ -72,7 +72,7 @@ class MCPConnectionPool:
             try:
                 logger.info(f"Establishing connection to {server_name} (attempt {attempt + 1})")
                 
-                # Create new connection
+                # Create new connection with 5-minute timeout
                 connection = await self.exit_stack.enter_async_context(
                     MCPServerStdio(
                         name=server_name,
@@ -81,7 +81,8 @@ class MCPConnectionPool:
                             "args": config["args"],
                             "cwd": config["cwd"],
                             "env": config.get("env", {})
-                        }
+                        },
+                        client_session_timeout_seconds=300  # 5 minutes for complex operations
                     )
                 )
                 

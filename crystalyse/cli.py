@@ -58,7 +58,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 from prompt_toolkit.completion import FuzzyCompleter, WordCompleter
 
-from .agents.unified_agent import CrystaLyse, AgentConfig
+from .agents.crystalyse_agent import CrystaLyse, AgentConfig
 from .config import config
 
 console = Console()
@@ -145,60 +145,56 @@ def status():
 
 @cli.command()
 @click.argument("query")
-@click.option("--model", default="o4-mini", help="LLM model to use (default: o4-mini with OpenAI Agents SDK)")
-@click.option("--temperature", default=0.7, type=float, help="Temperature for generation")
-@click.option("--max-turns", default=25, type=int, help="Maximum number of conversational turns.")
+@click.option("--model", default="o4-mini", help="Model: o4-mini (creative, fast) or o3 (rigorous, thorough)")
+@click.option("--max-turns", default=30, type=int, help="Maximum number of conversational turns (default: 30)")
 @click.option("--output", "-o", help="Output file for results (JSON)")
 @click.option("--stream", is_flag=True, help="Enable streaming output")
 @click.option("--copilot", is_flag=True, help="Enable co-pilot mode with human checkpoints")
 @click.option("--pipeline", is_flag=True, help="Use three-stage pipeline (composition → structure → energy)")
 @click.option("--optimise", is_flag=True, help="Enable hill-climb optimisation with LLM reflection")
-@click.option("--budget", default=1.0, type=float, help="Budget limit in USD (default: $1.00)")
-def analyse(query: str, model: str, temperature: float, max_turns: int, output: str, stream: bool,
-           copilot: bool, pipeline: bool, optimise: bool, budget: float):
+def analyse(query: str, model: str, max_turns: int, output: str, stream: bool,
+           copilot: bool, pipeline: bool, optimise: bool):
     """
     Analyse a materials discovery query using CrystaLyse.AI.
     
-    This command performs comprehensive materials discovery analysis on user queries,
-    supporting both creative exploration and rigorous validation modes. Results are
-    displayed with rich formatting and can be exported to JSON for further processing.
+    This command performs comprehensive materials discovery analysis with two distinct modes:
+    - Creative Mode (o4-mini): Fast exploration using Chemeleon + MACE only
+    - Rigorous Mode (o3): Thorough validation using SMACT + Chemeleon + MACE
     
     Args:
         query (str): The materials discovery request. Should clearly specify the target
             application, desired properties, and any constraints.
-        model (str): The OpenAI language model to use (default: gpt-4)
-        temperature (float): Controls creativity vs precision (0.0-1.0, default: 0.7)
-        max_turns (int): The maximum number of turns for the agent conversation.
+        model (str): o4-mini (creative, fast exploration) or o3 (rigorous, full validation)
+        max_turns (int): The maximum number of turns for the agent conversation
         output (str): Optional output file path for saving results in JSON format
         stream (bool): Enable real-time streaming output (default: False)
     
     Examples:
-        Basic analysis:
-            crystalyse analyse "Design a cathode for Na-ion batteries"
+        Creative exploration (fast, unconventional):
+            crystalyse analyse "Design a cathode for Na-ion batteries" --model o4-mini
         
-        High-precision analysis:
-            crystalyse analyse "Find Pb-free ferroelectrics" --temperature 0.3
+        Rigorous analysis (thorough, validated):
+            crystalyse analyse "Find Pb-free ferroelectrics" --model o3
         
         Streaming with file output:
             crystalyse analyse "Solar cell materials" --stream -o results.json
     """
-    asyncio.run(_analyse(query, model, temperature, max_turns, output, stream, copilot, pipeline, optimise, budget))
+    asyncio.run(_analyse(query, model, max_turns, output, stream, copilot, pipeline, optimise))
 
 
-async def _analyse(query: str, model: str, temperature: float, max_turns: int, output: str, stream: bool,
-                  copilot: bool, pipeline: bool, optimise: bool, budget: float):
+async def _analyse(query: str, model: str, max_turns: int, output: str, stream: bool,
+                  copilot: bool, pipeline: bool, optimise: bool):
     """
     Asynchronous implementation of the analyse command.
     
-    Handles the core logic for materials discovery analysis including agent initialisation,
-    query processing, result formatting, and file output. Supports both streaming and
-    non-streaming modes with comprehensive error handling and user feedback.
+    Handles the core logic for materials discovery analysis with mode-specific behavior:
+    - Creative mode (o4-mini): Fast exploration with Chemeleon + MACE
+    - Rigorous mode (o3): Full validation with SMACT + Chemeleon + MACE
     
     Args:
         query (str): Materials discovery query from user
-        model (str): OpenAI model name to use for analysis
-        temperature (float): Temperature setting for generation control
-        max_turns (int): Maximum number of conversational turns.
+        model (str): o4-mini (creative) or o3 (rigorous) model selection
+        max_turns (int): Maximum number of conversational turns
         output (str): Optional file path for saving results
         stream (bool): Whether to enable streaming output mode
     
@@ -216,9 +212,12 @@ async def _analyse(query: str, model: str, temperature: float, max_turns: int, o
         return
     
     # Display analysis mode header
+    mode_description = "Creative (fast exploration)" if "o4-mini" in model else "Rigorous (full validation)"
+    tools_used = "Chemeleon + MACE" if "o4-mini" in model else "SMACT + Chemeleon + MACE"
+    
     console.print(f"[cyan]CrystaLyse.AI Analysis[/cyan]")
     console.print(f"Query: {query}")
-    console.print(f"Model: {model} | Temperature: {temperature} | Budget: ${budget:.2f}")
+    console.print(f"Mode: {mode_description} | Model: {model} | Tools: {tools_used}")
     
     # Display enabled patterns
     patterns = []
@@ -278,13 +277,14 @@ async def _analyse(query: str, model: str, temperature: float, max_turns: int, o
             )
 
         else:
-            # Default: enhanced unified agent with infrastructure improvements
-            from .agents.enhanced_unified_agent import EnhancedCrystaLyse
+            # Default: consolidated CrystaLyse agent with enhanced infrastructure and memory
+            # Determine mode based on model selection
+            agent_mode = "creative" if "o4-mini" in model else "rigorous"
             
-            agent = EnhancedCrystaLyse(
+            agent = CrystaLyse(
                 agent_config=AgentConfig(
+                    mode=agent_mode,
                     model=model,
-                    temperature=temperature,
                     max_turns=max_turns
                 ),
                 user_id=f"cli_user_{query[:10]}"  # Simple user ID for CLI
@@ -388,35 +388,35 @@ def examples():
 
 
 @cli.command()
-@click.option("--model", default=config.default_model, help="Model to use for the interactive session.")
-@click.option("--max-turns", default=15, help="Maximum number of conversation turns.")
-@click.option("--temperature", default=0.4, help="Set the creativity temperature (0.0 to 1.0).")
-def shell(model: str, max_turns: int, temperature: float):
+@click.option("--model", default=config.default_model, help="Model: o4-mini (creative) or o3 (rigorous)")
+@click.option("--max-turns", default=30, help="Maximum number of conversation turns (default: 30)")
+def shell(model: str, max_turns: int):
     """
     Start an interactive shell for materials discovery with CrystaLyse.AI.
     
-    Provides a conversational interface for iterative materials exploration.
-    Supports history, autocompletion, and multi-line input.
+    Provides a conversational interface for iterative materials exploration in either:
+    - Creative mode (o4-mini): Fast exploration with Chemeleon + MACE
+    - Rigorous mode (o3): Full validation with all 3 tools
     
     Args:
-        model (str): The language model to be used in the session.
-        max_turns (int): Max turns for each conversation.
-        temperature (float): The creativity temperature for the model.
+        model (str): o4-mini (creative) or o3 (rigorous) model selection
+        max_turns (int): Max turns for each conversation
     """
-    asyncio.run(_shell(model, max_turns, temperature))
+    asyncio.run(_shell(model, max_turns))
 
 
-async def _shell(model: str, max_turns: int, temperature: float):
+async def _shell(model: str, max_turns: int):
     """Asynchronous implementation of the interactive shell."""
     
     display_splash_screen()
     
-    from .agents.enhanced_unified_agent import EnhancedCrystaLyse, cleanup_enhanced_infrastructure
+    # Determine mode based on model selection
+    agent_mode = "creative" if "o4-mini" in model else "rigorous"
     
-    agent = EnhancedCrystaLyse(
+    agent = CrystaLyse(
         agent_config=AgentConfig(
+            mode=agent_mode,
             model=model,
-            temperature=temperature,
             max_turns=max_turns
         ),
         user_id="interactive_shell_user"
@@ -463,10 +463,9 @@ async def _shell(model: str, max_turns: int, temperature: float):
         except EOFError:
             break
     
-    # Cleanup enhanced infrastructure
+    # Cleanup agent infrastructure
     try:
         await agent.cleanup()
-        await cleanup_enhanced_infrastructure()
     except Exception as e:
         console.print(f"[yellow]Warning: Cleanup error: {e}[/yellow]")
             

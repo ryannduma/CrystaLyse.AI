@@ -433,7 +433,7 @@ async def batch_discovery_pipeline(
     compositions: List[str],
     structures_per_composition: int = 3,
     validate_first: bool = True,
-    calculate_energies: bool = True
+    calculate_energies_flag: bool = True
 ) -> Dict[str, Any]:
     """
     Complete pipeline for multiple compositions with parallelisation.
@@ -442,7 +442,7 @@ async def batch_discovery_pipeline(
         compositions: List of chemical formulas
         structures_per_composition: Structures to generate per composition
         validate_first: Whether to validate before structure generation
-        calculate_energies: Whether to calculate energies with MACE
+        calculate_energies_flag: Whether to calculate energies with MACE
         
     Returns:
         Complete results with all stages
@@ -506,7 +506,7 @@ async def batch_discovery_pipeline(
         })
     
     # Stage 3: Batch energy calculation
-    if calculate_energies and results["generated_structures"]:
+    if calculate_energies_flag and results["generated_structures"]:
         logger.info(f"Calculating energies for {len(results['generated_structures'])} structures...")
         energy_results = await calculate_energies(results["generated_structures"], parallel=True)
         results["energy_calculations"] = energy_results

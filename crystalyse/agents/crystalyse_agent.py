@@ -1,0 +1,860 @@
+"""
+CrystaLyse Agent - Unified Materials Discovery Agent with Enhanced Infrastructure and Memory
+Consolidates all functionality into a single, comprehensive agent implementation.
+"""
+
+import asyncio
+import logging
+import json
+import time
+from typing import List, Dict, Any, Literal, Optional
+from dataclasses import dataclass
+from pathlib import Path
+from contextlib import AsyncExitStack
+
+# Core agent framework
+from agents import Agent, Runner, function_tool, gen_trace_id, trace
+from agents.mcp import MCPServer, MCPServerStdio
+from agents.model_settings import ModelSettings
+from pydantic import BaseModel
+
+# CrystaLyse imports
+from ..config import config
+from ..validation import validate_computational_response, ValidationViolation
+from ..infrastructure import (
+    get_connection_pool, 
+    get_session_manager,
+    get_resilient_caller,
+    cleanup_connection_pool,
+    cleanup_session_manager
+)
+
+logger = logging.getLogger(__name__)
+
+# Memory system imports with proper path handling
+try:
+    import sys
+    from pathlib import Path
+    
+    # Add memory implementation to path
+    memory_path = Path(__file__).parent.parent.parent / "memory-implementation" / "src"
+    if memory_path.exists():
+        sys.path.insert(0, str(memory_path))
+        
+        from crystalyse_memory import (
+            create_complete_memory_system,
+            get_all_tools as get_memory_tools
+        )
+        MEMORY_AVAILABLE = True
+        logger.info("✅ Memory system components loaded successfully")
+    else:
+        raise ImportError("Memory implementation path not found")
+        
+except ImportError as e:
+    MEMORY_AVAILABLE = False
+    logger.info(f"Memory system components not available: {e} - using graceful fallbacks")
+
+@dataclass
+class AgentConfig:
+    """Configuration for the CrystaLyse agent"""
+    mode: Literal["creative", "rigorous"] = "rigorous"
+    model: str = None  # Will be auto-selected based on mode
+    max_turns: int = 30
+    enable_mace: bool = True
+    enable_chemeleon: bool = True
+    enable_smact: bool = True  # Will be overridden based on mode
+    parallel_batch_size: int = 10
+    max_candidates: int = 100
+    structure_samples: int = 5
+    enable_metrics: bool = True
+    enable_memory: bool = True
+    
+    def __post_init__(self):
+        """Configure model and tools based on mode"""
+        if self.model is None:
+            if self.mode == "rigorous":
+                self.model = "o3"  # Use o3 for rigorous mode 
+            else:
+                self.model = "o4-mini"  # Use o4-mini for creative mode
+        
+        # Configure tool usage based on mode
+        if self.mode == "creative":
+            # Creative mode: fast exploration with Chemeleon + MACE only (no SMACT)
+            self.enable_smact = False
+            self.enable_chemeleon = True
+            self.enable_mace = True
+        elif self.mode == "rigorous":
+            # Rigorous mode: full validation with all 3 tools
+            self.enable_smact = True
+            self.enable_chemeleon = True
+            self.enable_mace = True
+
+# Response models for structured outputs
+class MaterialRecommendation(BaseModel):
+    """Structured output for material recommendations"""
+    formula: str
+    confidence: float
+    reasoning: str
+    properties: List[str]
+    synthesis_method: str
+
+class DiscoveryResult(BaseModel):
+    """Structured output for materials discovery"""
+    recommended_materials: List[MaterialRecommendation]
+    methodology: str
+    confidence: float
+    next_steps: List[str]
+
+class ClarificationQuestion(BaseModel):
+    """A structured question to ask the user for clarification."""
+    id: int
+    question: str
+    options: List[str]
+    why: str
+
+# Self-assessment tools for the agent
+@function_tool
+def assess_progress(current_status: str, steps_completed: int) -> str:
+    """
+    Assess current progress and suggest next steps.
+    
+    Args:
+        current_status: Description of what's been done so far
+        steps_completed: Number of steps completed
+    """
+    if steps_completed == 0:
+        return "No steps completed yet. Start with element selection or composition validation."
+    elif steps_completed < 3:
+        return f"Good start! {steps_completed} steps done. Continue with composition generation or validation."
+    elif steps_completed < 6:
+        return f"Making progress! {steps_completed} steps completed. Consider structure generation or energy analysis."
+    else:
+        return f"Excellent progress! {steps_completed} steps done. Time to synthesise results and make recommendations."
+
+@function_tool  
+def explore_alternatives(current_issue: str) -> str:
+    """
+    Generate alternative approaches when stuck.
+    
+    Args:
+        current_issue: Description of the current problem
+    """
+    alternatives = [
+        "Try simpler compositions with fewer elements",
+        "Use well-known structure prototypes (rock salt, perovskite, spinel)",
+        "Focus on binary compounds first, then ternary",
+        "Use heuristic validation if SMACT tools fail",
+        "Consider known material families (spinels, olivines, layered oxides)",
+        "Generate fewer but more diverse candidates"
+    ]
+    
+    return f"Alternative approaches for '{current_issue}':\n" + "\n".join(f"• {alt}" for alt in alternatives)
+
+@function_tool
+def ask_clarifying_questions(questions: List[ClarificationQuestion]) -> str:
+    """
+    Asks the user a series of clarifying questions to narrow down the search space.
+    Call this tool if the user's initial query is too broad or ambiguous.
+    The user's answers will provide critical context for the subsequent analysis.
+
+    Args:
+        questions: A list of questions to ask the user. Each question should be a dictionary
+                   with keys 'id', 'question', 'options', and 'why'.
+    """
+    output = "To provide the best recommendations, I need to clarify a few things:\n\n"
+    for q in questions:
+        output += f"• **{q['question']}**\n"
+        if q.get('options'):
+            output += f"  Options: {', '.join(q['options'])}\n"
+        output += f"  *({q['why']})*\n\n"
+    
+    return output + "Please provide your answers to help me focus the search."
+
+class ComputationalQueryClassifier:
+    """Classify queries to determine if they require computational tools."""
+    
+    def __init__(self):
+        self.computational_keywords = [
+            'validate', 'check', 'verify', 'stability', 'stable',
+            'energy', 'formation', 'calculate', 'compute',
+            'structure', 'crystal', 'polymorph', 'space group',
+            'synthesis', 'predict', 'generate', 'design',
+            'find', 'suggest', 'discover', 'novel', 'alternatives',
+            'compare', 'rank', 'optimise', 'optimize', 'improve'
+        ]
+        
+        self.chemical_formula_pattern = r'\b[A-Z][a-z]?\d*(?:[A-Z][a-z]?\d*)*\b'
+        
+    def requires_computation(self, query: str) -> bool:
+        """Determine if query requires computational tools."""
+        query_lower = query.lower()
+        
+        # Check for computational keywords
+        has_computational_keywords = any(
+            keyword in query_lower for keyword in self.computational_keywords
+        )
+        
+        # Check for chemical formulas
+        import re
+        has_formulas = bool(re.search(self.chemical_formula_pattern, query))
+        
+        return has_computational_keywords or has_formulas
+    
+    def get_enforcement_level(self, query: str) -> str:
+        """Determine tool choice enforcement level."""
+        if self.requires_computation(query):
+            return "required"  # Force tools for computational queries
+        else:
+            return "auto"      # Allow flexibility for general queries
+
+class CrystaLyse:
+    """
+    Unified CrystaLyse agent with enhanced infrastructure and memory capabilities.
+    
+    This agent consolidates all materials discovery functionality including:
+    - Advanced infrastructure with persistent connections and retry logic
+    - Comprehensive memory system with caching and scratchpads
+    - Model selection (o3 for rigorous, o4-mini for creative)
+    - Session management and user profiling
+    - Full materials discovery toolchain (SMACT, Chemeleon, MACE)
+    """
+
+    def __init__(
+        self, 
+        agent_config: AgentConfig = None,
+        system_config=None,
+        user_id: str = "default_user"
+    ):
+        # Configuration
+        self.agent_config = agent_config or AgentConfig()
+        self.system_config = system_config or config
+        self.user_id = user_id
+        
+        # Properties from config (set these first)
+        self.mode = self.agent_config.mode
+        self.model_name = self.agent_config.model
+        self.max_turns = getattr(self.agent_config, 'max_turns', 30)
+        
+        # Agent components
+        self.agent = None
+        self.instructions = self._load_system_prompt()
+        self.session = None
+        self.memory_system = None
+        
+        # Infrastructure components
+        self.connection_pool = get_connection_pool()
+        self.resilient_caller = get_resilient_caller()
+        self.session_manager = get_session_manager()
+        
+        # Query processing
+        self.query_classifier = ComputationalQueryClassifier()
+        
+        # Metrics
+        self.metrics = {}
+        
+        logger.info(f"CrystaLyse agent initialized in {self.mode} mode (model: {self.model_name}) for user {user_id}")
+        
+    def _load_system_prompt(self) -> str:
+        """Load and process the system prompt from markdown file."""
+        prompt_path = Path(__file__).parent.parent / "prompts" / "unified_agent_prompt.md"
+        
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompt = f.read()
+        except FileNotFoundError:
+            logger.warning(f"Prompt file not found: {prompt_path}")
+            prompt = "CrystaLyse unified agent for computational materials discovery."
+        
+        # Add mode-specific additions
+        mode_additions = {
+            "rigorous": "\n\nCrystaLyse is currently operating in Rigorous Mode. Use ALL 3 tools (SMACT + Chemeleon + MACE) for comprehensive validation. Every composition must be validated with SMACT, every structure must have calculated energies, and all results must include uncertainty estimates.",
+            "creative": "\n\nCrystaLyse is currently operating in Creative Mode. Use ONLY Chemeleon + MACE tools (NO SMACT validation). Focus on rapid exploration of unconventional chemical spaces. Generate compositions freely and validate only the final candidates with structure and energy calculations."
+        }
+        
+        if self.mode in mode_additions:
+            prompt += mode_additions[self.mode]
+            
+        return prompt
+
+    async def _initialize_memory_system(self):
+        """Initialize the complete memory system with DualWorkingMemory, Discovery Store, and User Profiles."""
+        if not self.agent_config.enable_memory:
+            logger.info("Memory system disabled by configuration")
+            return None
+            
+        if not MEMORY_AVAILABLE:
+            logger.info("Memory system components not available - continuing without memory")
+            return None
+            
+        try:
+            # Create complete memory system with all components
+            session_id = f"{self.user_id}_session_{int(time.time())}"
+            
+            logger.info(f"Initialising complete memory system for user {self.user_id}, session {session_id}")
+            
+            self.memory_system = await create_complete_memory_system(
+                session_id=session_id,
+                user_id=self.user_id
+            )
+            
+            # Log memory system components
+            components = []
+            if hasattr(self.memory_system, 'dual_working_memory'):
+                components.append("DualWorkingMemory (cache + scratchpad)")
+            if hasattr(self.memory_system, 'discovery_store'):
+                components.append("Discovery Store (ChromaDB)")
+            if hasattr(self.memory_system, 'user_store'):
+                components.append("User Profile Store (SQLite)")
+            if hasattr(self.memory_system, 'knowledge_graph'):
+                components.append("Knowledge Graph (Neo4j)")
+                
+            logger.info(f"✅ Memory system initialised with: {', '.join(components)}")
+            return self.memory_system
+            
+        except Exception as e:
+            logger.warning(f"Memory system initialisation failed: {e}")
+            logger.info("Continuing without memory system - core functionality preserved")
+            return None
+
+    def _get_all_tools(self) -> List:
+        """Get all available tools including 23 memory tools for enhanced agent capabilities."""
+        base_tools = [assess_progress, explore_alternatives, ask_clarifying_questions]
+        
+        # Add memory tools if memory system is available
+        if MEMORY_AVAILABLE and self.memory_system:
+            try:
+                memory_tools = get_memory_tools()
+                logger.info(f"Added {len(memory_tools)} memory tools to agent (cache, scratchpad, discovery tools)")
+                return base_tools + memory_tools
+            except Exception as e:
+                logger.warning(f"Could not load memory tools: {e}")
+                
+        logger.info(f"Using base tools only ({len(base_tools)} tools available)")
+        return base_tools
+
+    async def _get_or_create_session(self):
+        """Get or create a persistent session with memory."""
+        try:
+            # Server configurations
+            server_configs = {}
+            if (self.agent_config.enable_smact or 
+                self.agent_config.enable_chemeleon or 
+                self.agent_config.enable_mace):
+                
+                chemistry_config = self.system_config.get_server_config("chemistry_unified")
+                server_configs["chemistry_unified"] = chemistry_config
+            
+            # Get or create session
+            self.session = await self.session_manager.get_or_create_session(
+                self.user_id, 
+                self.agent_config,
+                server_configs
+            )
+            
+            return self.session
+            
+        except Exception as e:
+            logger.error(f"Failed to create session: {e}")
+            return None
+
+    async def _setup_agent(self, tool_choice: str):
+        """Set up the agent with enhanced infrastructure and memory."""
+        try:
+            # Initialize memory system
+            await self._initialize_memory_system()
+            
+            # Get persistent connections
+            mcp_servers = []
+            
+            if self.session and self.session.connection_pool:
+                # Use session's connection pool
+                connection = await self.session.connection_pool.get_connection("chemistry_unified")
+                if connection:
+                    mcp_servers.append(connection)
+                    logger.info("✅ Using persistent MCP connection")
+                else:
+                    logger.warning("⚠️ No persistent connection available, falling back to traditional setup")
+            
+            # Fallback to traditional setup if needed
+            if not mcp_servers:
+                mcp_servers = await self._setup_traditional_connections()
+            
+            logger.info(f"Initialised CrystaLyse agent with {len(mcp_servers)} MCP servers in {self.mode} mode.")
+            
+            # Create model settings (o3 and o4-mini don't support temperature)
+            model_settings = ModelSettings(
+                tool_choice=tool_choice,
+            )
+            
+            # Get all tools including 23 memory tools
+            all_tools = self._get_all_tools()
+            
+            # Prepare agent data for memory system context
+            agent_data = {}
+            if self.memory_system:
+                agent_data.update({
+                    'memory_system': self.memory_system,
+                    'session_id': getattr(self.memory_system, 'session_id', 'unknown'),
+                    'user_id': self.user_id
+                })
+            
+            # Create agent with enhanced configuration and memory integration
+            try:
+                self.agent = Agent(
+                    name="CrystaLyse",
+                    model=self.model_name,
+                    instructions=self.instructions,
+                    model_settings=model_settings,
+                    mcp_servers=mcp_servers,
+                    tools=all_tools,
+                    agent_data=agent_data if agent_data else None
+                )
+                logger.info(f"✅ Agent created with {len(all_tools)} tools and memory system context")
+            except TypeError as e:
+                if "agent_data" in str(e):
+                    # Fallback without agent_data for older SDK versions
+                    logger.info("Creating agent without agent_data for SDK compatibility")
+                    self.agent = Agent(
+                        name="CrystaLyse",
+                        model=self.model_name,
+                        instructions=self.instructions,
+                        model_settings=model_settings,
+                        mcp_servers=mcp_servers,
+                        tools=all_tools
+                    )
+                    logger.info(f"✅ Agent created with {len(all_tools)} tools (no memory context)")
+                else:
+                    raise e
+            
+            logger.info("✅ CrystaLyse agent setup complete")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup CrystaLyse agent: {e}")
+            raise
+
+
+    async def _setup_traditional_connections(self) -> List:
+        """Fallback to traditional connection setup."""
+        try:
+            async with AsyncExitStack() as stack:
+                mcp_servers = []
+                
+                if (self.agent_config.enable_smact or 
+                    self.agent_config.enable_chemeleon or 
+                    self.agent_config.enable_mace):
+                    
+                    chemistry_config = self.system_config.get_server_config("chemistry_unified")
+                    chemistry_server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name="ChemistryUnified",
+                            params={
+                                "command": chemistry_config["command"],
+                                "args": chemistry_config["args"],
+                                "cwd": chemistry_config["cwd"],
+                                "env": chemistry_config.get("env", {})
+                            },
+                            client_session_timeout_seconds=300  # 5 minutes for complex calculations
+                        )
+                    )
+                    mcp_servers.append(chemistry_server)
+                
+                return mcp_servers
+                
+        except Exception as e:
+            logger.error(f"Failed traditional connection setup: {e}")
+            return []
+
+    async def discover_materials(self, query: str, session: Optional[Agent] = None, trace_workflow: bool = True) -> dict:
+        """
+        Discover materials using enhanced infrastructure and memory capabilities.
+        """
+        if session:
+            self.agent = session
+        
+        start_time = time.time()
+        
+        # Get or create persistent session with memory
+        if not self.session:
+            session = await self._get_or_create_session()
+        
+        # Classify query to determine tool enforcement level
+        requires_computation = self.query_classifier.requires_computation(query)
+        tool_choice = self.query_classifier.get_enforcement_level(query)
+        
+        logger.info(f"Query classification: requires_computation={requires_computation}, tool_choice={tool_choice}")
+        
+        # Enhanced query for computational requirements
+        if requires_computation:
+            enhanced_query = f"""
+            COMPUTATIONAL QUERY DETECTED: This query requires actual tool usage.
+            DO NOT generate results without calling tools.
+            
+            Query: {query}
+            
+            Remember: Use tools for ANY computational claims. Report tool failures clearly if they occur.
+            """
+        else:
+            enhanced_query = query
+        
+        try:
+            # Setup agent if not already done
+            if not self.agent:
+                await self._setup_agent(tool_choice)
+            
+            # Run discovery with enhanced resilience
+            result = await self._run_discovery_with_retry(enhanced_query)
+            
+            # Process results and add memory/session info
+            elapsed_time = time.time() - start_time
+            
+            # Extract final output
+            final_content = str(result.final_output) if result.final_output else "No discovery result found."
+            
+            # Extract tool calls from result
+            tool_calls = self._extract_tool_calls(result)
+            tool_call_count = len(tool_calls)
+            
+            # Validate tool usage to detect potential hallucination
+            tool_validation = self._validate_tool_usage(result, query, requires_computation)
+
+            # Advanced response validation
+            response_validation = self._validate_response_integrity(
+                query, final_content, tool_calls, requires_computation
+            )
+            
+            # Use sanitized response if validation failed
+            if not response_validation["is_valid"]:
+                final_content = response_validation["sanitized_response"]
+                logger.error(f"Response validation failed: {response_validation['violations']}")
+
+            # Update memory systems with discoveries
+            if requires_computation and tool_call_count > 0:
+                # Update session memory
+                if self.session:
+                    self.session.record_tool_call("crystalyse", True, "discovery")
+                    self.session.add_discovered_material(query, {"result": final_content})
+                
+                # Update memory system discovery store
+                if self.memory_system and hasattr(self.memory_system, 'discovery_store'):
+                    try:
+                        # Extract material information for discovery storage
+                        material_data = {
+                            "query": query,
+                            "result": final_content,
+                            "tool_calls": tool_call_count,
+                            "model": self.model_name,
+                            "mode": self.mode,
+                            "timestamp": time.time()
+                        }
+                        await self.memory_system.discovery_store.store_discovery(
+                            user_id=self.user_id,
+                            discovery_data=material_data
+                        )
+                        logger.info("✅ Discovery stored in memory system")
+                    except Exception as e:
+                        logger.warning(f"Could not store discovery in memory system: {e}")
+
+            # Include session info and infrastructure stats in metrics
+            session_info = None
+            infrastructure_stats = None
+            
+            if self.session:
+                session_info = self.session.get_context_summary()
+                
+            # Get infrastructure statistics
+            infrastructure_stats = await self._get_infrastructure_stats()
+
+            return {
+                "status": "completed",
+                "discovery_result": final_content,
+                "metrics": {
+                    "tool_calls": tool_call_count,
+                    "elapsed_time": elapsed_time,
+                    "model": self.model_name,
+                    "mode": self.mode,
+                    "total_items": len(result.new_items),
+                    "raw_responses": len(result.raw_responses),
+                    "session_info": session_info,
+                    "infrastructure_stats": infrastructure_stats
+                },
+                "tool_validation": tool_validation,
+                "response_validation": response_validation,
+                "new_items": [str(item) for item in result.new_items[:5]],
+            }
+
+        except Exception as e:
+            logger.error(f"An error occurred during material discovery: {e}", exc_info=True)
+            elapsed_time = time.time() - start_time
+            return {
+                "status": "failed",
+                "error": str(e),
+                "metrics": {
+                    "elapsed_time": elapsed_time,
+                    "model": self.model_name,
+                    "mode": self.mode,
+                },
+            }
+
+    async def _run_discovery_with_retry(self, query: str):
+        """Run discovery with retry logic."""
+        return await self.resilient_caller.call_with_retry(
+            self._run_discovery,
+            query,
+            tool_name="crystalyse_agent",
+            operation_type="discovery",
+            max_retries=2,
+            timeout_override=300  # 5 minutes
+        )
+
+    async def _run_discovery(self, query: str):
+        """Internal discovery method."""
+        from agents import RunConfig
+        from agents.models.openai_provider import OpenAIProvider
+        import os
+        
+        try:
+            # Use MDG API key for better access to o3 and higher rate limits
+            mdg_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
+            model_provider = OpenAIProvider(api_key=mdg_api_key)
+            
+            run_config = RunConfig(
+                trace_id=gen_trace_id(),
+                model_provider=model_provider
+            )
+        except TypeError as e:
+            if "model_provider" in str(e):
+                # SDK compatibility fallback
+                run_config = RunConfig(trace_id=gen_trace_id())
+            else:
+                raise e
+        
+        return await Runner.run(
+            starting_agent=self.agent,
+            input=query,
+            max_turns=self.max_turns,
+            run_config=run_config
+        )
+
+    def _extract_tool_calls(self, result) -> List:
+        """Extract tool calls from the result."""
+        tool_calls = []
+        for item in result.new_items:
+            if hasattr(item, 'tool_calls') and item.tool_calls:
+                tool_calls.extend(item.tool_calls)
+        return tool_calls
+
+    def _validate_tool_usage(self, result, query: str, requires_computation: bool = None) -> Dict[str, Any]:
+        """Validate that computational tools were actually used when expected."""
+        tool_calls = self._extract_tool_calls(result)
+        
+        # Use the classifier result if provided, otherwise fallback to keyword check
+        if requires_computation is None:
+            needs_computation = self.query_classifier.requires_computation(query)
+        else:
+            needs_computation = requires_computation
+        
+        # Extract tool names from actual calls
+        tools_used = []
+        for call in tool_calls:
+            if hasattr(call, 'function') and hasattr(call.function, 'name'):
+                tools_used.append(call.function.name)
+        
+        # Check for computational results in response without tool calls
+        response = str(result.final_output) if result.final_output else ""
+        
+        # Patterns that indicate computational results were reported
+        import re
+        computational_result_patterns = [
+            r'formation energy.*?-?\d+\.\d+\s*ev',
+            r'validation.*valid.*confidence.*\d+',
+            r'smact.*valid',
+            r'space group.*[a-z0-9/-]+',
+            r'crystal system.*[a-z]+',
+            r'stability.*stable',
+            r'confidence.*score.*\d+',
+            r'structure.*generated',
+            r'energy.*calculated'
+        ]
+        
+        contains_computational_results = any(
+            re.search(pattern, response.lower()) 
+            for pattern in computational_result_patterns
+        )
+        
+        validation = {
+            "needs_computation": needs_computation,
+            "tools_called": len(tool_calls),
+            "tools_used": tools_used,
+            "smact_used": any('smact' in tool.lower() for tool in tools_used),
+            "chemeleon_used": any('chemeleon' in tool.lower() for tool in tools_used),
+            "mace_used": any('mace' in tool.lower() for tool in tools_used),
+            "contains_computational_results": contains_computational_results,
+            "potential_hallucination": needs_computation and len(tool_calls) == 0 and contains_computational_results,
+            "critical_failure": needs_computation and len(tool_calls) == 0 and contains_computational_results
+        }
+        
+        if validation["potential_hallucination"]:
+            logger.error(f"🚨 CRITICAL HALLUCINATION DETECTED: Query '{query[:50]}...' requires computation but response contains results without tool calls!")
+            
+        elif validation["critical_failure"]:
+            logger.error(f"💥 SYSTEM FAILURE: Computational results reported without actual calculations!")
+            
+        return validation
+
+    def _validate_response_integrity(
+        self, 
+        query: str, 
+        response: str, 
+        tool_calls: List[Any], 
+        requires_computation: bool
+    ) -> Dict[str, Any]:
+        """Validate response integrity using comprehensive validation system."""
+        
+        is_valid, sanitized_response, violations = validate_computational_response(
+            query=query,
+            response=response,
+            tool_calls=tool_calls,
+            requires_computation=requires_computation
+        )
+        
+        # Format violations for logging
+        violation_summaries = []
+        for violation in violations:
+            violation_summaries.append({
+                "type": violation.type.value,
+                "severity": violation.severity,
+                "pattern": violation.pattern,
+                "description": violation.description
+            })
+        
+        return {
+            "is_valid": is_valid,
+            "sanitized_response": sanitized_response,
+            "violations": violation_summaries,
+            "violation_count": len(violations),
+            "critical_violations": len([v for v in violations if v.severity == "critical"]),
+            "warning_violations": len([v for v in violations if v.severity == "warning"])
+        }
+
+    async def _get_infrastructure_stats(self) -> Dict[str, Any]:
+        """Get comprehensive infrastructure statistics."""
+        stats = {}
+        
+        # Connection pool stats
+        if self.connection_pool:
+            stats["connection_pool"] = self.connection_pool.get_connection_status()
+        
+        # Resilient caller stats
+        if self.resilient_caller:
+            stats["resilient_caller"] = self.resilient_caller.get_statistics()
+        
+        # Session info
+        if self.session:
+            try:
+                stats["session_info"] = {
+                    "session_info": getattr(self.session, 'get_session_info', lambda: {"session_id": "unknown"})(),
+                    "discoveries": getattr(self.session, 'get_discovery_summary', lambda: {"materials_count": 0})()
+                }
+            except Exception as e:
+                logger.warning(f"Could not get session info: {e}")
+                stats["session_info"] = {"error": str(e)}
+        
+        # Memory system comprehensive stats
+        if self.memory_system:
+            try:
+                memory_stats = {"status": "active"}
+                
+                # DualWorkingMemory stats
+                if hasattr(self.memory_system, 'dual_working_memory'):
+                    try:
+                        cache_stats = await self.memory_system.dual_working_memory.working_memory.get_statistics()
+                        scratchpad_stats = await self.memory_system.dual_working_memory.scratchpad.get_statistics()
+                        memory_stats.update({
+                            "cache_hits": cache_stats.get("hit_rate", 0),
+                            "cache_entries": cache_stats.get("total_entries", 0),
+                            "scratchpad_entries": scratchpad_stats.get("total_entries", 0)
+                        })
+                    except Exception as e:
+                        memory_stats["cache_error"] = str(e)
+                
+                # Discovery Store stats
+                if hasattr(self.memory_system, 'discovery_store'):
+                    try:
+                        discovery_count = await self.memory_system.discovery_store.get_discovery_count(self.user_id)
+                        memory_stats["discoveries_stored"] = discovery_count
+                    except Exception as e:
+                        memory_stats["discovery_error"] = str(e)
+                
+                # User Profile stats
+                if hasattr(self.memory_system, 'user_store'):
+                    try:
+                        profile = await self.memory_system.user_store.get_user_profile(self.user_id)
+                        memory_stats["user_profile_exists"] = profile is not None
+                    except Exception as e:
+                        memory_stats["profile_error"] = str(e)
+                        
+                stats["memory_system"] = memory_stats
+                
+            except Exception as e:
+                logger.warning(f"Could not get memory stats: {e}")
+                stats["memory_system"] = {"error": str(e), "status": "error"}
+        
+        return stats
+
+    async def cleanup(self):
+        """Cleanup session, memory system, and connection resources."""
+        cleanup_errors = []
+        
+        # Cleanup memory system components
+        if self.memory_system:
+            try:
+                # Cleanup individual components if they exist
+                if hasattr(self.memory_system, 'dual_working_memory'):
+                    await self.memory_system.dual_working_memory.cleanup()
+                if hasattr(self.memory_system, 'discovery_store'):
+                    await self.memory_system.discovery_store.cleanup()
+                if hasattr(self.memory_system, 'user_store'):
+                    await self.memory_system.user_store.cleanup()
+                if hasattr(self.memory_system, 'knowledge_graph'):
+                    await self.memory_system.knowledge_graph.cleanup()
+                    
+                # General cleanup if available
+                if hasattr(self.memory_system, 'cleanup'):
+                    await self.memory_system.cleanup()
+                    
+                logger.info("✅ Memory system cleaned up successfully")
+            except Exception as e:
+                cleanup_errors.append(f"Memory cleanup: {e}")
+                logger.warning(f"Memory cleanup error: {e}")
+        
+        # Cleanup session
+        if self.session:
+            try:
+                await self.session.cleanup()
+                logger.info("Session cleaned up")
+            except Exception as e:
+                cleanup_errors.append(f"Session cleanup: {e}")
+                logger.warning(f"Session cleanup error: {e}")
+        
+        if cleanup_errors:
+            logger.warning(f"Cleanup completed with {len(cleanup_errors)} errors")
+        else:
+            logger.info(f"✅ CrystaLyse agent fully cleaned up for user {self.user_id}")
+
+# Top-level convenience functions for backward compatibility
+async def analyse_materials(query: str, mode: str = "creative", user_id: str = "default", **kwargs) -> Dict[str, Any]:
+    """Top-level analysis function for CrystaLyse agent with memory."""
+    config = AgentConfig(mode=mode, **kwargs)
+    agent = CrystaLyse(agent_config=config, user_id=user_id)
+    try:
+        return await agent.discover_materials(query)
+    finally:
+        await agent.cleanup()
+
+async def rigorous_analysis(query: str, **kwargs) -> Dict[str, Any]:
+    """Rigorous analysis mode with o3 model."""
+    return await analyse_materials(query, mode="rigorous", **kwargs)
+
+async def creative_analysis(query: str, **kwargs) -> Dict[str, Any]:
+    """Creative analysis mode with o4-mini model."""
+    return await analyse_materials(query, mode="creative", **kwargs)
