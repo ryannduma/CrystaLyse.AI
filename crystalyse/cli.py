@@ -60,6 +60,7 @@ from prompt_toolkit.completion import FuzzyCompleter, WordCompleter
 
 from .agents.crystalyse_agent import CrystaLyse, AgentConfig
 from .config import config
+from .output.dual_formatter import create_dual_output
 
 console = Console()
 
@@ -148,11 +149,12 @@ def status():
 @click.option("--model", default="o4-mini", help="Model: o4-mini (creative, fast) or o3 (rigorous, thorough)")
 @click.option("--max-turns", default=30, type=int, help="Maximum number of conversational turns (default: 30)")
 @click.option("--output", "-o", help="Output file for results (JSON)")
+@click.option("--dual-output", "-d", default="/home/ryan/crystalyseai/test_fixed_unified", help="Create dual JSON/Markdown output directory (default: /home/ryan/crystalyseai/test_fixed_unified)")
 @click.option("--stream", is_flag=True, help="Enable streaming output")
 @click.option("--copilot", is_flag=True, help="Enable co-pilot mode with human checkpoints")
 @click.option("--pipeline", is_flag=True, help="Use three-stage pipeline (composition → structure → energy)")
 @click.option("--optimise", is_flag=True, help="Enable hill-climb optimisation with LLM reflection")
-def analyse(query: str, model: str, max_turns: int, output: str, stream: bool,
+def analyse(query: str, model: str, max_turns: int, output: str, dual_output: str, stream: bool,
            copilot: bool, pipeline: bool, optimise: bool):
     """
     Analyse a materials discovery query using CrystaLyse.AI.
@@ -178,11 +180,14 @@ def analyse(query: str, model: str, max_turns: int, output: str, stream: bool,
         
         Streaming with file output:
             crystalyse analyse "Solar cell materials" --stream -o results.json
+            
+        Dual JSON/Markdown output:
+            crystalyse analyse "Find battery materials" --dual-output my_results
     """
-    asyncio.run(_analyse(query, model, max_turns, output, stream, copilot, pipeline, optimise))
+    asyncio.run(_analyse(query, model, max_turns, output, dual_output, stream, copilot, pipeline, optimise))
 
 
-async def _analyse(query: str, model: str, max_turns: int, output: str, stream: bool,
+async def _analyse(query: str, model: str, max_turns: int, output: str, dual_output: str, stream: bool,
                   copilot: bool, pipeline: bool, optimise: bool):
     """
     Asynchronous implementation of the analyse command.
@@ -196,6 +201,7 @@ async def _analyse(query: str, model: str, max_turns: int, output: str, stream: 
         model (str): o4-mini (creative) or o3 (rigorous) model selection
         max_turns (int): Maximum number of conversational turns
         output (str): Optional file path for saving results
+        dual_output (str): Optional base directory for dual JSON/Markdown output
         stream (bool): Whether to enable streaming output mode
     
     Returns:
@@ -231,7 +237,12 @@ async def _analyse(query: str, model: str, max_turns: int, output: str, stream: 
     if patterns:
         console.print(f"Patterns: {' | '.join(patterns)}")
     
+    import time
+    
     try:
+        # Start timing
+        start_time = time.time()
+        
         # Choose analysis mode based on patterns
         if copilot:
             # Use co-pilot mode with human checkpoints
@@ -295,13 +306,33 @@ async def _analyse(query: str, model: str, max_turns: int, output: str, stream: 
             finally:
                 await agent.cleanup()
             
+        # Calculate execution time
+        execution_time = time.time() - start_time
+        
         # Process and display results
         if output:
             with open(output, "w") as f:
                 json.dump(result, f, indent=2)
             console.print(f"\n[green]Results saved to {output}[/green]")
-        else:
-            # Nicely formatted output
+            
+        # Always create dual JSON/Markdown output (default behaviour)
+        agent_mode = "creative" if "o4-mini" in model else "rigorous"
+        output_dir = create_dual_output(
+            query=query,
+            result=result,
+            execution_time=execution_time,
+            model=model,
+            mode=agent_mode,
+            output_dir=dual_output
+        )
+        console.print(f"\n[green]Dual output created in {output_dir}[/green]")
+        console.print(f"[cyan]├── raw_result.json[/cyan]")
+        console.print(f"[cyan]├── report.md[/cyan]")
+        console.print(f"[cyan]├── cif_files/ (if CIF structures found)[/cyan]")
+        console.print(f"[cyan]└── visualizations/ (if HTML visualizations created)[/cyan]")
+            
+        if not output:
+            # Also display nicely formatted output to console
             if isinstance(result, dict) and "candidates" in result:
                 display_results(result)
             elif isinstance(result, str):

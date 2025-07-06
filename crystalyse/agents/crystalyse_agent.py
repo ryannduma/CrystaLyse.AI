@@ -267,8 +267,8 @@ class CrystaLyse:
         
         # Add mode-specific additions
         mode_additions = {
-            "rigorous": "\n\nCrystaLyse is currently operating in Rigorous Mode. Use ALL 3 tools (SMACT + Chemeleon + MACE) for comprehensive validation. Every composition must be validated with SMACT, every structure must have calculated energies, and all results must include uncertainty estimates.",
-            "creative": "\n\nCrystaLyse is currently operating in Creative Mode. Use ONLY Chemeleon + MACE tools (NO SMACT validation). Focus on rapid exploration of unconventional chemical spaces. Generate compositions freely and validate only the final candidates with structure and energy calculations."
+            "rigorous": "\n\nCrystaLyse is currently operating in Rigorous Mode. Use ALL 3 tools (SMACT + Chemeleon + MACE) for comprehensive validation. Every composition must be validated with SMACT, every structure must have calculated energies, and all results must include uncertainty estimates.\n\n**IMPORTANT: Use individual tools (smact_validity, generate_structures, calculate_energies) instead of pipeline tools for better verifiability and transparency. Call each tool separately to maintain clear audit trails.**",
+            "creative": "\n\nCrystaLyse is currently operating in Creative Mode. Use ONLY Chemeleon + MACE tools (NO SMACT validation). Focus on rapid exploration of unconventional chemical spaces. Generate compositions freely and validate only the final candidates with structure and energy calculations.\n\n**IMPORTANT: Use individual tools (generate_structures, calculate_energies) instead of pipeline tools for better verifiability and transparency. Call each tool separately to maintain clear audit trails.**"
         }
         
         if self.mode in mode_additions:
@@ -333,16 +333,44 @@ class CrystaLyse:
         return base_tools
 
     async def _get_or_create_session(self):
-        """Get or create a persistent session with memory."""
+        """Get or create a persistent session with memory and fallback options."""
         try:
-            # Server configurations
+            # Server configurations - choose appropriate chemistry server based on mode
             server_configs = {}
             if (self.agent_config.enable_smact or 
                 self.agent_config.enable_chemeleon or 
                 self.agent_config.enable_mace):
                 
-                chemistry_config = self.system_config.get_server_config("chemistry_unified")
-                server_configs["chemistry_unified"] = chemistry_config
+                # Primary server selection based on mode
+                if self.mode == "creative":
+                    preferred_server = "chemistry_creative"
+                    fallback_server = "chemistry_unified"
+                    logger.info("Using chemistry_creative server for creative mode (Chemeleon + MACE)")
+                else:
+                    preferred_server = "chemistry_unified" 
+                    fallback_server = "chemistry_creative"
+                    logger.info("Using chemistry_unified server for rigorous mode (SMACT + Chemeleon + MACE)")
+                
+                # Try preferred server first
+                try:
+                    chemistry_config = self.system_config.get_server_config(preferred_server)
+                    server_configs[preferred_server] = chemistry_config
+                    logger.info(f"✅ Primary server {preferred_server} configured successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️ Primary server {preferred_server} failed: {e}")
+                    logger.info(f"🔄 Attempting fallback to {fallback_server}")
+                    
+                    try:
+                        fallback_config = self.system_config.get_server_config(fallback_server)
+                        server_configs[fallback_server] = fallback_config
+                        logger.info(f"✅ Fallback server {fallback_server} configured successfully")
+                        
+                        # Update mode to match server capabilities
+                        if preferred_server == "chemistry_unified" and fallback_server == "chemistry_creative":
+                            logger.info("Note: Falling back from rigorous to creative mode due to server availability")
+                    except Exception as fallback_error:
+                        logger.error(f"❌ Both servers failed. Primary: {e}, Fallback: {fallback_error}")
+                        raise Exception(f"No chemistry servers available: {e}")
             
             # Get or create session
             self.session = await self.session_manager.get_or_create_session(
@@ -367,13 +395,14 @@ class CrystaLyse:
             mcp_servers = []
             
             if self.session and self.session.connection_pool:
-                # Use session's connection pool
-                connection = await self.session.connection_pool.get_connection("chemistry_unified")
+                # Use session's connection pool - select appropriate chemistry server
+                chemistry_server_name = "chemistry_creative" if self.mode == "creative" else "chemistry_unified"
+                connection = await self.session.connection_pool.get_connection(chemistry_server_name)
                 if connection:
                     mcp_servers.append(connection)
-                    logger.info("✅ Using persistent MCP connection")
+                    logger.info(f"✅ Using persistent MCP connection to {chemistry_server_name}")
                 else:
-                    logger.warning("⚠️ No persistent connection available, falling back to traditional setup")
+                    logger.warning(f"⚠️ No persistent connection available for {chemistry_server_name}, falling back to traditional setup")
             
             # Fallback to traditional setup if needed
             if not mcp_servers:
@@ -434,7 +463,7 @@ class CrystaLyse:
 
 
     async def _setup_traditional_connections(self) -> List:
-        """Fallback to traditional connection setup."""
+        """Fallback to traditional connection setup with server fallback logic."""
         try:
             async with AsyncExitStack() as stack:
                 mcp_servers = []
@@ -443,20 +472,66 @@ class CrystaLyse:
                     self.agent_config.enable_chemeleon or 
                     self.agent_config.enable_mace):
                     
-                    chemistry_config = self.system_config.get_server_config("chemistry_unified")
-                    chemistry_server = await stack.enter_async_context(
-                        MCPServerStdio(
-                            name="ChemistryUnified",
-                            params={
-                                "command": chemistry_config["command"],
-                                "args": chemistry_config["args"],
-                                "cwd": chemistry_config["cwd"],
-                                "env": chemistry_config.get("env", {})
-                            },
-                            client_session_timeout_seconds=300  # 5 minutes for complex calculations
+                    # Choose appropriate chemistry server based on mode with fallback
+                    if self.mode == "creative":
+                        preferred_server = "chemistry_creative"
+                        fallback_server = "chemistry_unified"
+                        preferred_display = "ChemistryCreative"
+                        fallback_display = "ChemistryUnified"
+                        logger.info("Setting up traditional connection to chemistry_creative server")
+                    else:
+                        preferred_server = "chemistry_unified"
+                        fallback_server = "chemistry_creative"
+                        preferred_display = "ChemistryUnified"
+                        fallback_display = "ChemistryCreative"
+                        logger.info("Setting up traditional connection to chemistry_unified server")
+                    
+                    # Try preferred server first
+                    chemistry_server = None
+                    try:
+                        chemistry_config = self.system_config.get_server_config(preferred_server)
+                        chemistry_server = await stack.enter_async_context(
+                            MCPServerStdio(
+                                name=preferred_display,
+                                params={
+                                    "command": chemistry_config["command"],
+                                    "args": chemistry_config["args"],
+                                    "cwd": chemistry_config["cwd"],
+                                    "env": chemistry_config.get("env", {})
+                                },
+                                client_session_timeout_seconds=300  # 5 minutes for complex calculations
+                            )
                         )
-                    )
-                    mcp_servers.append(chemistry_server)
+                        logger.info(f"✅ Successfully connected to {preferred_server}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to connect to {preferred_server}: {e}")
+                        logger.info(f"🔄 Attempting fallback to {fallback_server}")
+                        
+                        try:
+                            fallback_config = self.system_config.get_server_config(fallback_server)
+                            chemistry_server = await stack.enter_async_context(
+                                MCPServerStdio(
+                                    name=fallback_display,
+                                    params={
+                                        "command": fallback_config["command"],
+                                        "args": fallback_config["args"],
+                                        "cwd": fallback_config["cwd"],
+                                        "env": fallback_config.get("env", {})
+                                    },
+                                    client_session_timeout_seconds=300
+                                )
+                            )
+                            logger.info(f"✅ Successfully connected to fallback server {fallback_server}")
+                            
+                            # Update mode to match server capabilities
+                            if preferred_server == "chemistry_unified" and fallback_server == "chemistry_creative":
+                                logger.info("Note: Falling back from rigorous to creative mode due to server availability")
+                        except Exception as fallback_error:
+                            logger.error(f"❌ Both servers failed. Primary: {e}, Fallback: {fallback_error}")
+                            raise Exception(f"No chemistry servers available")
+                    
+                    if chemistry_server:
+                        mcp_servers.append(chemistry_server)
                 
                 return mcp_servers
                 
@@ -580,7 +655,7 @@ class CrystaLyse:
                 },
                 "tool_validation": tool_validation,
                 "response_validation": response_validation,
-                "new_items": [str(item) for item in result.new_items[:5]],
+                "new_items": [self._serialize_item(item) for item in result.new_items[:20]],  # Keep more items for CIF extraction
             }
 
         except Exception as e:
@@ -647,10 +722,28 @@ class CrystaLyse:
             # Check for different types of tool-related items
             if isinstance(item, ToolCallItem):
                 tool_call_count += 1
-                tool_calls.append({
+                tool_info = {
                     "type": "tool_call",
                     "item_type": type(item).__name__
-                })
+                }
+                
+                # Extract tool name based on the type of raw_item
+                raw_item = getattr(item, 'raw_item', None)
+                if raw_item:
+                    # ResponseFunctionToolCall has function.name
+                    if hasattr(raw_item, 'function') and hasattr(raw_item.function, 'name'):
+                        tool_info["tool_name"] = raw_item.function.name
+                    # McpCall has function_name
+                    elif hasattr(raw_item, 'function_name'):
+                        tool_info["tool_name"] = raw_item.function_name
+                    # Other tool types might have different attributes
+                    elif hasattr(raw_item, 'name'):
+                        tool_info["tool_name"] = raw_item.name
+                    else:
+                        tool_info["tool_name"] = "unknown"
+                
+                tool_calls.append(tool_info)
+                
             elif isinstance(item, ToolCallOutputItem):
                 tool_calls.append({
                     "type": "tool_output", 
@@ -667,7 +760,7 @@ class CrystaLyse:
 
     def _validate_tool_usage(self, result, query: str, requires_computation: bool = None) -> Dict[str, Any]:
         """Validate that computational tools were actually used when expected."""
-        from agents.items import ToolCallItem, ToolCallOutputItem
+        from agents.items import ToolCallItem
         
         tool_calls = self._extract_tool_calls(result)
         
@@ -684,10 +777,9 @@ class CrystaLyse:
         tools_used = []
         for call in tool_calls:
             if isinstance(call, dict) and call.get("type") == "tool_call":
-                tools_used.append(call.get("tool_name", "unknown"))
-            elif hasattr(call, 'function') and hasattr(call.function, 'name'):
-                tools_used.append(call.function.name)
-        
+                tool_name = call.get("tool_name", "unknown")
+                if tool_name != "unknown":
+                    tools_used.append(tool_name)
         # Check for computational results in response without tool calls
         response = str(result.final_output) if result.final_output else ""
         
@@ -829,6 +921,51 @@ class CrystaLyse:
                 stats["memory_system"] = {"error": str(e), "status": "error"}
         
         return stats
+
+    def _serialize_item(self, item):
+        """Serialize an item from result.new_items, preserving tool output data."""
+        from agents import ToolCallOutputItem
+        import json
+        
+        try:
+            if hasattr(item, '__class__') and 'ToolCallOutputItem' in str(item.__class__):
+                # This is a ToolCallOutputItem, extract the output data
+                if hasattr(item, 'output') and item.output:
+                    try:
+                        # Try to parse output as JSON if it's a string
+                        if isinstance(item.output, str):
+                            try:
+                                output_data = json.loads(item.output)
+                            except json.JSONDecodeError:
+                                output_data = item.output
+                        else:
+                            output_data = item.output
+                        
+                        return {
+                            "type": "tool_call_output",
+                            "agent": str(item.agent.name) if hasattr(item, 'agent') and hasattr(item.agent, 'name') else "unknown",
+                            "output": output_data,
+                            "raw_item_type": str(type(item).__name__)
+                        }
+                    except Exception as e:
+                        # Fallback to string representation
+                        return {
+                            "type": "tool_call_output",
+                            "raw_string": str(item),
+                            "error": f"Failed to extract output: {e}"
+                        }
+                else:
+                    return {
+                        "type": "tool_call_output",
+                        "raw_string": str(item),
+                        "note": "No output attribute found"
+                    }
+            else:
+                # For other items, just convert to string
+                return str(item)
+        except Exception as e:
+            # Fallback to string representation
+            return f"Error serializing item: {e} - {str(item)}"
 
     async def cleanup(self):
         """Cleanup session, memory system, and connection resources."""

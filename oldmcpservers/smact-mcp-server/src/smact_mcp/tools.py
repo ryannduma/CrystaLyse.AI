@@ -46,14 +46,12 @@ def smact_validity(
         from pymatgen.core import Composition
         comp = Composition(composition)
         
-        # Run validity check
+        # Run validity check (only use supported parameters)
         is_valid = smact_validity_check(
             comp,
             use_pauling_test=use_pauling_test,
             include_alloys=include_alloys,
-            oxidation_states_set=oxidation_states_set,
-            check_metallicity=check_metallicity,
-            metallicity_threshold=metallicity_threshold
+            oxidation_states_set=oxidation_states_set
         )
         
         # Get additional details

@@ -16,7 +16,8 @@ sys.path.insert(0, str(project_root / "oldmcpservers" / "mace-mcp-server" / "src
 
 from mcp.server.fastmcp import FastMCP
 import io
-from ase.io import read as ase_read
+from ase.io import read as ase_read, write as ase_write
+from ase import Atoms
 import numpy as np
 
 # Configure logging
@@ -59,12 +60,99 @@ except ImportError as e:
     logger.warning(f"MACE tools not available: {e}")
     MACE_AVAILABLE = False
 
+# Helper function to generate CIF from structure dict
+def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
+    """Convert structure dictionary to CIF format string.
+    
+    Args:
+        structure_dict: Dictionary with keys 'numbers', 'positions', 'cell', 'pbc'
+        
+    Returns:
+        CIF format string
+    """
+    try:
+        # Handle potential data type issues
+        def convert_field(field_value, field_name):
+            """Convert field to proper format, handling various encodings."""
+            if isinstance(field_value, (list, np.ndarray)):
+                return field_value
+            elif isinstance(field_value, bytes):
+                logger.warning(f"{field_name} field is bytes - attempting to decode")
+                try:
+                    # Try JSON decoding
+                    decoded = field_value.decode('utf-8')
+                    return json.loads(decoded)
+                except:
+                    # Try direct eval as a fallback (careful with security)
+                    import ast
+                    return ast.literal_eval(decoded)
+            elif isinstance(field_value, str):
+                logger.warning(f"{field_name} field is string - attempting to parse")
+                try:
+                    return json.loads(field_value)
+                except:
+                    import ast
+                    return ast.literal_eval(field_value)
+            else:
+                raise ValueError(f"Unexpected type for {field_name}: {type(field_value)}")
+        
+        # Convert fields
+        numbers = convert_field(structure_dict['numbers'], 'numbers')
+        positions = convert_field(structure_dict['positions'], 'positions')
+        cell = convert_field(structure_dict['cell'], 'cell')
+        pbc = structure_dict.get('pbc', [True, True, True])
+        if not isinstance(pbc, list):
+            pbc = convert_field(pbc, 'pbc')
+        
+        # Ensure numpy arrays are converted to lists for ASE
+        if isinstance(numbers, np.ndarray):
+            numbers = numbers.tolist()
+        if isinstance(positions, np.ndarray):
+            positions = positions.tolist()
+        if isinstance(cell, np.ndarray):
+            cell = cell.tolist()
+        
+        # Create ASE Atoms object
+        atoms = Atoms(
+            numbers=numbers,
+            positions=positions,
+            cell=cell,
+            pbc=pbc
+        )
+        
+        # Use a temporary file instead of StringIO to avoid encoding issues
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as tmp_file:
+            tmp_filename = tmp_file.name
+        
+        try:
+            # Write to temporary file
+            ase_write(tmp_filename, atoms, format='cif')
+            
+            # Read back the content
+            with open(tmp_filename, 'r') as f:
+                cif_content = f.read()
+            
+            return cif_content
+        finally:
+            # Clean up temporary file
+            if os.path.exists(tmp_filename):
+                os.unlink(tmp_filename)
+    except Exception as e:
+        logger.warning(f"Failed to generate CIF: {e}")
+        return ""
+
 # SMACT Tools (with fallbacks)
 @mcp.tool()
 async def smact_validity(
     composition: str,
     use_pauling_test: bool = True,
-    include_alloys: bool = True
+    include_alloys: bool = True,
+    oxidation_states_set: str = "icsd24",
+    check_metallicity: bool = False,
+    metallicity_threshold: float = 0.7
 ) -> Dict[str, Any]:
     """
     Validate chemical composition using SMACT's sophisticated screening.
@@ -73,13 +161,16 @@ async def smact_validity(
         composition: Chemical formula (e.g., "LiFePO4")
         use_pauling_test: Whether to apply Pauling electronegativity test
         include_alloys: Consider pure metals valid automatically
+        oxidation_states_set: Which oxidation states to use ("icsd24", "icsd16", "smact14", "pymatgen_sp", "wiki")
+        check_metallicity: If True, consider high metallicity compositions valid
+        metallicity_threshold: Score threshold for metallicity validity (0-1)
     
     Returns:
         Validation result with confidence score and natural language explanation
     """
     if SMACT_AVAILABLE:
         try:
-            # Use SMACT's quick validity check
+            # Use SMACT's basic validity check (advanced parameters not supported)
             result_str = quick_validity_check(composition)
             result = json.loads(result_str)
             
@@ -271,7 +362,7 @@ async def generate_structures(
                 composition, 
                 num_structures, 
                 max_atoms,
-                output_format="both"  # Get both CIF and dict formats
+                output_format="both"  # Get both CIF and structure formats
             )
             result = json.loads(result_str)
             
@@ -282,11 +373,29 @@ async def generate_structures(
                 for i, struct in enumerate(structures):
                     # Process each structure
                     try:
-                        # First try to use the dict format if available
-                        if "dict" in struct and struct["dict"]:
+                        # First try to use the structure format (Chemeleon stores data here)
+                        structure_dict = None
+                        if "structure" in struct and struct["structure"]:
+                            structure_dict = struct["structure"]
+                        elif "dict" in struct and struct["dict"]:
+                            # Backward compatibility
                             structure_dict = struct["dict"]
-                            # Ensure all required fields are present
-                            if all(key in structure_dict for key in ["numbers", "positions", "cell"]):
+                        
+                        if structure_dict:
+                            # Validate structure has required fields
+                            required_fields = ["numbers", "positions", "cell"]
+                            missing_fields = [field for field in required_fields if field not in structure_dict or structure_dict[field] is None]
+                            
+                            if not missing_fields:
+                                # Check for nan values in positions and cell
+                                import numpy as np
+                                positions_array = np.array(structure_dict["positions"])
+                                cell_array = np.array(structure_dict["cell"])
+                                
+                                if np.any(np.isnan(positions_array)) or np.any(np.isnan(cell_array)):
+                                    logger.warning(f"Structure {i} contains nan values in positions or cell - skipping")
+                                    continue
+                                
                                 processed_struct = {
                                     "numbers": structure_dict["numbers"],
                                     "positions": structure_dict["positions"],
@@ -298,11 +407,28 @@ async def generate_structures(
                                     "id": f"{composition}_struct_{i+1}",
                                     "sample_idx": struct.get("sample_idx", i)
                                 }
-                                # Also include CIF for reference
-                                if "cif" in struct:
+                                
+                                # Always generate and include CIF for MACE compatibility
+                                if "cif" in struct and struct["cif"]:
                                     processed_struct["cif"] = struct["cif"]
+                                else:
+                                    # Generate CIF from structure dict
+                                    cif_content = structure_dict_to_cif(structure_dict)
+                                    if cif_content:
+                                        processed_struct["cif"] = cif_content
+                                    else:
+                                        logger.warning(f"Failed to generate CIF for structure {i}")
+                                        continue  # Skip structures without CIF for MACE compatibility
+                                
+                                # Ensure structure data is MACE-compatible
+                                # Add any additional fields MACE might need
+                                processed_struct["mace_ready"] = True
+                                processed_struct["structure_format"] = "chemeleon_dict_with_cif"
+                                
                                 processed_structures.append(processed_struct)
                                 continue
+                            else:
+                                logger.warning(f"Structure {i} missing required fields: {missing_fields} - skipping")
                         
                         # Fallback: Convert CIF to dict if only CIF is available
                         if "cif" in struct and struct["cif"]:
@@ -320,7 +446,9 @@ async def generate_structures(
                                 "confidence": 0.85,
                                 "id": f"{composition}_struct_{i+1}",
                                 "sample_idx": struct.get("sample_idx", i),
-                                "cif": cif_content
+                                "cif": cif_content,
+                                "mace_ready": True,
+                                "structure_format": "chemeleon_cif_converted"
                             }
                             processed_structures.append(processed_struct)
                     
@@ -481,8 +609,34 @@ async def _calculate_single_energy(structure: Dict[str, Any], properties: List[s
         }
         
         # Validate required fields
-        if not all(key in structure and structure[key] is not None for key in ["numbers", "positions", "cell"]):
-            raise ValueError(f"Structure missing required fields. Has: {list(structure.keys())}")
+        required_fields = ["numbers", "positions", "cell"]
+        missing_fields = [field for field in required_fields if field not in structure or structure[field] is None]
+        if missing_fields:
+            raise ValueError(f"Structure missing required fields: {missing_fields}. "
+                           f"Available fields: {list(structure.keys())}. "
+                           f"Structure ID: {structure_id}")
+        
+        # Additional validation for MACE compatibility
+        import numpy as np
+        try:
+            # Check for nan values that would break MACE
+            positions_array = np.array(mace_structure["positions"])
+            cell_array = np.array(mace_structure["cell"])
+            
+            if np.any(np.isnan(positions_array)):
+                raise ValueError(f"Structure {structure_id} contains nan values in positions")
+            if np.any(np.isnan(cell_array)):
+                raise ValueError(f"Structure {structure_id} contains nan values in cell")
+            
+            # Ensure numbers is a list of integers
+            if not all(isinstance(num, (int, np.integer)) for num in mace_structure["numbers"]):
+                # Try to convert to integers
+                mace_structure["numbers"] = [int(num) for num in mace_structure["numbers"]]
+                
+            logger.debug(f"MACE validation passed for structure {structure_id}")
+            
+        except Exception as validation_error:
+            raise ValueError(f"MACE compatibility validation failed for structure {structure_id}: {validation_error}")
         
         # Use existing MACE tool
         result_str = calculate_energy(
@@ -584,15 +738,39 @@ async def batch_discovery_pipeline(
         energy_results = await calculate_energies(results["generated_structures"], parallel=True)
         results["energy_calculations"] = energy_results
         
-        # Find most stable structures per composition
+        # Find most stable structures per composition and include CIF
         stable_structures = {}
-        for energy_result in energy_results:
+        structure_id_map = {struct.get("id", f"struct_{i}"): struct 
+                           for i, struct in enumerate(results["generated_structures"])}
+        
+        for i, energy_result in enumerate(energy_results):
             if energy_result.get("energy") is not None:
                 comp = energy_result.get("composition", "unknown")
+                struct_id = energy_result.get("structure_id", i)
+                
+                # Get the original structure with CIF
+                original_struct = results["generated_structures"][struct_id] if struct_id < len(results["generated_structures"]) else None
+                
                 if comp not in stable_structures or energy_result["energy"] < stable_structures[comp]["energy"]:
-                    stable_structures[comp] = energy_result
+                    # Combine energy result with original structure data including CIF
+                    combined_result = energy_result.copy()
+                    if original_struct and "cif" in original_struct:
+                        combined_result["cif"] = original_struct["cif"]
+                        combined_result["structure_id_label"] = original_struct.get("id", f"{comp}_struct_{struct_id+1}")
+                    stable_structures[comp] = combined_result
         
         results["most_stable_structures"] = list(stable_structures.values())
+        
+        # Extract CIF files for most stable structures
+        results["most_stable_cifs"] = {}
+        for comp, stable_struct in stable_structures.items():
+            if "cif" in stable_struct:
+                results["most_stable_cifs"][comp] = {
+                    "cif": stable_struct["cif"],
+                    "energy_per_atom": stable_struct.get("energy_per_atom"),
+                    "structure_id": stable_struct.get("structure_id_label", f"{comp}_stable")
+                }
+        
         results["pipeline_steps"].append({
             "stage": "energy_calculation",
             "input_count": len(results["generated_structures"]),

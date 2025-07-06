@@ -15,12 +15,17 @@ class CrystaLyseConfig:
     def load_from_env(self):
         """Load configuration from environment variables with sensible defaults"""
         
-        # MCP Server Configurations - Using unified chemistry server
+        # MCP Server Configurations
         self.mcp_servers = {
             "chemistry_unified": {
                 "command": os.getenv("CHEMISTRY_MCP_COMMAND", "python"),
                 "args": os.getenv("CHEMISTRY_MCP_ARGS", "-m chemistry_unified.server").split(),
                 "cwd": os.getenv("CHEMISTRY_MCP_PATH", str(self.base_dir / "chemistry-unified-server" / "src"))
+            },
+            "chemistry_creative": {
+                "command": os.getenv("CHEMISTRY_CREATIVE_MCP_COMMAND", "python"),
+                "args": os.getenv("CHEMISTRY_CREATIVE_MCP_ARGS", "-m chemistry_creative.server").split(),
+                "cwd": os.getenv("CHEMISTRY_CREATIVE_MCP_PATH", str(self.base_dir / "chemistry-creative-server" / "src"))
             },
             # Keep individual servers as fallback options
             "smact": {
