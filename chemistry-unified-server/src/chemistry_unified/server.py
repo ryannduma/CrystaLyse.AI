@@ -112,6 +112,20 @@ def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
         if isinstance(cell, np.ndarray):
             cell = cell.tolist()
         
+        # Fix coordinate array shape if flattened during JSON serialisation (CIF generation protection)
+        positions_array = np.array(positions)
+        n_atoms = len(numbers)
+        if len(positions_array.shape) == 1:
+            # Coordinates were flattened - reshape to (n_atoms, 3)
+            if len(positions_array) == n_atoms * 3:
+                positions_array = positions_array.reshape(n_atoms, 3)
+                positions = positions_array.tolist()
+                logger.info(f"CIF generation: Fixed flattened coordinates: reshaped from ({len(positions_array)},) to ({n_atoms}, 3)")
+            else:
+                raise ValueError(f"CIF generation: Mismatched coordinate array: {len(positions_array)} elements for {n_atoms} atoms")
+        elif positions_array.shape != (n_atoms, 3):
+            raise ValueError(f"CIF generation: Invalid coordinate shape: {positions_array.shape} for {n_atoms} atoms")
+        
         # Create ASE Atoms object
         atoms = Atoms(
             numbers=numbers,
@@ -392,6 +406,21 @@ async def generate_structures(
                                 positions_array = np.array(structure_dict["positions"])
                                 cell_array = np.array(structure_dict["cell"])
                                 
+                                # Fix coordinate array shape if flattened during JSON serialisation
+                                n_atoms = len(structure_dict["numbers"])
+                                if len(positions_array.shape) == 1:
+                                    # Coordinates were flattened - reshape to (n_atoms, 3)
+                                    if len(positions_array) == n_atoms * 3:
+                                        positions_array = positions_array.reshape(n_atoms, 3)
+                                        structure_dict["positions"] = positions_array.tolist()
+                                        logger.info(f"Fixed flattened coordinates for structure {i}: reshaped from ({len(positions_array)},) to ({n_atoms}, 3)")
+                                    else:
+                                        logger.error(f"Structure {i} has mismatched coordinate array: {len(positions_array)} elements for {n_atoms} atoms - skipping")
+                                        continue
+                                elif positions_array.shape != (n_atoms, 3):
+                                    logger.error(f"Structure {i} has invalid coordinate shape: {positions_array.shape} for {n_atoms} atoms - skipping")
+                                    continue
+                                
                                 if np.any(np.isnan(positions_array)) or np.any(np.isnan(cell_array)):
                                     logger.warning(f"Structure {i} contains nan values in positions or cell - skipping")
                                     continue
@@ -622,6 +651,19 @@ async def _calculate_single_energy(structure: Dict[str, Any], properties: List[s
             # Check for nan values that would break MACE
             positions_array = np.array(mace_structure["positions"])
             cell_array = np.array(mace_structure["cell"])
+            
+            # Fix coordinate array shape if flattened during JSON serialisation (second layer of protection)
+            n_atoms = len(mace_structure["numbers"])
+            if len(positions_array.shape) == 1:
+                # Coordinates were flattened - reshape to (n_atoms, 3)
+                if len(positions_array) == n_atoms * 3:
+                    positions_array = positions_array.reshape(n_atoms, 3)
+                    mace_structure["positions"] = positions_array.tolist()
+                    logger.info(f"MACE validation: Fixed flattened coordinates for structure {structure_id}: reshaped from ({len(positions_array)},) to ({n_atoms}, 3)")
+                else:
+                    raise ValueError(f"Structure {structure_id} has mismatched coordinate array: {len(positions_array)} elements for {n_atoms} atoms")
+            elif positions_array.shape != (n_atoms, 3):
+                raise ValueError(f"Structure {structure_id} has invalid coordinate shape: {positions_array.shape} for {n_atoms} atoms")
             
             if np.any(np.isnan(positions_array)):
                 raise ValueError(f"Structure {structure_id} contains nan values in positions")

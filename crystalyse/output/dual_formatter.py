@@ -15,7 +15,7 @@ import re
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from .universal_cif_visualizer import UniversalCIFVisualizer
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,253 @@ class DualOutputFormatter:
         """
         self.base_output_dir = Path(base_output_dir)
         self.cif_visualizer = UniversalCIFVisualizer()
+    
+    def _is_valid_cif_content(self, cif_content: str) -> bool:
+        """
+        Validate that CIF content appears to be complete and well-formed.
+        
+        Args:
+            cif_content: Raw CIF content string
+            
+        Returns:
+            True if content appears valid, False otherwise
+        """
+        if not cif_content or len(cif_content.strip()) < 20:
+            return False
+            
+        # Check for essential CIF elements
+        essential_elements = [
+            '_chemical_formula',  # Some form of chemical formula
+            '_cell_length_a',     # Unit cell parameters
+            '_atom_site'          # Atomic positions
+        ]
+        
+        # Must have at least 2 of 3 essential elements
+        found_elements = sum(1 for element in essential_elements if element in cif_content)
+        if found_elements < 2:
+            logger.warning(f"CIF validation failed: only {found_elements}/3 essential elements found")
+            return False
+            
+        # Check for obvious corruption markers
+        corruption_markers = [
+            'data_image0\\n_chemical_formula_structural',  # Truncated header
+            '\\\\\\\\\"',  # Excessive escaping
+            'ToolCallOutputItem',  # Extraction artifacts
+        ]
+        
+        for marker in corruption_markers:
+            if marker in cif_content and len(cif_content) < 100:
+                logger.warning(f"CIF validation failed: corruption marker '{marker}' found in short content")
+                return False
+        
+        # Must not end abruptly with escape characters
+        stripped = cif_content.strip()
+        if stripped.endswith('\\\\') and len(stripped) < 50:
+            logger.warning("CIF validation failed: content ends with escape character and is very short")
+            return False
+            
+        return True
+    
+    def _robust_string_cleanup(self, content: str) -> str:
+        """
+        Robustly clean up escaped string content from various JSON sources.
+        
+        Args:
+            content: Raw string content with potential escaping
+            
+        Returns:
+            Cleaned string content
+        """
+        if not isinstance(content, str):
+            return str(content)
+            
+        # Start with the original content
+        clean_content = content
+        
+        # Handle multiple levels of JSON escaping systematically
+        escape_patterns = [
+            # Handle newlines (from most specific to least)
+            ('\\\\\\\\\\\\\\\\n', '\\n'),  # 8 backslashes + n -> newline
+            ('\\\\\\\\\\\\n', '\\n'),      # 6 backslashes + n -> newline  
+            ('\\\\\\\\n', '\\n'),        # 4 backslashes + n -> newline
+            ('\\\\n', '\\n'),          # 2 backslashes + n -> newline
+            
+            # Handle quotes (from most specific to least)
+            ('\\\\\\\\\\\\\\\\\"', '\"'),    # 8 backslashes + quote -> quote
+            ('\\\\\\\\\\\\\"', '\"'),      # 6 backslashes + quote -> quote
+            ('\\\\\\\\\"', '\"'),        # 4 backslashes + quote -> quote
+            ('\\\\\\\\\"\\\\\\\\\"\\\\\\\\\n', '\\n'),  # Multiple escaped quotes
+            ('\\\\\"', '\"'),          # 2 backslashes + quote -> quote
+            
+            # Handle backslashes themselves
+            ('\\\\\\\\\\\\\\\\', '\\\\\\\\'),      # 8 backslashes -> 2 backslashes
+            ('\\\\\\\\\\\\', '\\\\'),        # 6 backslashes -> 1 backslash
+            ('\\\\\\\\', '\\\\'),          # 4 backslashes -> 1 backslash
+        ]
+        
+        # Apply escape pattern replacements
+        for pattern, replacement in escape_patterns:
+            clean_content = clean_content.replace(pattern, replacement)
+        
+        # Additional cleanup for common artifacts
+        artifact_patterns = [
+            ('\\\\r\\\\n', '\\n'),       # Windows line endings
+            ('\\\\r', '\\n'),           # Mac line endings
+            ('\\\\t', ' '),           # Tabs to spaces
+        ]
+        
+        for pattern, replacement in artifact_patterns:
+            clean_content = clean_content.replace(pattern, replacement)
+            
+        return clean_content
+    
+    def _extract_cif_from_json_structure(self, data: dict, source_description: str) -> Dict[str, Dict[str, str]]:
+        """
+        Extract CIF content from various JSON structure formats.
+        
+        Args:
+            data: Parsed JSON data structure
+            source_description: Description of the data source for logging
+            
+        Returns:
+            Dictionary mapping composition names to CIF data
+        """
+        extracted_cifs = {}
+        
+        # Method 1: Check for most_stable_cifs
+        if "most_stable_cifs" in data:
+            most_stable_cifs = data["most_stable_cifs"]
+            logger.info(f"Found most_stable_cifs in {source_description}")
+            
+            for comp, cif_data in most_stable_cifs.items():
+                if isinstance(cif_data, dict) and "cif" in cif_data:
+                    cif_content = self._robust_string_cleanup(cif_data["cif"])
+                    
+                    if self._is_valid_cif_content(cif_content):
+                        structure_id = cif_data.get("structure_id", f"{comp}_stable")
+                        extracted_cifs[comp] = {
+                            "cif": cif_content,
+                            "filename": f"{comp}_most_stable.cif",
+                            "structure_id": structure_id,
+                            "source": source_description
+                        }
+                        logger.info(f"Successfully extracted valid CIF for {comp} from {source_description}")
+                    else:
+                        logger.warning(f"Skipping invalid CIF content for {comp} from {source_description}")
+        
+        # Method 2: Check for generated_structures (creative mode)
+        if "generated_structures" in data:
+            structures_data = data["generated_structures"]
+            logger.info(f"Found generated_structures in {source_description}")
+            
+            for comp_data in structures_data:
+                if isinstance(comp_data, dict) and "structures" in comp_data:
+                    composition = comp_data.get("composition", "unknown")
+                    for j, struct in enumerate(comp_data["structures"]):
+                        if isinstance(struct, dict) and "cif" in struct:
+                            cif_content = self._robust_string_cleanup(struct["cif"])
+                            
+                            if self._is_valid_cif_content(cif_content):
+                                formula = struct.get("formula", composition)
+                                sample_idx = struct.get("sample_index", j)
+                                struct_id = f"{formula}_struct_{sample_idx}"
+                                
+                                extracted_cifs[formula] = {
+                                    "cif": cif_content,
+                                    "filename": f"{struct_id}.cif",
+                                    "structure_id": struct_id,
+                                    "source": source_description
+                                }
+                                logger.info(f"Successfully extracted valid CIF for {formula} from {source_description}")
+                            else:
+                                logger.warning(f"Skipping invalid CIF content for structure {j} in {composition}")
+        
+        # Method 3: Check for direct structures array
+        if "structures" in data and isinstance(data["structures"], list):
+            structures = data["structures"]
+            logger.info(f"Found direct structures array in {source_description}")
+            
+            for j, struct in enumerate(structures):
+                if isinstance(struct, dict) and "cif" in struct:
+                    cif_content = self._robust_string_cleanup(struct["cif"])
+                    
+                    if self._is_valid_cif_content(cif_content):
+                        formula = struct.get("formula", struct.get("composition", f"structure_{j}"))
+                        struct_id = struct.get("id", f"{formula}_struct_{j+1}")
+                        
+                        extracted_cifs[formula] = {
+                            "cif": cif_content,
+                            "filename": f"{struct_id}.cif",
+                            "structure_id": struct_id,
+                            "source": source_description
+                        }
+                        logger.info(f"Successfully extracted valid CIF for {formula} from {source_description}")
+                    else:
+                        logger.warning(f"Skipping invalid CIF content for structure {j}")
+        
+        # Method 4: Check for individual structure object (new individual tool format)
+        if "cif" in data and isinstance(data, dict):
+            logger.info(f"Found individual structure object in {source_description}")
+            cif_content = self._robust_string_cleanup(data["cif"])
+            
+            if self._is_valid_cif_content(cif_content):
+                formula = data.get("formula", data.get("composition", "unknown"))
+                struct_id = data.get("id", f"{formula}_struct_1")
+                
+                extracted_cifs[formula] = {
+                    "cif": cif_content,
+                    "filename": f"{struct_id}.cif",
+                    "structure_id": struct_id,
+                    "source": source_description
+                }
+                logger.info(f"Successfully extracted valid CIF for {formula} from {source_description}")
+            else:
+                logger.warning(f"Skipping invalid CIF content for individual structure in {source_description}")
+        
+        return extracted_cifs
+    
+    def _extract_cif_from_list_structure(self, data: list, source_description: str) -> Dict[str, Dict[str, str]]:
+        """
+        Extract CIF content from array-based structure formats (new individual tool format).
+        
+        Args:
+            data: List of structure data items
+            source_description: Description of the data source for logging
+            
+        Returns:
+            Dictionary mapping composition names to CIF data
+        """
+        extracted_cifs = {}
+        logger.info(f"Processing {len(data)} structures from {source_description}")
+        
+        for j, struct in enumerate(data):
+            if isinstance(struct, dict) and "cif" in struct:
+                cif_content = self._robust_string_cleanup(struct["cif"])
+                
+                if self._is_valid_cif_content(cif_content):
+                    formula = struct.get("formula", struct.get("composition", f"structure_{j}"))
+                    struct_id = struct.get("id", f"{formula}_struct_{j+1}")
+                    sample_idx = struct.get("sample_idx", j)
+                    
+                    # Use the structure ID if provided, otherwise generate one
+                    if "id" in struct:
+                        final_id = struct["id"]
+                        filename = f"{final_id}.cif"
+                    else:
+                        final_id = f"{formula}_struct_{sample_idx}"
+                        filename = f"{final_id}.cif"
+                    
+                    extracted_cifs[final_id] = {
+                        "cif": cif_content,
+                        "filename": filename,
+                        "structure_id": final_id,
+                        "source": source_description
+                    }
+                    logger.info(f"Successfully extracted valid CIF for {final_id} from {source_description}")
+                else:
+                    logger.warning(f"Skipping invalid CIF content for structure {j} in {source_description}")
+        
+        return extracted_cifs
         
     def create_query_output(self, 
                            query: str, 
@@ -354,7 +601,7 @@ Tool usage validation detected potential issues
     
     def _save_cif_files(self, result: Dict[str, Any], output_dir: Path) -> tuple[int, Dict[str, Dict[str, str]]]:
         """
-        Extract and save CIF files from the result.
+        Extract and save CIF files from the result using robust parsing methods.
         
         Args:
             result: Full result dictionary from agent
@@ -364,495 +611,154 @@ Tool usage validation detected potential issues
             Number of CIF files saved and extracted CIF data
         """
         cif_count = 0
-        extracted_cifs = {}  # Store extracted CIF data for HTML generation
-        
-        # Create CIF subdirectory
+        extracted_cifs = {}
         cif_dir = output_dir / "cif_files"
         
-        # Search for CIF content in various locations
-        response_text = str(result.get("discovery_result", ""))
+        logger.info("Starting robust CIF extraction from result data")
         
-        # Look for structure data in tool calls
-        tool_calls = result.get("tool_calls", [])
-        
-        # Also check new_items for ToolCallOutputItem data
+        # Method 1: Extract from new_items with structured approach
         new_items = result.get("new_items", [])
         for i, item in enumerate(new_items):
-            # Handle both old string representations and new structured format
+            # Handle structured tool call outputs
             if isinstance(item, dict) and item.get("type") == "tool_call_output":
-                # New structured format from _serialize_item
                 output = item.get("output", {})
                 
-                # Check if output has a "text" field containing JSON string
+                # Case 1: JSON string in text field
                 if isinstance(output, dict) and "text" in output:
                     try:
-                        # Parse the JSON string in the text field
                         text_content = output["text"]
                         parsed_data = json.loads(text_content)
+                        logger.info(f"Successfully parsed JSON from tool_call_output[{i}]")
                         
-                        # Debug: log what keys are available
-                        logger.info(f"tool_call_output[{i}] keys: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'not a dict'}")
+                        # Extract using unified helper method
+                        item_cifs = self._extract_cif_from_json_structure(parsed_data, f"tool_call_output[{i}]")
+                        extracted_cifs.update(item_cifs)
                         
-                        # Look for generated_structures in the parsed data (pipeline tools)
-                        if "generated_structures" in parsed_data:
-                            structures_data = parsed_data["generated_structures"]
-                            logger.info(f"Found generated_structures in tool_call_output[{i}]")
-                        
-                        # Also check for direct structure arrays from individual tools
-                        elif isinstance(parsed_data, list) and len(parsed_data) > 0:
-                            # Check if this is an array of structures from individual tool (like generate_structures)
-                            first_item = parsed_data[0]
-                            if isinstance(first_item, dict) and ("cif" in first_item or "numbers" in first_item):
-                                structures_data = parsed_data
-                                logger.info(f"Found individual tool structure array in tool_call_output[{i}] with {len(parsed_data)} structures")
-                            else:
-                                structures_data = None
-                        else:
-                            structures_data = None
-                        
-                        if structures_data:
-                            
-                            # Handle both flat structures array and nested composition->structures format
-                            structures_to_process = []
-                            
-                            if isinstance(structures_data, list):
-                                # Check if this is a direct array of structures (individual tools)
-                                first_item = structures_data[0] if structures_data else {}
-                                if isinstance(first_item, dict) and ("cif" in first_item or "numbers" in first_item):
-                                    # Direct structure array from individual tools like generate_structures
-                                    structures_to_process = structures_data
-                                    logger.info(f"Processing {len(structures_data)} structures from individual tool")
-                                else:
-                                    # Pipeline mode format: array of compositions, each with structures
-                                    for comp_data in structures_data:
-                                        if isinstance(comp_data, dict) and "structures" in comp_data:
-                                            structures_to_process.extend(comp_data["structures"])
-                                        elif isinstance(comp_data, dict) and "cif" in comp_data:
-                                            # Direct structure object (rigorous mode)
-                                            structures_to_process.append(comp_data)
-                            elif isinstance(structures_data, dict):
-                                # Single composition data
-                                if "structures" in structures_data:
-                                    structures_to_process.extend(structures_data["structures"])
-                            
-                            logger.info(f"Found {len(structures_to_process)} total structures to process")
-                            
-                            if cif_count == 0 and structures_to_process:
-                                cif_dir.mkdir(exist_ok=True)
-                            
-                            for j, struct in enumerate(structures_to_process):
-                                if isinstance(struct, dict) and "cif" in struct:
-                                    formula = struct.get("formula", struct.get("composition", f"structure_{j}"))
-                                    sample_idx = struct.get("sample_index", struct.get("sample_idx", j))
-                                    struct_id = struct.get("id", f"{formula}_struct_{sample_idx}")
-                                    cif_filename = f"{struct_id}.cif"
-                                    cif_path = cif_dir / cif_filename
-                                    
-                                    cif_content = struct["cif"]
-                                    # Clean up heavy JSON escaping in CIF content (especially from creative mode)
-                                    clean_cif = cif_content.replace('\\\\n', '\n').replace('\\\\"', '"').replace('\\\\\\\\', '\\')
-                                    
-                                    with open(cif_path, "w", encoding="utf-8") as f:
-                                        f.write(clean_cif)
-                                    cif_count += 1
-                                    
-                                    # Store for HTML generation
-                                    extracted_cifs[formula] = {
-                                        "cif": clean_cif,
-                                        "filename": cif_filename,
-                                        "structure_id": struct_id
-                                    }
-                                    logger.info(f"Extracted CIF for {formula} from tool_call_output")
-                                    
                     except json.JSONDecodeError as e:
                         logger.warning(f"Failed to parse JSON in tool_call_output[{i}]: {e}")
-                        
+                
+                # Case 2: Direct structured output (dict)
                 elif isinstance(output, dict):
-                    # Check for structures in the output (legacy format)
-                    if "structures" in output:
-                        structures = output["structures"]
-                        logger.info(f"Found {len(structures)} structures in new_items[{i}]")
-                        
-                        if cif_count == 0 and structures:
-                            cif_dir.mkdir(exist_ok=True)
-                        
-                        for j, struct in enumerate(structures):
-                            if isinstance(struct, dict) and "cif" in struct:
-                                formula = struct.get("formula", struct.get("composition", f"structure_{j}"))
-                                struct_id = struct.get("id", f"{formula}_struct_{j+1}")
-                                cif_filename = f"{struct_id}.cif"
-                                cif_path = cif_dir / cif_filename
-                                
-                                cif_content = struct["cif"]
-                                # CIF content should already be clean in the new format
-                                
-                                with open(cif_path, "w", encoding="utf-8") as f:
-                                    f.write(cif_content)
-                                cif_count += 1
-                                
-                                # Store for HTML generation
-                                extracted_cifs[formula] = {
-                                    "cif": cif_content,
-                                    "filename": cif_filename,
-                                    "structure_id": struct_id
-                                }
-                                logger.info(f"Extracted CIF for {formula} from structured output")
+                    item_cifs = self._extract_cif_from_json_structure(output, f"structured_output[{i}]")
+                    extracted_cifs.update(item_cifs)
+                
+                # Case 3: Array output (new individual tool format)
+                elif isinstance(output, list):
+                    logger.info(f"Found array output in tool_call_output[{i}] with {len(output)} items")
                     
-                    # Check for most_stable_cifs in output
-                    if "most_stable_cifs" in output:
-                        most_stable_cifs = output["most_stable_cifs"]
-                        logger.info(f"Found most_stable_cifs in new_items[{i}]")
-                        
-                        if cif_count == 0:
-                            cif_dir.mkdir(exist_ok=True)
-                        
-                        for comp, cif_data in most_stable_cifs.items():
-                            if isinstance(cif_data, dict) and "cif" in cif_data:
-                                cif_content = cif_data["cif"]
-                                structure_id = cif_data.get("structure_id", f"{comp}_stable")
-                                cif_filename = f"{comp}_most_stable.cif"
-                                cif_path = cif_dir / cif_filename
-                                
-                                with open(cif_path, "w", encoding="utf-8") as f:
-                                    f.write(cif_content)
-                                cif_count += 1
-                                
-                                # Store for HTML generation
-                                extracted_cifs[comp] = {
-                                    "cif": cif_content,
-                                    "filename": cif_filename,
-                                    "structure_id": structure_id
-                                }
-                                logger.info(f"Extracted CIF for {comp} from most_stable_cifs")
-            
-            else:
-                # Handle legacy string representations
-                item_str = str(item) if not isinstance(item, str) else item
-                
-                # Log for debugging
-                if ("batch_discovery_pipeline" in item_str or 
-                    "creative_discovery_pipeline" in item_str or 
-                    "most_stable_cifs" in item_str or
-                    "generated_structures" in item_str):
-                    logger.info(f"Found potential CIF data in new_items[{i}]")
-                
-                # Handle creative mode string format with generated_structures
-                if (isinstance(item, str) and "ToolCallOutputItem" in item and 
-                    "generated_structures" in item):
-                    logger.info(f"Processing creative mode generated_structures in new_items[{i}]")
-                    try:
-                        # Simpler approach: extract the JSON content using regex
-                        import re
-                        # Look for the pattern: {"type":"text","text":"..."}
-                        text_pattern = r'{"type":"text","text":"(.*?)","annotations"'
-                        match = re.search(text_pattern, item, re.DOTALL)
-                        
-                        if match:
-                            json_text = match.group(1)
-                            # Use codecs to properly decode the escaped string
-                            try:
-                                json_text = json_text.encode().decode('unicode_escape')
-                            except UnicodeDecodeError:
-                                # Fallback to manual replacements
-                                json_text = json_text.replace('\\n', '\n')
-                                json_text = json_text.replace('\\"', '"')
-                                json_text = json_text.replace('\\\\', '\\')
-                            
-                            # Parse the JSON
-                            try:
-                                # Clean up whitespace and potential invisible characters
-                                json_text = json_text.strip()
-                                # Debug: log first 200 chars of cleaned JSON
-                                logger.info(f"JSON text first 200 chars: {repr(json_text[:200])}")
-                                parsed_data = json.loads(json_text)
-                                logger.info(f"Parsed JSON keys: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'not a dict'}")
-                                
-                                if "generated_structures" in parsed_data:
-                                    structures_data = parsed_data["generated_structures"]
-                                    logger.info(f"Found {len(structures_data)} compositions in creative mode")
-                                    logger.info(f"First composition structure: {type(structures_data[0]) if structures_data else 'empty list'}")
-                                    
-                                    if cif_count == 0:
-                                        cif_dir.mkdir(exist_ok=True)
-                                    
-                                    # Process creative mode format
-                                    for comp_data in structures_data:
-                                        if isinstance(comp_data, dict) and "structures" in comp_data:
-                                            composition = comp_data.get("composition", "unknown")
-                                            for j, struct in enumerate(comp_data["structures"]):
-                                                if isinstance(struct, dict) and "cif" in struct:
-                                                    formula = struct.get("formula", composition)
-                                                    sample_idx = struct.get("sample_index", j)
-                                                    struct_id = f"{formula}_struct_{sample_idx}"
-                                                    cif_filename = f"{struct_id}.cif"
-                                                    cif_path = cif_dir / cif_filename
-                                                    
-                                                    cif_content = struct["cif"]
-                                                    # Clean up CIF content escaping
-                                                    clean_cif = cif_content.replace('\\\\n', '\n').replace('\\\\"', '"')
-                                                    
-                                                    with open(cif_path, "w", encoding="utf-8") as f:
-                                                        f.write(clean_cif)
-                                                    cif_count += 1
-                                                    
-                                                    # Store for HTML generation
-                                                    extracted_cifs[formula] = {
-                                                        "cif": clean_cif,
-                                                        "filename": cif_filename,
-                                                        "structure_id": struct_id
-                                                    }
-                                                    logger.info(f"Extracted CIF for {formula} from creative mode string")
-                                            
-                            except json.JSONDecodeError as e:
-                                logger.warning(f"Failed to parse creative mode JSON: {e}")
-                                    
-                    except Exception as e:
-                        logger.warning(f"Failed to process creative mode string: {e}")
-                
-                # Check for generate_structures output (individual tool calls)
-                if (isinstance(item, str) and "ToolCallOutputItem" in item and 
-                    "generate_structures" in item):
-                    logger.info(f"Found generate_structures output in new_items[{i}]")
-                    try:
-                        # Extract structures array from generate_structures output
-                        structures_start = item.find('"structures": [')
-                        if structures_start != -1:
-                            # Find the matching closing bracket
-                            bracket_count = 1
-                            pos = structures_start + len('"structures": [')
-                            start_pos = pos - 1
-                            
-                            while bracket_count > 0 and pos < len(item):
-                                if item[pos] == '[':
-                                    bracket_count += 1
-                                elif item[pos] == ']':
-                                    bracket_count -= 1
-                                pos += 1
-                            
-                            if bracket_count == 0:
-                                structures_content = item[start_pos:pos]
+                    # Check if this is an array of structures with text/cif data
+                    structures_to_process = []
+                    for j, output_item in enumerate(output):
+                        if isinstance(output_item, dict):
+                            # Check for text field containing JSON
+                            if "text" in output_item:
                                 try:
-                                    # Clean up the content and parse
-                                    clean_content = structures_content.replace('\\\\"', '"')
-                                    clean_content = clean_content.replace('\\\\n', '\n')
-                                    clean_content = clean_content.replace('\\\\\\\\', '\\\\')
-                                    
-                                    # Parse as JSON
-                                    structures = json.loads(clean_content)
-                                    
-                                    if cif_count == 0 and structures:
-                                        cif_dir.mkdir(exist_ok=True)
-                                    
-                                    for j, struct in enumerate(structures):
-                                        if isinstance(struct, dict) and "cif" in struct:
-                                            formula = struct.get("formula", struct.get("composition", f"structure_{j}"))
-                                            struct_id = struct.get("id", f"{formula}_struct_{j+1}")
-                                            cif_filename = f"{struct_id}.cif"
-                                            cif_path = cif_dir / cif_filename
-                                            
-                                            cif_content = struct["cif"]
-                                            # Clean up CIF content
-                                            clean_cif = cif_content.replace('\\\\n', '\n')
-                                            clean_cif = clean_cif.replace('\\\\"', '"')
-                                            clean_cif = clean_cif.replace('\\\\', '\\')
-                                            
-                                            with open(cif_path, "w", encoding="utf-8") as f:
-                                                f.write(clean_cif)
-                                            cif_count += 1
-                                            
-                                            # Store for HTML generation
-                                            extracted_cifs[formula] = {
-                                                "cif": clean_cif,
-                                                "filename": cif_filename,
-                                                "structure_id": struct_id
-                                            }
-                                            logger.info(f"Extracted CIF for {formula} from generate_structures output")
-                                            
-                                except json.JSONDecodeError as e:
-                                    logger.warning(f"Failed to parse structures JSON: {e}")
-                                except Exception as e:
-                                    logger.warning(f"Failed to extract structures: {e}")
-                                    
-                    except Exception as e:
-                        logger.warning(f"Failed to process generate_structures output: {e}")
+                                    struct_data = json.loads(output_item["text"])
+                                    if isinstance(struct_data, dict) and "cif" in struct_data:
+                                        structures_to_process.append(struct_data)
+                                        logger.info(f"Found structure data in array item {j}")
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Failed to parse JSON in array item {j}")
+                            # Direct structure data
+                            elif "cif" in output_item:
+                                structures_to_process.append(output_item)
+                    
+                    if structures_to_process:
+                        item_cifs = self._extract_cif_from_list_structure(structures_to_process, f"array_output[{i}]")
+                        extracted_cifs.update(item_cifs)
             
-            if (isinstance(item, str) and "ToolCallOutputItem" in item and 
-                ("most_stable_cifs" in item or "creative_discovery_pipeline" in item or "batch_discovery_pipeline" in item)):
-                # Extract CIF data from string representation
-                try:
-                    import re
-                    import ast
-                    
-                    # Find most_stable_cifs section first
-                    msc_start = item.find('most_stable_cifs')
-                    if msc_start == -1:
-                        continue
-                    
-                    # Find the opening brace of most_stable_cifs
-                    opening_brace = item.find('{', msc_start)
-                    if opening_brace == -1:
-                        continue
-                    
-                    # Find the matching closing brace
-                    brace_count = 1
-                    pos = opening_brace + 1
-                    while brace_count > 0 and pos < len(item):
-                        if item[pos] == '{':
-                            brace_count += 1
-                        elif item[pos] == '}':
-                            brace_count -= 1
-                        pos += 1
-                    
-                    if brace_count == 0:
-                        # Extract the most_stable_cifs content
-                        msc_content = item[opening_brace:pos]
-                        
-                        # Use a more flexible approach to extract composition-CIF pairs
-                        # First, find all composition keys within most_stable_cifs
-                        comp_pattern = r'\\\\"([A-Za-z0-9]+)\\\\": \{'
-                        composition_matches = re.findall(comp_pattern, msc_content)
-                        
-                        matches = []
-                        for comp in composition_matches:
-                            # For each composition, find its CIF content
-                            comp_start = msc_content.find(f'\\\\"{comp}\\\\"')
-                            if comp_start != -1:
-                                # Find the CIF field
-                                cif_start = msc_content.find('\\\\"cif\\\\": \\\\"', comp_start)
-                                if cif_start != -1:
-                                    content_start = cif_start + len('\\\\"cif\\\\": \\\\"')
-                                    # Find the end of the CIF content
-                                    # Look for the next field or end of object
-                                    end_markers = ['\\\\",\\\\n', '\\\\"\\\\n', '\\\\"}']
-                                    end_pos = -1
-                                    for marker in end_markers:
-                                        pos = msc_content.find(marker, content_start)
-                                        if pos != -1:
-                                            if end_pos == -1 or pos < end_pos:
-                                                end_pos = pos
-                                    
-                                    if end_pos != -1:
-                                        cif_content = msc_content[content_start:end_pos]
-                                        matches.append((comp, cif_content))
-                        
-                        if matches:
-                            if cif_count == 0:  # Create dir on first CIF
-                                cif_dir.mkdir(exist_ok=True)
-                            
-                            for comp, cif_content in matches:
-                                # Save CIF file
-                                cif_filename = f"{comp}_most_stable.cif"
-                                cif_path = cif_dir / cif_filename
-                                
-                                try:
-                                    # Clean up the CIF content escaping
-                                    clean_cif = cif_content
-                                    # Handle various levels of escaping
-                                    clean_cif = clean_cif.replace('\\\\\\\\n', '\n')
-                                    clean_cif = clean_cif.replace('\\\\n', '\n')
-                                    clean_cif = clean_cif.replace('\\\\\\\\\\\\\\"', '"')
-                                    clean_cif = clean_cif.replace('\\\\\\"', '"')
-                                    clean_cif = clean_cif.replace('\\"', '"')
-                                    clean_cif = clean_cif.replace('\\\\', '\\')
-                                    
-                                    with open(cif_path, "w", encoding="utf-8") as f:
-                                        f.write(clean_cif)
-                                    cif_count += 1
-                                    
-                                    # Store for HTML generation
-                                    extracted_cifs[comp] = {
-                                        "cif": clean_cif,
-                                        "filename": cif_filename
-                                    }
-                                except Exception as write_error:
-                                    logger.warning(f"Failed to write CIF for {comp}: {write_error}")
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to extract CIF data from string representation: {e}")
-                    continue
+            # Handle string representations with fallback parsing
+            elif isinstance(item, str) and "ToolCallOutputItem" in item:
+                self._extract_from_string_representation(item, i, extracted_cifs)
         
-        # Extract CIF content from tool call outputs
-        for call in tool_calls:
+        # Method 2: Extract from direct tool_calls
+        tool_calls = result.get("tool_calls", [])
+        for i, call in enumerate(tool_calls):
             if isinstance(call, dict) and "output" in call:
                 output = call.get("output", {})
                 if isinstance(output, dict):
-                    # Check for most stable CIFs first (highest priority)
-                    most_stable_cifs = output.get("most_stable_cifs", {})
-                    if most_stable_cifs:
-                        cif_dir.mkdir(exist_ok=True)
-                        for comp, cif_data in most_stable_cifs.items():
-                            if isinstance(cif_data, dict) and "cif" in cif_data:
-                                cif_content = cif_data["cif"]
-                                structure_id = cif_data.get("structure_id", f"{comp}_stable")
-                                cif_filename = f"{comp}_most_stable.cif"
-                                cif_path = cif_dir / cif_filename
-                                with open(cif_path, "w", encoding="utf-8") as f:
-                                    f.write(cif_content)
-                                cif_count += 1
-                                # Store for HTML generation
-                                extracted_cifs[comp] = {
-                                    "cif": cif_content,
-                                    "structure_id": structure_id,
-                                    "source": "tool_output"
-                                }
-                    
-                    # Check for structures in the output
-                    structures = output.get("structures", [])
-                    if structures:
-                        if cif_count == 0:  # Create dir if not already created
-                            cif_dir.mkdir(exist_ok=True)
-                        for i, struct in enumerate(structures):
-                            if isinstance(struct, dict) and "cif" in struct:
-                                cif_content = struct["cif"]
-                                formula = struct.get("formula", f"unknown_{i}")
-                                cif_filename = f"{formula}_struct_{i+1}.cif"
-                                cif_path = cif_dir / cif_filename
-                                with open(cif_path, "w", encoding="utf-8") as f:
-                                    f.write(cif_content)
-                                cif_count += 1
-                    
-                    # Also check for candidates with structure data
-                    candidates = output.get("candidates", [])
-                    for i, cand in enumerate(candidates):
-                        if isinstance(cand, dict) and "cif" in cand:
-                            if cif_count == 0:  # Only create dir if we have CIFs
-                                cif_dir.mkdir(exist_ok=True)
-                            cif_content = cand["cif"]
-                            formula = cand.get("formula", f"candidate_{i}")
-                            cif_filename = f"{formula}_candidate_{i+1}.cif"
-                            cif_path = cif_dir / cif_filename
-                            with open(cif_path, "w", encoding="utf-8") as f:
-                                f.write(cif_content)
-                            cif_count += 1
+                    item_cifs = self._extract_cif_from_json_structure(output, f"tool_calls[{i}]")
+                    extracted_cifs.update(item_cifs)
         
-        # Also check raw_response if available
+        # Method 3: Extract from raw_response (legacy support)
         raw_response = result.get("raw_response", {})
         if isinstance(raw_response, dict):
-            new_items = raw_response.get("new_items", [])
-            for item in new_items:
+            raw_items = raw_response.get("new_items", [])
+            for i, item in enumerate(raw_items):
                 if isinstance(item, dict) and item.get("type") == "tool_output":
                     output = item.get("output", {})
                     if isinstance(output, str):
                         try:
                             output = json.loads(output)
-                        except:
+                        except json.JSONDecodeError:
                             continue
                     
-                    if isinstance(output, dict) and "structures" in output:
-                        structures = output["structures"]
-                        if structures and cif_count == 0:
-                            cif_dir.mkdir(exist_ok=True)
-                        for i, struct in enumerate(structures):
-                            if isinstance(struct, dict) and "cif" in struct:
-                                cif_content = struct["cif"]
-                                formula = struct.get("formula", f"structure_{i}")
-                                cif_filename = f"{formula}_raw_{i+1}.cif"
-                                cif_path = cif_dir / cif_filename
-                                with open(cif_path, "w", encoding="utf-8") as f:
-                                    f.write(cif_content)
-                                cif_count += 1
+                    if isinstance(output, dict):
+                        item_cifs = self._extract_cif_from_json_structure(output, f"raw_response[{i}]")
+                        extracted_cifs.update(item_cifs)
         
+        # Save all valid CIF files to disk
+        if extracted_cifs:
+            cif_dir.mkdir(exist_ok=True)
+            logger.info(f"Created CIF directory: {cif_dir}")
+            
+            for comp, cif_info in extracted_cifs.items():
+                cif_content = cif_info["cif"]
+                cif_filename = cif_info["filename"]
+                cif_path = cif_dir / cif_filename
+                
+                try:
+                    with open(cif_path, "w", encoding="utf-8") as f:
+                        f.write(cif_content)
+                    cif_count += 1
+                    logger.info(f"Successfully saved CIF file: {cif_filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to write CIF file {cif_filename}: {e}")
+                    # Remove from extracted_cifs if we couldn't save it
+                    del extracted_cifs[comp]
+        
+        logger.info(f"CIF extraction complete: {cif_count} files saved, {len(extracted_cifs)} structures for HTML generation")
         return cif_count, extracted_cifs
+    
+    def _extract_from_string_representation(self, item_str: str, item_index: int, extracted_cifs: Dict[str, Dict[str, str]]) -> None:
+        """
+        Fallback method to extract CIF data from string representations.
+        
+        Args:
+            item_str: String representation of tool output
+            item_index: Index for logging purposes
+            extracted_cifs: Dictionary to update with extracted CIF data
+        """
+        # Try to extract JSON from the string using regex
+        if "generated_structures" in item_str or "most_stable_cifs" in item_str:
+            # Look for JSON content patterns
+            json_patterns = [
+                r'{"type":"text","text":"(.*?)","annotations"',  # Wrapped JSON
+                r'"text":\s*"({.*?})"',  # Direct JSON in text field
+            ]
+            
+            for pattern in json_patterns:
+                match = re.search(pattern, item_str, re.DOTALL)
+                if match:
+                    json_text = match.group(1)
+                    
+                    # Clean up the JSON string
+                    json_text = self._robust_string_cleanup(json_text)
+                    
+                    try:
+                        parsed_data = json.loads(json_text)
+                        logger.info(f"Successfully parsed JSON from string representation[{item_index}]")
+                        
+                        item_cifs = self._extract_cif_from_json_structure(parsed_data, f"string_repr[{item_index}]")
+                        extracted_cifs.update(item_cifs)
+                        return  # Success, no need to try other patterns
+                        
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse extracted JSON from string[{item_index}]: {e}")
+                        continue
+            
+            logger.warning(f"Could not extract valid JSON from string representation[{item_index}]")
     
     def _create_html_visualization(self, cif_content: str, formula: str, structure_id: str) -> str:
         """
@@ -1060,7 +966,6 @@ Tool usage validation detected potential issues
             # Process extracted CIF data
             for comp, cif_info in extracted_cifs.items():
                 cif_content = cif_info["cif"]
-                structure_id = cif_info.get("structure_id", f"{comp}_structure")
                 source = cif_info.get("source", "unknown")
                 
                 # Parse CIF data using universal visualizer

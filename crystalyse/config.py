@@ -47,7 +47,7 @@ class CrystaLyseConfig:
         
         # Agent Configuration
         self.default_model = os.getenv("CRYSTALYSE_MODEL", "o4-mini")
-        self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "30"))
+        self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
         
         # Performance Configuration
         self.parallel_batch_size = int(os.getenv("CRYSTALYSE_BATCH_SIZE", "10"))
