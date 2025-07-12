@@ -3,11 +3,11 @@ name = "crystalyse"
 version = "1.0.0"
 description = "CrystaLyse.AI v1.0 - Research Preview: World-class computational materials discovery agent with 89.8/100 capability score"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "openai>=1.0.0",
     "openai-agents>=0.0.16",
-    "mcp>=0.1.0",
+    
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
     "numpy>=1.24.0",

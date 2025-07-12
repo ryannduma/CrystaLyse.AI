@@ -95,7 +95,7 @@ _import_dependencies()
 
 def get_mace_calculator(
     model_type: str = "mace_mp", 
-    size: str = "medium", 
+    size: str = "medium-mpa-0", 
     device: str = "auto", 
     compile_model: bool = False,
     default_dtype: str = "float32"
@@ -784,24 +784,21 @@ def relax_structure(
 @mcp.tool(description="Calculate formation energy from constituent elements")
 def calculate_formation_energy(
     structure_dict: dict,
-    element_references: dict = None,
     model_type: str = "mace_mp",
-    size: str = "medium",
+    size: str = "medium-mpa-0",
     device: str = "auto"
 ) -> str:
     """Calculate formation energy of a crystal from its constituent elements.
     
     This tool automates the process of:
     1. Calculating the total energy of the provided crystal structure.
-    2. Calculating the energy of each constituent element in its standard state.
+    2. Retrieving the reference energy of each constituent element from the foundation model.
     3. Computing the formation energy.
     
-    It can use pre-computed reference energies or calculate them on the fly.
     This provides a key metric for material stability.
     
     Args:
         structure_dict: Crystal structure in dictionary format
-        element_references: Energy per atom of elemental references (optional)
         model_type: MACE model type to use
         size: Model size for foundation models
         device: Device to use ('auto', 'cpu', 'cuda')
@@ -822,58 +819,34 @@ def calculate_formation_energy(
         atoms.calc = calc
         
         # 1. Calculate energy of the compound
-        compound_atoms = dict_to_atoms(structure_dict)
-        compound_atoms.set_calculator(calc)
-        compound_energy = compound_atoms.get_potential_energy()
+        compound_energy = atoms.get_potential_energy()
         
-        # 2. Get reference energies for constituent elements
-        element_counts = {el: compound_atoms.get_atomic_numbers().tolist().count(el) 
-                          for el in set(compound_atoms.get_atomic_numbers())}
+        # 2. Get reference energies from the foundation model - CORRECTED VERSION
+        atomic_numbers = atoms.get_atomic_numbers()
         
-        total_reference_energy = 0
+        # Convert atomic numbers to indices in the model's z_table
+        indices = torch.tensor([calc.z_table.z_to_index(z) for z in atomic_numbers], device=calc.device)
         
-        # Use provided references if available
-        if element_references:
-            for Z, count in element_counts.items():
-                if str(Z) not in element_references:
-                    return json.dumps({
-                        "status": "error",
-                        "message": f"Missing reference energy for atomic number {Z}"
-                    })
-                total_reference_energy += element_references[str(Z)] * count
-        else:
-            # Calculate reference energies on the fly
-            logger.info("Calculating element references on the fly...")
-            from ase.build import bulk
-            for Z, count in element_counts.items():
-                # Using common stable structures for elements
-                try:
-                    if Z in [1, 2, 7, 8, 9, 10, 17, 18, 35, 36, 53, 54, 85, 86]: # Gases/Halogens
-                        ref_atoms = Atoms(f'{Z}{Z}', positions=[[0,0,0], [0,0,1.2]])
-                    elif Z in [11, 19, 37, 55, 87]: # Alkali
-                        ref_atoms = bulk(f'{Z}', 'bcc', a=5.0)
-                    else: # Default to fcc
-                        ref_atoms = bulk(f'{Z}', 'fcc', a=4.0)
-                        
-                    ref_atoms.set_calculator(calc)
-                    ref_energy = ref_atoms.get_potential_energy() / len(ref_atoms)
-                    total_reference_energy += ref_energy * count
-                    
-                except Exception as e:
-                    return json.dumps({
-                        "status": "error",
-                        "message": f"Could not calculate reference energy for atomic number {Z}: {e}"
-                    })
+        # Convert to one-hot encoding (this is what MACE expects!)
+        num_elements = len(calc.z_table)
+        one_hot = torch.nn.functional.one_hot(indices, num_classes=num_elements).float()
+        
+        # Now call the atomic energies function with proper one-hot encoding
+        atomic_energies = calc.models[0].atomic_energies_fn(one_hot).detach().cpu().numpy()
 
-        # 3. Calculate formation energy
-        formation_energy = (compound_energy - total_reference_energy) / len(compound_atoms)
+        # 3. Calculate total reference energy
+        total_reference_energy = np.sum(atomic_energies)
+
+        # 4. Calculate formation energy
+        formation_energy = (compound_energy - total_reference_energy) / len(atoms)
         
+        # Convert numpy types to Python native types for JSON serialization
         return json.dumps({
             "status": "completed",
-            "formation_energy_per_atom": formation_energy,
-            "compound_total_energy": compound_energy,
-            "reference_total_energy": total_reference_energy,
-            "num_atoms": len(compound_atoms)
+            "formation_energy_per_atom": float(formation_energy),
+            "compound_total_energy": float(compound_energy),
+            "reference_total_energy": float(total_reference_energy),
+            "num_atoms": len(atoms)
         })
 
     except Exception as e:

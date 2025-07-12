@@ -136,11 +136,12 @@ def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
 # ===== CREATIVE DISCOVERY PIPELINE =====
 
 @mcp.tool()
+from typing import Any, List, Dict
 async def creative_discovery_pipeline(
-    compositions: List[str],
+    compositions: list[str],
     structures_per_composition: int = 3,
     calculate_energies_flag: bool = True
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Creative pipeline for fast exploration: Chemeleon + MACE (no SMACT validation).
     
@@ -212,7 +213,10 @@ async def creative_discovery_pipeline(
     
     # Stage 2: Calculate energies for all structures
     if calculate_energies_flag and MACE_AVAILABLE and results["generated_structures"]:
-        logger.info(f"Calculating energies for structures...")
+        logger.info(f"Calculating energies for {len(results['generated_structures'])} structures...")
+        from pymatgen.core import Structure
+        from pymatgen.io.ase import AseAtomsAdaptor
+        
         composition_energies = {}
         
         for comp_data in results["generated_structures"]:
@@ -220,42 +224,50 @@ async def creative_discovery_pipeline(
             structures = comp_data["structures"]
             
             for i, struct in enumerate(structures):
-                if "structure" in struct:
-                    struct_id = struct.get("id", f"{comp}_struct_{i+1}")
-                    try:
-                        # Call calculate_formation_energy for each structure (synchronous function)
-                        energy_result_str = calculate_formation_energy(struct["structure"])
-                        energy_result = json.loads(energy_result_str)
+                struct_id = struct.get("id", f"{comp}_struct_{i+1}")
+                try:
+                    # --- Pymatgen Bridge Implementation ---
+                    if "cif" not in struct or not isinstance(struct["cif"], str):
+                        raise ValueError("Structure dictionary is missing a valid 'cif' entry.")
+
+                    p_structure = Structure.from_str(struct["cif"], fmt="cif")
+                    ase_atoms = AseAtomsAdaptor.get_atoms(p_structure)
+                    mace_input_dict = {
+                        "numbers": ase_atoms.get_atomic_numbers().tolist(),
+                        "positions": ase_atoms.get_positions().tolist(),
+                        "cell": ase_atoms.get_cell().tolist(),
+                        "pbc": ase_atoms.get_pbc().tolist(),
+                    }
+
+                    # Call calculate_formation_energy with the standardized dict
+                    energy_result_str = calculate_formation_energy(mace_input_dict)
+                    energy_result = json.loads(energy_result_str)
+                    
+                    if energy_result and energy_result.get("success") and "formation_energy" in energy_result:
+                        energy_per_atom = energy_result["formation_energy"]
                         
-                        if energy_result and energy_result.get("success") and "formation_energy" in energy_result:
-                            energy_per_atom = energy_result["formation_energy"]
-                            
-                            # Track this structure's energy
-                            if comp not in composition_energies:
-                                composition_energies[comp] = []
-                            
-                            # Deep copy the structure to avoid reference issues
-                            composition_energies[comp].append({
-                                "structure_id": struct_id,
-                                "energy_per_atom": energy_per_atom,
-                                "structure_data": copy.deepcopy(struct),
-                                "energy_result": energy_result
-                            })
-                            
-                            results["energy_calculations"].append({
-                                "composition": comp,
-                                "structure_id": struct_id,
-                                "formation_energy": energy_per_atom,
-                                "calculation_details": energy_result
-                            })
-                            logger.info(f"Calculated energy for {struct_id}: {energy_per_atom:.4f} eV/atom")
-                        else:
-                            error_msg = energy_result.get("error", "Unknown error") if energy_result else "No result"
-                            logger.warning(f"No energy result for {struct_id}: {error_msg}")
-                            
-                    except Exception as e:
-                        logger.error(f"Energy calculation failed for {struct_id}: {e}")
-                        continue
+                        if comp not in composition_energies:
+                            composition_energies[comp] = []
+                        
+                        composition_energies[comp].append({
+                            "structure_id": struct_id,
+                            "energy_per_atom": energy_per_atom,
+                            "structure_data": copy.deepcopy(struct),
+                        })
+                        
+                        results["energy_calculations"].append({
+                            "composition": comp,
+                            "structure_id": struct_id,
+                            "formation_energy": energy_per_atom,
+                        })
+                        logger.info(f"Calculated energy for {struct_id}: {energy_per_atom:.4f} eV/atom")
+                    else:
+                        error_msg = energy_result.get("error", "Unknown error") if energy_result else "No result"
+                        logger.warning(f"No energy result for {struct_id}: {error_msg}")
+                        
+                except Exception as e:
+                    logger.error(f"Energy calculation failed for {struct_id}: {e}")
+                    continue
         
         # Find most stable structure for each composition and generate CIFs
         for comp, structures in composition_energies.items():

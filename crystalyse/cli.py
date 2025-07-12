@@ -1,547 +1,247 @@
-"""
-Command-line interface for CrystaLyse.AI materials discovery platform.
 
-This module provides a comprehensive CLI for CrystaLyse.AI, enabling users to perform
-materials discovery tasks from the command line with rich formatting and interactive
-features. The CLI supports both streaming and non-streaming analysis, result formatting,
-and various output options.
 
-Key Features:
-    - Interactive shell with conversational interface (default)
-    - Rich terminal output with formatted tables and panels
-    - Streaming analysis with real-time progress display
-    - JSON output export for integration with other tools
-    - Browser-based 3D structure visualisation
-    - Session management with history and export
-    - Example queries for quick start and demonstration
-
-Commands:
-    shell: Start interactive CrystaLyse.AI shell (default when no command given)
-    analyse: Perform one-time materials discovery analysis
-    examples: Display example queries for reference
-    status: Show configuration and API status
-    server: Start SMACT MCP server for testing and development
-
-Dependencies:
-    - click: Command-line interface framework
-    - rich: Rich text and beautiful formatting in terminal
-    - prompt-toolkit: Interactive shell with history and completion
-    - asyncio: Asynchronous I/O support for agent integration
-
-Example Usage:
-    Interactive shell (default):
-        $ crystalyse
-    
-    Start shell explicitly:
-        $ crystalyse shell
-    
-    One-time analysis:
-        $ crystalyse analyse "Design a battery cathode material"
-    
-    Streaming analysis with custom model:
-        $ crystalyse analyse "Find multiferroic materials" --model gpt-4o --stream
-    
-    View example queries:
-        $ crystalyse examples
-"""
-
-import asyncio
 import click
+import asyncio
 import json
-import os
+import time
+from prompt_toolkit import prompt
+from prompt_toolkit.validation import Validator, ValidationError
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
 from rich.live import Live
-from prompt_toolkit import PromptSession
-from prompt_toolkit.styles import Style
-from prompt_toolkit.completion import FuzzyCompleter, WordCompleter
 
-from .agents.crystalyse_agent import CrystaLyse, AgentConfig
-from .config import config
-from .output.dual_formatter import create_dual_output
+from crystalyse.agents.crystalyse_agent import analyse_materials, CrystaLyse
+from crystalyse.config import config
 
-console = Console()
+# --- Main CLI Group ---
 
-
-@click.group()
+@click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def cli():
-    """CrystaLyse - Autonomous materials discovery agent."""
+    """
+    CrystaLyse.AI: A modern, intuitive CLI for computational materials discovery.
+    """
     pass
 
+# --- New Command ---
 
-@cli.command()
-def status():
-    """Show CrystaLyse.AI configuration and unified agent status."""
-    # Create status table
-    status_table = Table(title="CrystaLyse.AI Configuration Status")
-    status_table.add_column("Setting", style="cyan")
-    status_table.add_column("Value", style="green")
-    status_table.add_column("Status", style="yellow")
-    
-    # Check API key
-    api_key = os.getenv("OPENAI_API_KEY")
-    api_configured = bool(api_key)
-    
-    # Configuration status
-    status_table.add_row("OPENAI_API_KEY", "Set" if api_configured else "Not Set", 
-                        "Configured" if api_configured else "Missing")
-    status_table.add_row("Default Model", "o4-mini", "OpenAI Agents SDK")
-    status_table.add_row("Agent Type", "CrystaLyse", "Unified")
-    status_table.add_row("Architecture", "90% code reduction", "Optimised")
-    
-    # MCP Servers status
-    try:
-        # A more representative test config that would use tools
-        test_config = AgentConfig(enable_smact=True, enable_chemeleon=True, enable_mace=True)
-        test_agent = CrystaLyse(test_config)
-        agent_status = "Working"
-    except Exception:
-        agent_status = "Error"
-    
-    status_table.add_row("Agent Status", "Unified Agent", agent_status)
-    
-    # Check MCP servers
-    mcp_servers = []
-    if os.path.exists("smact-mcp-server/src"):
-        mcp_servers.append("SMACT")
-    if os.path.exists("chemeleon-mcp-server/src"):  
-        mcp_servers.append("Chemeleon")
-    if os.path.exists("mace-mcp-server/src"):
-        mcp_servers.append("MACE")
-    if os.path.exists("chemistry-unified-server/src"):
-        mcp_servers.append("Chemistry-Unified")
-        
-    status_table.add_row("MCP Servers", f"{len(mcp_servers)} available", 
-                        "Ready" if mcp_servers else "Limited")
-    
-    console.print(status_table)
-    
-    # Requirements message
-    if not api_configured:
-        console.print()
-        console.print(Panel(
-            "[red]REQUIRED[/red]: Set OPENAI_API_KEY environment variable\n\n"
-            "[yellow]export OPENAI_API_KEY=\"your_api_key_here\"[/yellow]\n\n"
-            "The unified agent provides:\n"
-            "   • OpenAI o4-mini model integration\n"
-            "   • True agentic behaviour with LLM control\n"
-            "   • SMACT, Chemeleon, and MACE tool integration\n"
-            "   • 90% code reduction vs legacy implementation",
-            title="API Key Required",
-            border_style="red"
-        ))
-    else:
-        console.print()
-        console.print(Panel(
-            f"[green]Ready![/green] MCP servers available: {', '.join(mcp_servers)}\n\n"
-            "• Knowledge-based analysis works without MCP servers\n"
-            "• Full computational workflow requires MCP server connection\n"
-            "• Use 'crystalyse shell' for interactive materials discovery",
-            title="CrystaLyse.AI Status",
-            border_style="green"
-        ))
+class ModeValidator(Validator):
+    def validate(self, document):
+        text = document.text.lower()
+        if text not in ['creative', 'rigorous']:
+            raise ValidationError(message='Please enter "creative" or "rigorous".',
+                                  cursor_position=len(document.text))
 
+@click.command()
+@click.option('--user-id', default='cli_user', help='User ID for the session.')
+def new(user_id: str):
+    """Start a new, guided material discovery project."""
+    console = Console()
+    console.print(Panel("[bold cyan]New CrystaLyse.AI Discovery Project[/bold cyan]", 
+                      subtitle="Follow the prompts to define your search.",
+                      expand=False))
+    project_name = prompt("Project Name: ", default="New Material Search")
+    target_properties = prompt("Target Properties (e.g., high band gap): ")
+    constraints = prompt("Constraints (e.g., must contain Si and O): ")
+    mode = prompt("Analysis Mode (creative/rigorous): ", validator=ModeValidator(), default="creative").lower()
+    query = (
+        f"Project '{project_name}': Find materials with properties: {target_properties}, "
+        f"under constraints: {constraints}."
+    )
+    console.print("\n[bold]Starting analysis...[/bold]")
+    _run_and_display_analysis(query, mode, user_id, console)
 
-@cli.command()
-@click.argument("query")
-@click.option("--model", default="o4-mini", help="Model: o4-mini (creative, fast) or o3 (rigorous, thorough)")
-@click.option("--max-turns", default=30, type=int, help="Maximum number of conversational turns (default: 30)")
-@click.option("--output", "-o", help="Output file for results (JSON)")
-@click.option("--dual-output", "-d", default="/home/ryan/crystalyseai/test_fixed_unified", help="Create dual JSON/Markdown output directory (default: /home/ryan/crystalyseai/test_fixed_unified)")
-@click.option("--stream", is_flag=True, help="Enable streaming output")
-@click.option("--copilot", is_flag=True, help="Enable co-pilot mode with human checkpoints")
-@click.option("--pipeline", is_flag=True, help="Use three-stage pipeline (composition → structure → energy)")
-@click.option("--optimise", is_flag=True, help="Enable hill-climb optimisation with LLM reflection")
-def analyse(query: str, model: str, max_turns: int, output: str, dual_output: str, stream: bool,
-           copilot: bool, pipeline: bool, optimise: bool):
-    """
-    Analyse a materials discovery query using CrystaLyse.AI.
-    
-    This command performs comprehensive materials discovery analysis with two distinct modes:
-    - Creative Mode (o4-mini): Fast exploration using Chemeleon + MACE only
-    - Rigorous Mode (o3): Thorough validation using SMACT + Chemeleon + MACE
-    
-    Args:
-        query (str): The materials discovery request. Should clearly specify the target
-            application, desired properties, and any constraints.
-        model (str): o4-mini (creative, fast exploration) or o3 (rigorous, full validation)
-        max_turns (int): The maximum number of turns for the agent conversation
-        output (str): Optional output file path for saving results in JSON format
-        stream (bool): Enable real-time streaming output (default: False)
-    
-    Examples:
-        Creative exploration (fast, unconventional):
-            crystalyse analyse "Design a cathode for Na-ion batteries" --model o4-mini
-        
-        Rigorous analysis (thorough, validated):
-            crystalyse analyse "Find Pb-free ferroelectrics" --model o3
-        
-        Streaming with file output:
-            crystalyse analyse "Solar cell materials" --stream -o results.json
-            
-        Dual JSON/Markdown output:
-            crystalyse analyse "Find battery materials" --dual-output my_results
-    """
-    asyncio.run(_analyse(query, model, max_turns, output, dual_output, stream, copilot, pipeline, optimise))
+cli.add_command(new)
 
+# --- Analyse Command ---
 
-async def _analyse(query: str, model: str, max_turns: int, output: str, dual_output: str, stream: bool,
-                  copilot: bool, pipeline: bool, optimise: bool):
-    """
-    Asynchronous implementation of the analyse command.
-    
-    Handles the core logic for materials discovery analysis with mode-specific behavior:
-    - Creative mode (o4-mini): Fast exploration with Chemeleon + MACE
-    - Rigorous mode (o3): Full validation with SMACT + Chemeleon + MACE
-    
-    Args:
-        query (str): Materials discovery query from user
-        model (str): o4-mini (creative) or o3 (rigorous) model selection
-        max_turns (int): Maximum number of conversational turns
-        output (str): Optional file path for saving results
-        dual_output (str): Optional base directory for dual JSON/Markdown output
-        stream (bool): Whether to enable streaming output mode
-    
-    Returns:
-        None: Results are displayed to console and optionally saved to file
-        
-    Raises:
-        SystemExit: If API key is not found or agent initialisation fails
-    """
-    # Check for API key
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        console.print("[red]Error: OpenAI API key not found![/red]")
-        console.print("Set OPENAI_API_KEY environment variable.")
-        return
-    
-    # Display analysis mode header
-    mode_description = "Creative (fast exploration)" if "o4-mini" in model else "Rigorous (full validation)"
-    tools_used = "Chemeleon + MACE" if "o4-mini" in model else "SMACT + Chemeleon + MACE"
-    
-    console.print(f"[cyan]CrystaLyse.AI Analysis[/cyan]")
-    console.print(f"Query: {query}")
-    console.print(f"Mode: {mode_description} | Model: {model} | Tools: {tools_used}")
-    
-    # Display enabled patterns
-    patterns = []
-    if copilot:
-        patterns.append("Co-pilot Mode")
-    if pipeline:
-        patterns.append("Three-Stage Pipeline")
-    if optimise:
-        patterns.append("Hill-Climb Optimisation")
-    
-    if patterns:
-        console.print(f"Patterns: {' | '.join(patterns)}")
-    
-    import time
-    
-    try:
-        # Start timing
-        start_time = time.time()
-        
-        # Choose analysis mode based on patterns
-        if copilot:
-            # Use co-pilot mode with human checkpoints
-            from .agents.copilot_agent import run_copilot_discovery
-            console.print("\nStarting Co-pilot Discovery Mode")
-            
-            result = await run_copilot_discovery(
-                query=query, 
-                enable_checkpoints=True,
-                requirements={"budget": budget, "model": model}
-            )
-            
-        elif pipeline:
-            # Use three-stage pipeline
-            from .agents.pipeline_agents import ThreeStageRunner
-            console.print("\nStarting Three-Stage Pipeline")
-            
-            runner = ThreeStageRunner(
-                query=query, 
-                model=model,
-                temperature=temperature,
-                max_turns=max_turns
-            )
-            result = await runner.run_pipeline()
+@click.command()
+@click.argument('query')
+@click.option('--mode', type=click.Choice(['creative', 'rigorous']), default='creative', help='The analysis mode.')
+@click.option('--user-id', default='cli_user', help='User ID for the session.')
+def analyse(query: str, mode: str, user_id: str):
+    """Run a materials discovery analysis."""
+    console = Console()
+    _run_and_display_analysis(query, mode, user_id, console)
 
-        elif optimise:
-            # Run hill-climb optimisation
-            from .agents.hill_climb_optimiser import HillClimbOptimiser
-            console.print("\nStarting Hill-Climb Optimisation")
+cli.add_command(analyse)
 
-            # Need to get initial candidates first, maybe from a basic agent run?
-            # For now, let's assume we have some. This part needs better integration.
-            console.print("[yellow]Warning: Optimisation mode needs initial candidates.[/yellow]")
-            initial_candidates = [
-                {'formula': 'LiCoO2', 'stability': 0.8, 'energy_per_atom': -2.5},
-                {'formula': 'NaFePO4', 'stability': 0.7, 'energy_per_atom': -2.3}
-            ]
-            
-            optimiser = HillClimbOptimiser(max_iterations=10, population_size=8)
-            result = await optimiser.optimise_materials(
-                target_description=query,
-                initial_candidates=initial_candidates
-            )
+# --- Dashboard Command ---
 
-        else:
-            # Default: consolidated CrystaLyse agent with enhanced infrastructure and memory
-            # Determine mode based on model selection
-            agent_mode = "creative" if "o4-mini" in model else "rigorous"
-            
-            agent = CrystaLyse(
-                agent_config=AgentConfig(
-                    mode=agent_mode,
-                    model=model,
-                    max_turns=max_turns
-                ),
-                user_id=f"cli_user_{query[:10]}"  # Simple user ID for CLI
-            )
-            
+async def get_stats():
+    agent = CrystaLyse()
+    stats = await agent._get_infrastructure_stats()
+    await agent.cleanup()
+    return stats
+
+def generate_dashboard_panel(stats: dict) -> Panel:
+    main_table = Table.grid(expand=True)
+    main_table.add_column(style="cyan")
+    main_table.add_column(justify="right")
+    status = "[bold green]OPERATIONAL[/bold green]" if not stats.get("error") else "[bold red]ERROR[/bold red]"
+    main_table.add_row("System Status:", status)
+    # Add more stats display here if needed
+    return Panel(main_table, title="[bold]CrystaLyse.AI Live Dashboard[/bold]", subtitle=f"[default]{time.ctime()}[/default]")
+
+@click.command()
+def dashboard():
+    """Display a live dashboard of the CrystaLyse.AI system status."""
+    console = Console()
+    with Live(console=console, screen=False, redirect_stderr=False) as live:
+        while True:
             try:
-                result = await agent.discover_materials(query)
-            finally:
-                await agent.cleanup()
-            
-        # Calculate execution time
-        execution_time = time.time() - start_time
-        
-        # Process and display results
-        if output:
-            with open(output, "w") as f:
-                json.dump(result, f, indent=2)
-            console.print(f"\n[green]Results saved to {output}[/green]")
-            
-        # Always create dual JSON/Markdown output (default behaviour)
-        agent_mode = "creative" if "o4-mini" in model else "rigorous"
-        output_dir = create_dual_output(
-            query=query,
-            result=result,
-            execution_time=execution_time,
-            model=model,
-            mode=agent_mode,
-            output_dir=dual_output
-        )
-        console.print(f"\n[green]Dual output created in {output_dir}[/green]")
-        console.print(f"[cyan]├── raw_result.json[/cyan]")
-        console.print(f"[cyan]├── report.md[/cyan]")
-        console.print(f"[cyan]├── cif_files/ (if CIF structures found)[/cyan]")
-        console.print(f"[cyan]└── visualizations/ (if HTML visualizations created)[/cyan]")
-            
-        if not output:
-            # Also display nicely formatted output to console
-            if isinstance(result, dict) and "candidates" in result:
-                display_results(result)
-            elif isinstance(result, str):
-                console.print(Panel(result, title="Final Answer", border_style="green"))
-            else:
-                console.print(result)
-
-    except Exception as e:
-        console.print(f"\n[red]An error occurred during analysis: {e}[/red]")
-        # Add more detailed error handling/logging here
-
-def display_results(result: dict):
-    """Display final results in a formatted table."""
-    
-    table = Table(title="Top Material Candidates")
-    table.add_column("Formula", style="cyan")
-    table.add_column("Stability Score", style="magenta")
-    table.add_column("Predicted Properties", style="green")
-    
-    candidates = result.get("candidates", [])
-    for cand in candidates:
-        props_str = ", ".join([f"{k}: {v}" for k, v in cand.get("properties", {}).items()])
-        table.add_row(
-            cand.get("formula", "N/A"),
-            f"{cand.get('stability', 0):.2f}",
-            props_str
-        )
-        
-    console.print(table)
-    
-    summary = result.get("summary", "No summary provided.")
-    console.print(Panel(summary, title="Analysis Summary", border_style="yellow"))
-
-    # Visualize best candidate if available
-    if candidates and "structure_data" in candidates[0]:
-        console.print("\n[bold]Visualising best candidate...[/bold]")
-        from .visualisation.crystal_viz import visualise_structure
-        visualise_structure(candidates[0]["structure_data"])
-        
-
-@cli.command()
-def examples():
-    """Show example queries for the unified agent."""
-    examples = [
-        ("Basic Materials Discovery", [
-            "Design a stable cathode material for a Na-ion battery",
-            "Suggest a non-toxic semiconductor for solar cell applications", 
-            "Find a Pb-free multiferroic crystal"
-        ]),
-        ("Advanced Queries", [
-            "Design a novel battery cathode for sodium-ion batteries using SMACT validation, Chemeleon for 10 polymorphs each, and MACE for energy ranking",
-            "Find oxide materials for photocatalytic water splitting with specific band gaps",
-            "Suggest materials for solid-state electrolyte applications with high ionic conductivity"
-        ]),
-        ("Structure-Specific", [
-            "I want a composition with manganese in the perovskite structure type",
-            "Design a magnetic material with high Curie temperature in spinel structure",
-            "Find layered materials suitable for intercalation batteries"
-        ])
-    ]
-    
-    console.print("[bold]CrystaLyse.AI Unified Agent Examples[/bold]\n")
-    
-    for category, category_examples in examples:
-        console.print(f"[cyan]{category}:[/cyan]")
-        for i, example in enumerate(category_examples, 1):
-            console.print(f"  {i}. {example}")
-        console.print()
-        
-    console.print("[dim]Run any example with:[/dim]")
-    console.print('[cyan]crystalyse analyse "Your query here"[/cyan]')
-    console.print()
-    console.print("[dim]For rigorous analysis (temperature < 0.5):[/dim]")
-    console.print('[cyan]crystalyse analyse "Your query" --temperature 0.3[/cyan]')
-    console.print()
-    console.print("[bold]Agent Laboratory Patterns:[/bold]")
-    console.print('[cyan]crystalyse analyse "Your query" --copilot[/cyan]      # Human checkpoints')
-    console.print('[cyan]crystalyse analyse "Your query" --pipeline[/cyan]     # Three-stage pipeline')
-    console.print('[cyan]crystalyse analyse "Your query" --optimise[/cyan]     # Hill-climb optimisation')
-    console.print('[cyan]crystalyse analyse "Your query" --budget 0.50[/cyan]  # Budget limit ($0.50)')
-    console.print()
-    console.print("[dim]View agent status:[/dim]")
-    console.print('[cyan]crystalyse status[/cyan]')
-
-
-@cli.command()
-@click.option("--model", default=config.default_model, help="Model: o4-mini (creative) or o3 (rigorous)")
-@click.option("--max-turns", default=30, help="Maximum number of conversation turns (default: 30)")
-def shell(model: str, max_turns: int):
-    """
-    Start an interactive shell for materials discovery with CrystaLyse.AI.
-    
-    Provides a conversational interface for iterative materials exploration in either:
-    - Creative mode (o4-mini): Fast exploration with Chemeleon + MACE
-    - Rigorous mode (o3): Full validation with all 3 tools
-    
-    Args:
-        model (str): o4-mini (creative) or o3 (rigorous) model selection
-        max_turns (int): Max turns for each conversation
-    """
-    asyncio.run(_shell(model, max_turns))
-
-
-async def _shell(model: str, max_turns: int):
-    """Asynchronous implementation of the interactive shell."""
-    
-    display_splash_screen()
-    
-    # Determine mode based on model selection
-    agent_mode = "creative" if "o4-mini" in model else "rigorous"
-    
-    agent = CrystaLyse(
-        agent_config=AgentConfig(
-            mode=agent_mode,
-            model=model,
-            max_turns=max_turns
-        ),
-        user_id="interactive_shell_user"
-    )
-
-    # Setup prompt session
-    style = Style.from_dict({
-        'prompt': 'bold #00ff00',
-    })
-    
-    # Add example queries to completer
-    example_queries = [
-        "Design a new solar cell material", 
-        "Find a stable, non-toxic blue pigment",
-        "Analyse carbon-based superconductors"
-    ]
-    completer = FuzzyCompleter(WordCompleter(example_queries, ignore_case=True))
-    
-    session = PromptSession(
-        "CrystaLyse> ",
-        style=style,
-        completer=completer,
-        history=None # Could implement file-based history here
-    )
-
-    while True:
-        try:
-            user_input = await session.prompt_async()
-            
-            if user_input.lower() in ['exit', 'quit']:
+                stats = asyncio.run(get_stats())
+                panel = generate_dashboard_panel(stats)
+                live.update(panel)
+                time.sleep(5)
+            except KeyboardInterrupt:
                 break
-            if user_input.lower().startswith('!file'):
-                filepath = user_input.split(' ', 1)[1]
-                await run_from_file(filepath, agent)
-                continue
-                
-            if not user_input.strip():
-                continue
+            except Exception as e:
+                console.print(Panel(f"[bold red]Error updating dashboard:[bold red]\n{e}"))
+                break
 
-            await agent.discover_materials(user_input)
+cli.add_command(dashboard)
 
-        except KeyboardInterrupt:
-            continue
-        except EOFError:
-            break
-    
-    # Cleanup agent infrastructure
-    try:
-        await agent.cleanup()
-    except Exception as e:
-        console.print(f"[yellow]Warning: Cleanup error: {e}[/yellow]")
-            
-    console.print("\n[bold cyan]Exiting CrystaLyse.AI. Goodbye![/bold cyan]\n")
+# --- Config Command ---
 
+@click.group(name='config')
+def config_cli():
+    """View and manage configuration."""
+    pass
 
-def display_splash_screen():
-    """Displays a cool splash screen for the interactive shell."""
-    logo = """
-   ______           __         __  .__.__          
-  / ____/________  / /_  ___  / /_/  |  |   ____   
- / /   / ___/ __ \/ __ \/ _ \/ __/ / |  |  /  _ \  
-/ /___/ /  / /_/ / / / /  __/ /_/ /|  |_(  <_> ) 
-\____/_/   \____/_/ /_/\___/\__/_/ |____/\____/  
+@click.command(name='show')
+def show_config():
+    """Display the current configuration."""
+    console = Console()
+    table = Table(title="[bold]CrystaLyse.AI Runtime Configuration[/bold]")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="magenta")
+    table.add_row("Default Model", config.default_model)
+    table.add_row("Max Turns", str(config.max_turns))
+    # Add other config values...
+    console.print(table)
+    server_data = json.dumps(config.mcp_servers, indent=2)
+    console.print(Panel(server_data, title="[bold]MCP Server Configurations[/bold]", border_style="green"))
+
+@click.command(name='path')
+def config_path():
+    """Display the path to the configuration file (if any)."""
+    console = Console()
+    console.print("[yellow]CrystaLyse.AI is configured via environment variables, not a file.[/yellow]")
+
+config_cli.add_command(show_config)
+config_cli.add_command(config_path)
+cli.add_command(config_cli)
+
+# --- Examples Command ---
+
+@click.command()
+def examples():
+    """Show example queries."""
+    console = Console()
+    table = Table(title="Example Queries")
+    table.add_column("Category", style="cyan")
+    table.add_column("Query", style="green")
+    table.add_row("Basic Discovery", "Find a new material for solar cells")
+    table.add_row("Property-driven", "Design a material with high thermal conductivity")
+    console.print(table)
+
+cli.add_command(examples)
+
+# --- Helper Function for Analysis ---
+
+def _run_and_display_analysis(query: str, mode: str, user_id: str, console: Console):
     """
-    console.print(f"[bold cyan]{logo}[/bold cyan]")
-    console.print("[bold]Welcome to the CrystaLyse.AI Interactive Shell[/bold]")
-    console.print("Type your materials science queries or 'exit' to quit.")
-    console.print("Example: 'Design a lead-free piezoelectric material'")
-    console.print("-" * 60)
+    Sets up a clean, live progress display and runs the analysis,
+    translating verbose logs into a user-friendly status.
+    """
+    import logging
+    import sys
+    from io import StringIO
+    from rich.panel import Panel
+    from rich.text import Text
 
+    # --- Live Progress Display Setup ---
+    progress_panel = Panel("Initializing...", title="[bold cyan]Analysis Progress[/bold cyan]", border_style="green")
+    live = Live(progress_panel, console=console, refresh_per_second=10)
 
-async def run_from_file(filepath: str, agent: CrystaLyse):
-    """Runs a discovery session from a file containing a list of queries."""
+    # --- Custom Logging Handler to Update the Live Display ---
+    class RichProgressHandler(logging.Handler):
+        def __init__(self, live_display):
+            super().__init__()
+            self.live_display = live_display
+            self.last_message = "Initializing..."
+
+        def emit(self, record):
+            msg = record.getMessage()
+            new_message = self.last_message
+
+            # Define key stages and update message
+            if "Generating structures" in msg:
+                new_message = "Stage 1/3: Generating candidate structures..."
+            elif "Calculating energies" in msg or "Calculating formation energy" in msg:
+                new_message = "Stage 2/3: Calculating energies and stability..."
+            elif "Creative pipeline complete" in msg or "Analysis complete" in msg:
+                new_message = "Stage 3/3: Finalizing results..."
+
+            if new_message != self.last_message:
+                self.last_message = new_message
+                self.live_display.update(Panel(Text(new_message, justify="left"),
+                                               title="[bold cyan]Analysis Progress[/bold cyan]",
+                                               border_style="green"))
+
+    # --- Main Execution Logic ---
+    original_stderr = sys.stderr
+    log_capture_string = StringIO()
+    
     try:
-        with open(filepath, 'r') as f:
-            queries = [line.strip() for line in f if line.strip()]
-        
-        console.print(f"Found {len(queries)} queries in {filepath}.")
-        
-        for i, query in enumerate(queries):
-            console.print(f"\n--- Running Query {i+1}/{len(queries)}: {query} ---")
-            await agent.discover_materials(query)
+        with live:
+            # 1. Set up our custom handler
+            handler = RichProgressHandler(live)
+            logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
             
-    except FileNotFoundError:
-        console.print(f"[red]Error: File not found at '{filepath}'[/red]")
-    except Exception as e:
-        console.print(f"[red]An error occurred while running from file: {e}[/red]")
+            # 2. Redirect stderr to hide other warnings (like from e3nn)
+            sys.stderr = log_capture_string
 
+            # 3. Run the analysis
+            result = asyncio.run(analyse_materials(query=query, mode=mode, user_id=user_id))
+
+            # 4. Stop the live display and show final results
+            live.stop()
+
+            if result.get("status") == "completed":
+                console.print(Panel("[bold green]Analysis Complete[/bold green]", expand=False))
+                discovery_result = result.get("discovery_result", "No result found.")
+                try:
+                    parsed_result = json.loads(discovery_result)
+                    pretty_result = json.dumps(parsed_result, indent=2)
+                    console.print(Syntax(pretty_result, "json", theme="default", line_numbers=True))
+                except (json.JSONDecodeError, TypeError):
+                    console.print(Panel(discovery_result, title="Discovery Result", border_style="cyan"))
+                metrics = result.get("metrics", {})
+                if metrics:
+                    table = Table(title="Performance Metrics")
+                    table.add_column("Metric", style="cyan")
+                    table.add_column("Value", style="magenta")
+                    table.add_row("Elapsed Time", f"{metrics.get('elapsed_time', 0):.2f}s")
+                    table.add_row("Tool Calls", str(metrics.get('tool_calls', 0)))
+                    console.print(table)
+            else:
+                error_message = result.get("error", "An unknown error occurred.")
+                console.print(Panel(f"[bold red]Analysis Failed[/bold red]\n\n{error_message}", expand=False))
+
+    except Exception as e:
+        live.stop()
+        console.print(Panel(f"[bold red]An unexpected error occurred in the CLI[/bold red]\n\n{e}", expand=False))
+    finally:
+        # Restore logging and stderr
+        logging.basicConfig(level=logging.WARNING, handlers=[logging.StreamHandler()], force=True)
+        sys.stderr = original_stderr
 
 def main():
-    """Main entry point for the CLI."""
-    # It's good practice to wrap the main entry point in a function.
     cli()
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
+
