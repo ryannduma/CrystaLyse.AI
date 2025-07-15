@@ -1,6 +1,7 @@
 """Visualization tools for CrystaLyse.AI"""
 
 import json
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
@@ -11,7 +12,8 @@ def create_3dmol_visualization(
     cif_content: str,
     formula: str,
     output_dir: str,
-    title: str = "Crystal Structure"
+    title: str = "Crystal Structure",
+    color_scheme: str = "vesta"
 ) -> str:
     """
     Create fast 3Dmol.js visualization for creative mode.
@@ -21,15 +23,22 @@ def create_3dmol_visualization(
         formula: Chemical formula for naming
         output_dir: Directory to save visualization
         title: Title for the visualization
+        color_scheme: Color scheme for the visualization (e.g., 'vesta', 'cpk')
     
     Returns:
         JSON string with visualization details
     """
     try:
-        # Import existing visualizer
-        from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
+        # Fix import path to avoid circular imports
+        current_dir = Path(__file__).parent
+        crystalyse_root = current_dir.parent.parent.parent / "crystalyse"
+        if str(crystalyse_root) not in sys.path:
+            sys.path.insert(0, str(crystalyse_root))
         
-        visualizer = UniversalCIFVisualizer()
+        # Import existing visualizer
+        from output.universal_cif_visualizer import UniversalCIFVisualizer
+        
+        visualizer = UniversalCIFVisualizer(color_scheme=color_scheme)
         output_path = Path(output_dir) / f"{formula}_3dmol.html"
         
         # Create HTML visualization
@@ -66,7 +75,8 @@ def create_pymatviz_analysis_suite(
     cif_content: str,
     formula: str,
     output_dir: str,
-    title: str = "Crystal Structure Analysis"
+    title: str = "Crystal Structure Analysis",
+    color_scheme: str = "vesta"
 ) -> str:
     """
     Create comprehensive pymatviz analysis suite (XRD, RDF, coordination analysis).
@@ -76,12 +86,14 @@ def create_pymatviz_analysis_suite(
         formula: Chemical formula for naming
         output_dir: Directory to save analysis files
         title: Title for the analysis
+        color_scheme: Color scheme for the visualization (e.g., 'vesta', 'jmol')
     
     Returns:
         JSON string with analysis details
     """
     try:
         import pymatviz as pmv
+        from pymatviz.enums import ElemColorScheme
         from pymatgen.core import Structure
         
         # Parse structure
@@ -89,11 +101,38 @@ def create_pymatviz_analysis_suite(
         analysis_dir = Path(output_dir) / f"{formula}_analysis"
         analysis_dir.mkdir(exist_ok=True)
         
+        # Save the CIF file
+        cif_path = analysis_dir / f"{formula}.cif"
+        with open(cif_path, "w") as f:
+            f.write(cif_content)
+        
+        # Select color scheme
+        if color_scheme == "vesta":
+            elem_colors = ElemColorScheme.vesta
+        elif color_scheme == "jmol":
+            elem_colors = ElemColorScheme.jmol
+        else:
+            elem_colors = ElemColorScheme.jmol  # Default fallback
+
         # Set professional theme
         pmv.set_plotly_template("pymatviz_white")
         
         # Create analysis suite
-        analysis_files = []
+        analysis_files = [str(cif_path)]
+
+        # 3D structure visualization
+        try:
+            struct_3d_fig = pmv.structure_3d_plotly(
+                structure, 
+                elem_colors=elem_colors,
+                show_bonds=True
+            )
+            struct_3d_fig.update_layout(title=dict(text=f"3D Structure: {formula}", x=0.5))
+            struct_3d_path = analysis_dir / f"{formula}_structure_3d.pdf"
+            pmv.save_fig(struct_3d_fig, str(struct_3d_path))
+            analysis_files.append(str(struct_3d_path))
+        except Exception as e:
+            logger.warning(f"3D structure visualization failed: {e}")
         
         # XRD Pattern
         try:
@@ -125,16 +164,6 @@ def create_pymatviz_analysis_suite(
         except Exception as e:
             logger.warning(f"Coordination analysis failed: {e}")
         
-        # Atomic structure summary
-        try:
-            summary_fig = pmv.structure_summary(structure)
-            summary_fig.update_layout(title=dict(text=f"Structure Summary: {formula}", x=0.5))
-            summary_path = analysis_dir / f"{formula}_summary.pdf"
-            pmv.save_fig(summary_fig, str(summary_path))
-            analysis_files.append(str(summary_path))
-        except Exception as e:
-            logger.warning(f"Structure summary failed: {e}")
-        
         result = {
             "type": "pymatviz_analysis_suite",
             "status": "success",
@@ -163,7 +192,8 @@ def create_creative_visualization(
     cif_content: str,
     formula: str,
     output_dir: str,
-    title: str = "Crystal Structure"
+    title: str = "Crystal Structure",
+    color_scheme: str = "vesta"
 ) -> str:
     """
     Create creative mode visualization (3Dmol.js only).
@@ -173,17 +203,19 @@ def create_creative_visualization(
         formula: Chemical formula for naming
         output_dir: Directory to save visualization
         title: Title for the visualization
+        color_scheme: Color scheme for the visualization
     
     Returns:
         JSON string with visualization details
     """
-    return create_3dmol_visualization(cif_content, formula, output_dir, title)
+    return create_3dmol_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
 
 def create_rigorous_visualization(
     cif_content: str,
     formula: str,
     output_dir: str,
-    title: str = "Crystal Structure"
+    title: str = "Crystal Structure",
+    color_scheme: str = "vesta"
 ) -> str:
     """
     Create rigorous mode visualization (3Dmol.js + pymatviz analysis suite).
@@ -193,17 +225,18 @@ def create_rigorous_visualization(
         formula: Chemical formula for naming
         output_dir: Directory to save visualization
         title: Title for the visualization
+        color_scheme: Color scheme for the visualization
     
     Returns:
         JSON string with visualization details
     """
     try:
         # Create 3Dmol.js structure visualization
-        structure_result = create_3dmol_visualization(cif_content, formula, output_dir, title)
+        structure_result = create_3dmol_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
         structure_data = json.loads(structure_result)
         
         # Create pymatviz analysis suite
-        analysis_result = create_pymatviz_analysis_suite(cif_content, formula, output_dir, title)
+        analysis_result = create_pymatviz_analysis_suite(cif_content, formula, output_dir, title, color_scheme=color_scheme)
         analysis_data = json.loads(analysis_result)
         
         # Combine results
@@ -236,7 +269,8 @@ def create_mode_aligned_visualization(
     formula: str,
     output_dir: str,
     mode: str = "creative",
-    title: str = "Crystal Structure"
+    title: str = "Crystal Structure",
+    color_scheme: str = "vesta"
 ) -> str:
     """
     Create mode-aligned visualization automatically.
@@ -247,11 +281,12 @@ def create_mode_aligned_visualization(
         output_dir: Directory to save visualization
         mode: Analysis mode ("creative" or "rigorous")
         title: Title for the visualization
+        color_scheme: Color scheme for the visualization
     
     Returns:
         JSON string with visualization details
     """
     if mode == "rigorous":
-        return create_rigorous_visualization(cif_content, formula, output_dir, title)
+        return create_rigorous_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
     else:
-        return create_creative_visualization(cif_content, formula, output_dir, title)
+        return create_creative_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)

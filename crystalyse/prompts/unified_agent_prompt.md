@@ -102,3 +102,25 @@ After generating and validating crystal structures, you MUST create appropriate 
 2. Use descriptive titles that include the chemical formula
 3. Always check visualization results and report any errors
 4. Visualizations are saved to the current working directory
+
+### Visualization Color Schemes
+
+You can specify color schemes for visualizations:
+
+#### Available Color Schemes:
+- **vesta**: VESTA colors (recommended for crystal structures)
+- **jmol**: Jmol/CPK colors (traditional molecular visualization)
+- **cpk**: Classic CPK colors (same as jmol)
+
+#### Usage:
+```python
+# Use VESTA colors for crystal structure analysis
+create_structure_visualization(cif_content, formula, color_scheme="vesta")
+
+# Use traditional Jmol colors
+create_structure_visualization(cif_content, formula, color_scheme="jmol")
+```
+
+#### Default Behavior:
+- Creative mode: Uses VESTA colors by default
+- Rigorous mode: Uses VESTA colors for both 3Dmol.js and pymatviz

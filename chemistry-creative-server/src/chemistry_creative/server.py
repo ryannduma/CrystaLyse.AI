@@ -336,6 +336,52 @@ async def creative_discovery_pipeline(
                         "note": "CIF generated without energy ranking"
                     }
     
+    # AUTOMATICALLY CREATE VISUALIZATIONS FOR ALL GENERATED CIF FILES
+    if results["most_stable_cifs"]:
+        logger.info(f"Creating visualizations for {len(results['most_stable_cifs'])} compositions...")
+        
+        # Get the working directory where the CLI was called from
+        working_dir = os.environ.get('PWD', os.getcwd())
+        
+        # Import visualization tools
+        try:
+            from visualization_mcp.tools import create_creative_visualization
+            
+            for comp, cif_data in results["most_stable_cifs"].items():
+                cif_content = cif_data["cif"]
+                energy_per_atom = cif_data.get("energy_per_atom")
+                
+                # Create descriptive title
+                if energy_per_atom is not None:
+                    title = f"{comp} (E = {energy_per_atom:.3f} eV/atom)"
+                else:
+                    title = f"{comp} Crystal Structure"
+                
+                try:
+                    # Create visualization in working directory
+                    viz_result = create_creative_visualization(cif_content, comp, working_dir, title)
+                    viz_data = json.loads(viz_result)
+                    
+                    if viz_data.get("status") == "success":
+                        logger.info(f"✅ Created visualization for {comp}: {viz_data['output_path']}")
+                        
+                        # Store visualization info in results
+                        cif_data["visualization_path"] = viz_data["output_path"]
+                        cif_data["visualization_status"] = "success"
+                    else:
+                        logger.warning(f"⚠️ Visualization failed for {comp}: {viz_data.get('error', 'Unknown error')}")
+                        cif_data["visualization_status"] = "failed"
+                        cif_data["visualization_error"] = viz_data.get("error", "Unknown error")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Visualization creation failed for {comp}: {e}")
+                    cif_data["visualization_status"] = "failed"
+                    cif_data["visualization_error"] = str(e)
+                    
+        except ImportError as e:
+            logger.error(f"❌ Could not import visualization tools: {e}")
+            logger.info("Visualizations will not be created automatically")
+    
     # Generate summary
     total_structures = sum(len(comp_data["structures"]) for comp_data in results["generated_structures"])
     successful_energies = len(results["energy_calculations"])
@@ -345,6 +391,7 @@ async def creative_discovery_pipeline(
         "structures_generated": total_structures,
         "energies_calculated": successful_energies,
         "most_stable_found": len(results["most_stable_cifs"]),
+        "visualizations_created": len([cif for cif in results["most_stable_cifs"].values() if cif.get("visualization_status") == "success"]),
         "pipeline_mode": "creative (fast exploration)",
         "tools_used": {
             "chemeleon": CHEMELEON_AVAILABLE,
@@ -398,12 +445,13 @@ def create_structure_visualization(
 ) -> str:
     """Create fast 3Dmol.js visualization for creative mode structures."""
     try:
-        # Use current working directory for output
-        output_dir = os.getcwd()
+        # Use the directory where the CLI was called from, not the server directory
+        # This gets the actual working directory of the user
+        working_dir = os.environ.get('PWD', os.getcwd())
         
         # Import and use visualization tools
         from visualization_mcp.tools import create_creative_visualization
-        return create_creative_visualization(cif_content, formula, output_dir, title)
+        return create_creative_visualization(cif_content, formula, working_dir, title)
         
     except Exception as e:
         return json.dumps({
