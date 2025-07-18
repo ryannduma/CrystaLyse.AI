@@ -12,10 +12,48 @@ from dataclasses import dataclass
 from pathlib import Path
 from contextlib import AsyncExitStack
 
-# Core agent framework
-from agents import Agent, Runner, function_tool, gen_trace_id, trace
-from agents.mcp import MCPServerStdio
-from agents.model_settings import ModelSettings
+# Core agent framework - Fixed circular import issue
+try:
+    # Try direct import first
+    from agents import Agent, Runner, function_tool, gen_trace_id, trace
+    from agents.mcp import MCPServerStdio
+    from agents.model_settings import ModelSettings
+except ImportError as e:
+    # If that fails, try importing from the installed package
+    import sys
+    import os
+    
+    # Remove the current directory from sys.path temporarily to avoid circular imports
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir in sys.path:
+        sys.path.remove(parent_dir)
+    
+    try:
+        from agents import Agent, Runner, function_tool, gen_trace_id, trace
+        from agents.mcp import MCPServerStdio
+        from agents.model_settings import ModelSettings
+    except ImportError:
+        # Last resort: try importing with absolute path
+        import importlib.util
+        spec = importlib.util.find_spec("agents")
+        if spec and spec.origin:
+            agents_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(agents_module)
+            Agent = agents_module.Agent
+            Runner = agents_module.Runner
+            function_tool = agents_module.function_tool
+            gen_trace_id = agents_module.gen_trace_id
+            trace = agents_module.trace
+            MCPServerStdio = agents_module.mcp.MCPServerStdio
+            ModelSettings = agents_module.model_settings.ModelSettings
+        else:
+            raise ImportError(f"Could not import agents module. Original error: {e}")
+    finally:
+        # Restore sys.path
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+
 from pydantic import BaseModel
 
 # CrystaLyse imports

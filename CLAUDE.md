@@ -1,4 +1,4 @@
-# Claude Code Settings
+# CrystaLyse.AI Development Guide
 
 ## Language Preferences
 - **Always use British English** in all code, comments, documentation, and communication
@@ -27,8 +27,9 @@ ruff check .
 # Python type checking  
 mypy .
 
-# Run tests (when they exist)
+# Run tests
 python -m pytest
+python test_session_system.py  # Session-based functionality tests
 ```
 
 ### Development Setup
@@ -40,46 +41,61 @@ conda activate crystalyse
 pip install -e .
 
 # Install MCP servers
-pip install -e ./smact-mcp-server
-pip install -e ./chemeleon-mcp-server
-pip install -e ./mace-mcp-server
 pip install -e ./chemistry-unified-server
+pip install -e ./chemistry-creative-server
+pip install -e ./visualization-mcp-server
+
+# Old individual servers (deprecated, moved to oldmcpservers/)
+# pip install -e ./oldmcpservers/smact-mcp-server
+# pip install -e ./oldmcpservers/chemeleon-mcp-server
+# pip install -e ./oldmcpservers/mace-mcp-server
 ```
 
 ## Project Structure
 
 ### Core Components
 - `crystalyse/` - Main package with agents, infrastructure, prompts
-- `smact-mcp-server/` - SMACT composition validation server
-- `chemeleon-mcp-server/` - Crystal structure prediction server
-- `mace-mcp-server/` - Energy calculation server
-- `chemistry-unified-server/` - Unified server combining all tools
-- `memory-implementation/` - Memory system components
+- `crystalyse/agents/` - Agent implementations (crystalyse_agent.py, session_based_agent.py)
+- `crystalyse/memory/` - New simplified memory system
+- `crystalyse/infrastructure/` - Connection pooling, session management
+- `crystalyse/output/` - Dual formatter, universal CIF visualiser
+- `crystalyse/converters.py` - CIF to MACE conversion utilities
+
+### MCP Servers (Active)
+- `chemistry-unified-server/` - Unified server for rigorous mode (SMACT + Chemeleon + MACE)
+- `chemistry-creative-server/` - Fast exploration without SMACT validation
+- `visualization-mcp-server/` - Advanced 3D visualisations and analysis
 
 ### Important Files
-- `crystalyse/agents/crystalyse_agent.py` - Main agent implementation
-- `crystalyse/prompts/unified_agent_prompt.md` - System prompts
+- `crystalyse/agents/session_based_agent.py` - Session-based agent with conversation persistence
+- `crystalyse/cli.py` - Enhanced CLI with session management commands
+- `crystalyse/memory/memory_tools.py` - 8 memory tools for OpenAI Agents SDK
 - `crystalyse/config.py` - Configuration management
 - `crystalyse/validation/response_validator.py` - Anti-hallucination system
 
-## Current Project Status
+## Current Project Status (July 2025)
 
-### What Works
-- Basic agent framework with OpenAI Agents SDK
-- MCP server connections (SMACT, Chemeleon, MACE, Unified)
-- Infrastructure components (connection pooling, session management)
-- Anti-hallucination detection system
+### What Works ✅
+- **Session-based chat agent** with SQLite conversation persistence
+- **Complete discovery pipeline**: SMACT → Chemeleon → MACE
+- **Memory system**: Simple file-based approach (JSON/Markdown)
+- **Visualisation server**: 3D molecular views and analysis plots
+- **CLI commands**: `analyse`, `chat`, `resume`, `sessions`, `demo`
+- **Dual output**: JSON + Markdown with visualisations
+- **Anti-hallucination**: 100% computational honesty maintained
 
-### What's Broken
-- **Chemeleon**: Generates structures with `nan` coordinates
-- **MACE**: Cannot process malformed structures from Chemeleon
-- **End-to-end discovery**: No successful material discovery workflows
+### Recent Fixes ✅
+- **MACE Interface Fix**: Properly extract mace_input from converter output
+- **Import Path Fix**: Correct visualisation server imports
+- **Coordinate Array Fix**: Prevent flattening of 3D coordinate arrays in JSON
+- **Session Management**: Added missing `_run_chat_session_sync` function
 
 ### Development Priorities
-1. Fix Chemeleon to generate valid coordinates instead of `nan`
-2. Ensure MACE can process Chemeleon outputs properly
-3. Test complete composition → structure → energy workflow
-4. Create minimal working example demonstrating successful discovery
+1. Expand test coverage for session-based workflows
+2. Optimise memory system performance for large discovery sets
+3. Add batch processing capabilities
+4. Enhance visualisation features with VESTA integration
+5. Implement cross-session learning and pattern recognition
 
 ## Project Standards
 
@@ -103,31 +119,47 @@ pip install -e ./chemistry-unified-server
 
 ## Working with CrystaLyse.AI
 
-### Current Limitations
-- This is early development software with significant limitations
-- Many features documented in older files don't actually work
-- The tool pipeline (Chemeleon → MACE) is currently broken
-- No working end-to-end discovery examples exist yet
+### Memory System Architecture
+The new memory system follows a simple file-based approach:
+1. **Session Memory**: In-memory conversation context
+2. **Discovery Cache**: JSON files for computational results
+3. **User Memory**: Markdown files for preferences/notes
+4. **Cross-Session Context**: Auto-generated weekly summaries
 
-### Development Approach
-- Fix fundamental tool integration issues before adding features
-- Test each component individually before integration
-- Build minimal working examples before complex workflows
-- Maintain honest documentation about what works vs what doesn't
+### Session Management
+- Sessions are stored in SQLite database (`crystalyse_sessions.db`)
+- Each session maintains conversation history and context
+- Use `crystalyse chat -u <user> -s <session>` to start/resume
+- Sessions can be listed with `crystalyse sessions -u <user>`
+
+### CLI Usage Examples
+```bash
+# One-time analysis
+crystalyse analyse "Find a lead-free perovskite" --model o3
+
+# Start a new chat session
+crystalyse chat -u researcher1 -s project_solar -m rigorous
+
+# Resume existing session
+crystalyse resume project_solar -u researcher1
+
+# Demo session
+crystalyse demo
+```
 
 ### Testing Strategy
-- Test individual MCP servers before integration
-- Verify tool outputs are valid before passing to next tool
-- Use small, simple test cases (e.g., NaCl, LiF) before complex materials
-- Document all failures and their root causes
+- Run `python test_session_system.py` for session tests
+- Test individual MCP servers with simple queries first
+- Verify complete workflows: composition → structure → energy
+- Check memory persistence across sessions
 
 ## Important Reminders
 
-1. **Be honest about status** - Don't claim things work when they don't
-2. **Fix fundamentals first** - Tool integration before advanced features  
-3. **Test thoroughly** - Verify each step works before moving to next
+1. **Session-based development** - Use sessions for multi-turn research
+2. **Memory integration** - Leverage the memory tools for context
+3. **Test with sessions** - Verify persistence and context retention
 4. **Use British English** - Consistent language throughout
 5. **Maintain scientific integrity** - Never fabricate computational results
-6. **Follow the vision** - Refer to `VISION.md` for guidance on standards and goals
+6. **Follow the vision** - Refer to `VISION.md` for guidance
 
-This project aims to transform materials discovery, but we must build a solid foundation before reaching for ambitious goals.
+The project has evolved from proof-of-concept to a functional research platform with session management and persistent memory.

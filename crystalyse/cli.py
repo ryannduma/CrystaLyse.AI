@@ -22,6 +22,17 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from rich.status import Status
 from rich.prompt import Prompt
 
+# Enhanced UI Components - Red theme as default
+from crystalyse.ui.themes import ThemeManager, ThemeType
+from crystalyse.ui.components import (
+    CrystaLyseHeader, 
+    StatusBar, 
+    ChatDisplay, 
+    MaterialDisplay,
+    ProgressIndicator
+)
+from crystalyse.ui.gradients import create_gradient_text, GradientStyle
+
 # Configure logging with a cleaner format first
 logging.basicConfig(
     level=logging.WARNING,
@@ -29,6 +40,10 @@ logging.basicConfig(
     handlers=[RichHandler(show_level=False, show_time=False)]
 )
 logger = logging.getLogger(__name__)
+
+# Initialize enhanced UI with red theme
+theme_manager = ThemeManager(ThemeType.CRYSTALYSE_RED)
+enhanced_console = Console(theme=theme_manager.current_theme.rich_theme)
 
 from crystalyse.config import config
 from crystalyse.memory import CrystaLyseMemory
@@ -88,10 +103,27 @@ class ModeValidator(Validator):
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output.')
 def new(user_id: str, verbose: bool):
     """Start a new, guided material discovery project."""
-    console = Console()
-    console.print(Panel("[bold cyan]New CrystaLyse.AI Discovery Project[/bold cyan]", 
-                      subtitle="Follow the prompts to define your search.",
-                      expand=False))
+    console = enhanced_console  # Use enhanced console with red theme
+    
+    # Show enhanced header
+    header = CrystaLyseHeader(console)
+    console.print(header.render("1.0.0"))
+    
+    # Enhanced project setup panel
+    project_text = create_gradient_text(
+        "New CrystaLyse.AI Discovery Project",
+        GradientStyle.CRYSTALYSE_RED,
+        theme_manager.current_theme.get_gradient_colors()
+    )
+    
+    console.print(Panel(
+        Text.assemble(
+            project_text,
+            "\n[dim]Follow the prompts to define your search.[/dim]"
+        ),
+        expand=False,
+        border_style=theme_manager.current_theme.colors.accent_red
+    ))
     project_name = prompt("Project Name: ", default="New Material Search")
     target_properties = prompt("Target Properties (e.g., high band gap): ")
     constraints = prompt("Constraints (e.g., must contain Si and O): ")
@@ -114,20 +146,31 @@ cli.add_command(new)
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output.')
 def analyse(query: str, mode: str, user_id: str, verbose: bool):
     """Run a materials discovery analysis."""
-    console = Console()
+    console = enhanced_console  # Use enhanced console with red theme
     
     # Check if legacy agent functionality is available
     if not LEGACY_AGENT_AVAILABLE:
-        console.print(Panel(
-            "[bold red]❌ Analysis functionality not available[/bold red]\n\n"
-            "The analysis functionality requires the OpenAI Agents SDK "
+        # Enhanced error display
+        error_text = create_gradient_text(
+            "❌ Analysis functionality not available",
+            GradientStyle.CRYSTALYSE_RED,
+            theme_manager.current_theme.get_gradient_colors()
+        )
+        
+        error_content = Text.assemble(
+            error_text,
+            "\n\nThe analysis functionality requires the OpenAI Agents SDK "
             "and MCP packages to be properly installed.\n\n"
             "Please install the required dependencies:\n"
             "• pip install mcp\n"
             "• Ensure OpenAI Agents SDK is properly installed\n\n"
-            "Or try `crystalyse legacy-chat` for basic memory functionality.",
-            title="Analysis Unavailable",
-            border_style="red"
+            "Or try `crystalyse legacy-chat` for basic memory functionality."
+        )
+        
+        console.print(Panel(
+            error_content,
+            title="[bold]Analysis Unavailable[/bold]",
+            border_style=theme_manager.current_theme.colors.error
         ))
         return
     
@@ -306,28 +349,50 @@ if SESSION_BASED_AVAILABLE:
             console.print("[green]✅ Session ended successfully[/green]")
 
     def _display_session_welcome(console: Console, user_id: str, session_id: str, mode: str):
-        """Display welcome message for session-based chat."""
-        console.print(Panel(
-            f"[bold green]🔬 CrystaLyse.AI - Session-Based Chat[/bold green]\n\n"
-            f"User: {user_id}\n"
-            f"Session: {session_id}\n"
-            f"Mode: {mode.capitalize()}\n\n"
-            f"[bold]Key Features:[/bold]\n"
-            f"✅ Automatic conversation history\n"
-            f"✅ Persistent memory across sessions\n"
-            f"✅ Multi-turn context understanding\n"
-            f"✅ SQLiteSession-like behavior\n"
-            f"✅ Computational validation with live tools\n\n"
-            f"[bold]Available Commands:[/bold]\n"
-            f"• `/history` - Show conversation history\n"
-            f"• `/clear` - Clear conversation history\n"
-            f"• `/undo` - Remove last interaction\n"
-            f"• `/sessions` - List all sessions\n"
-            f"• `/help` - Show detailed help\n"
-            f"• `/exit` - Exit chat\n",
-            title="Welcome to CrystaLyse Session Chat",
-            border_style="green"
-        ))
+        """Display welcome message for session-based chat with enhanced UI."""
+        # Initialize enhanced UI components
+        header = CrystaLyseHeader(console)
+        
+        # Show enhanced header
+        header_panel = header.render("1.0.0")
+        console.print(header_panel)
+        
+        # Create enhanced welcome content
+        welcome_text = Text()
+        welcome_text.append("🔬 CrystaLyse.AI - Session-Based Chat\n\n", style="accent.red")
+        welcome_text.append(f"User: {user_id}\n", style="accent.green")
+        welcome_text.append(f"Session: {session_id}\n", style="accent.cyan")
+        welcome_text.append(f"Mode: {mode.capitalize()}\n\n", style="accent.blue")
+        
+        welcome_text.append("Key Features:\n", style="title")
+        welcome_text.append("✅ Automatic conversation history\n", style="status.success")
+        welcome_text.append("✅ Persistent memory across sessions\n", style="status.success")
+        welcome_text.append("✅ Multi-turn context understanding\n", style="status.success")
+        welcome_text.append("✅ SQLiteSession-like behavior\n", style="status.success")
+        welcome_text.append("✅ Computational validation with live tools\n\n", style="status.success")
+        
+        welcome_text.append("Available Commands:\n", style="title")
+        commands = [
+            ("• `/history`", "Show conversation history"),
+            ("• `/clear`", "Clear conversation history"),
+            ("• `/undo`", "Remove last interaction"),
+            ("• `/sessions`", "List all sessions"),
+            ("• `/help`", "Show detailed help"),
+            ("• `/exit`", "Exit chat")
+        ]
+        
+        for cmd, desc in commands:
+            welcome_text.append(f"{cmd}", style="accent.cyan")
+            welcome_text.append(f" - {desc}\n", style="dim")
+        
+        welcome_panel = Panel(
+            welcome_text,
+            title="[bold]Welcome to CrystaLyse Session Chat[/bold]",
+            border_style=theme_manager.current_theme.colors.accent_red,
+            padding=(1, 2)
+        )
+        
+        console.print(welcome_panel)
 
     def _show_session_help(console: Console):
         """Show help information for session-based chat."""
@@ -780,8 +845,12 @@ def _run_analysis_async_aware(query: str, mode: str, user_id: str):
 
 def _run_and_display_analysis(query: str, mode: str, user_id: str, console: Console, verbose: bool = False):
     """
-    Runs analysis with improved progress display and cleaner output.
+    Runs analysis with enhanced UI and improved progress display.
     """
+    # Show enhanced header for analysis
+    header = CrystaLyseHeader(console)
+    console.print(header.render("1.0.0"))
+    
     start_time = time.time()
     
     # Capture stderr for cleaner output
@@ -904,59 +973,80 @@ def _run_and_display_analysis(query: str, mode: str, user_id: str, console: Cons
     _display_results(console, result, elapsed_time, verbose, stderr_capture)
 
 def _display_results(console: Console, result: dict, elapsed_time: float, verbose: bool, stderr_capture: StringIO):
-    """Display analysis results in a clean format."""
+    """Display analysis results with enhanced UI."""
     
     # Clear any remaining status
     console.print()
     
     if result.get("status") == "completed":
-        # Success banner
-        console.print(Panel(
-            f"[bold green]✅ Analysis Complete[/bold green]\n"
-            f"[dim]Completed in {elapsed_time:.1f}s[/dim]",
-            expand=False,
-            border_style="green"
-        ))
+        # Enhanced success banner with gradient
+        success_text = create_gradient_text(
+            "✅ Analysis Complete",
+            GradientStyle.CRYSTALYSE_RED,
+            theme_manager.current_theme.get_gradient_colors()
+        )
         
-        # Main results
+        success_panel = Panel(
+            Text.assemble(
+                success_text,
+                f"\n[dim]Completed in {elapsed_time:.1f}s[/dim]"
+            ),
+            expand=False,
+            border_style=theme_manager.current_theme.colors.success
+        )
+        console.print(success_panel)
+        
+        # Main results with enhanced formatting
         discovery_result = result.get("discovery_result", "No result found.")
         
-        # Try to parse and format as JSON
+        # Try to parse and format as JSON or display as enhanced text
         try:
             parsed_result = json.loads(discovery_result)
             console.print(Panel(
                 Syntax(json.dumps(parsed_result, indent=2), "json", theme="monokai", line_numbers=False),
-                title="[bold cyan]Discovery Results[/bold cyan]",
-                border_style="cyan"
+                title="[bold]Discovery Results[/bold]",
+                border_style=theme_manager.current_theme.colors.accent_cyan
             ))
         except (json.JSONDecodeError, TypeError):
+            # Enhanced text display for discovery results
+            result_text = Text()
+            result_text.append(discovery_result, style="foreground")
+            
             console.print(Panel(
-                discovery_result,
-                title="[bold cyan]Discovery Results[/bold cyan]",
-                border_style="cyan"
+                result_text,
+                title="[bold]Discovery Results[/bold]",
+                border_style=theme_manager.current_theme.colors.accent_cyan,
+                padding=(1, 2)
             ))
         
-        # Compact metrics table
+        # Enhanced metrics table
         metrics = result.get("metrics", {})
         if metrics:
             table = Table(show_header=False, box=None, padding=(0, 2))
-            table.add_column("Metric", style="dim cyan", width=15)
-            table.add_column("Value", style="white")
+            table.add_column("Metric", style="material.property", width=15)
+            table.add_column("Value", style="material.value")
             
             table.add_row("Time", f"{metrics.get('elapsed_time', elapsed_time):.1f}s")
             table.add_row("Tool Calls", str(metrics.get('tool_calls', 0)))
             table.add_row("Model", str(metrics.get('model', 'Unknown')))
             table.add_row("Mode", str(metrics.get('mode', 'Unknown')))
             
-            console.print(Panel(table, title="[bold]Performance Metrics[/bold]", border_style="blue"))
+            console.print(Panel(
+                table, 
+                title="[bold]Performance Metrics[/bold]", 
+                border_style=theme_manager.current_theme.colors.accent_blue
+            ))
         
-        # Only show validation issues if there are any
+        # Enhanced validation issues display
         validation = result.get("response_validation", {})
         if validation and not validation.get("is_valid", True):
+            warning_text = Text()
+            warning_text.append("⚠️  Validation Issues\n", style="status.warning")
+            warning_text.append(f"Issues found: {validation.get('violation_count', 0)}", style="dim")
+            
             console.print(Panel(
-                f"[bold yellow]⚠️  Validation Issues[/bold yellow]\n"
-                f"Issues found: {validation.get('violation_count', 0)}",
-                border_style="yellow"
+                warning_text,
+                border_style=theme_manager.current_theme.colors.warning
             ))
     
     else:
@@ -971,24 +1061,35 @@ def _display_results(console: Console, result: dict, elapsed_time: float, verbos
         if any(keyword in stderr_content.lower() for keyword in ['error', 'exception', 'traceback', 'warning']):
             console.print(Panel(
                 stderr_content,
-                title="[bold yellow]Debug Output[/bold yellow]",
-                border_style="yellow"
+                title="[bold]Debug Output[/bold]",
+                border_style=theme_manager.current_theme.colors.warning
             ))
 
 def _display_error(console: Console, error_message: str, verbose: bool, stderr_capture: StringIO):
-    """Display error information in a user-friendly way."""
+    """Display error information with enhanced UI."""
     
-    console.print(Panel(
-        f"[bold red]❌ Analysis Failed[/bold red]\n\n{error_message}",
+    # Enhanced error display with gradient
+    error_text = create_gradient_text(
+        "❌ Analysis Failed",
+        GradientStyle.CRYSTALYSE_RED,
+        theme_manager.current_theme.get_gradient_colors()
+    )
+    
+    error_panel = Panel(
+        Text.assemble(
+            error_text,
+            f"\n\n{error_message}"
+        ),
         expand=False,
-        border_style="red"
-    ))
+        border_style=theme_manager.current_theme.colors.error
+    )
+    console.print(error_panel)
     
     if verbose and stderr_capture and stderr_capture.getvalue().strip():
         console.print(Panel(
             stderr_capture.getvalue().strip(),
-            title="[bold red]Error Details[/bold red]",
-            border_style="red"
+            title="[bold]Error Details[/bold]",
+            border_style=theme_manager.current_theme.colors.error
         ))
 
 # Legacy chat functions for backward compatibility

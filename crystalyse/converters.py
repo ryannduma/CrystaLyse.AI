@@ -289,12 +289,22 @@ def convert_cif_to_mace_input(cif_string: str) -> Dict[str, Any]:
     try:
         ase_atoms = _create_ase_atoms_from_cif_data(cif_string)
         
-        # Get basic structural data
+                # Get basic structural data
         numbers = ase_atoms.get_atomic_numbers()
         positions = ase_atoms.get_positions()
         cell = ase_atoms.get_cell()
         pbc = ase_atoms.get_pbc()
-        
+
+        # Fix coordinate array shape if flattened during JSON serialization
+        import numpy as np
+        if isinstance(positions, np.ndarray) and len(positions.shape) == 1:
+            n_atoms = len(numbers)
+            if len(positions) == n_atoms * 3:
+                positions = positions.reshape(n_atoms, 3)
+                logger.info(f"Fixed flattened coordinate array: reshaped {len(positions)} elements to ({n_atoms}, 3)")
+            else:
+                raise ValueError(f"Flattened coordinate array has wrong size: {len(positions)} != {n_atoms * 3}")
+
         # Validate data dimensions
         if len(numbers) == 0:
             raise ValueError("No atoms found in structure")

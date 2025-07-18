@@ -79,7 +79,7 @@ def create_pymatviz_analysis_suite(
     color_scheme: str = "vesta"
 ) -> str:
     """
-    Create comprehensive pymatviz analysis suite (XRD, RDF, coordination analysis).
+    Create comprehensive pymatviz analysis suite with headless compatibility.
     
     Args:
         cif_content: CIF file content as string
@@ -95,17 +95,18 @@ def create_pymatviz_analysis_suite(
         import pymatviz as pmv
         from pymatviz.enums import ElemColorScheme
         from pymatgen.core import Structure
-        
+        import os
+
         # Parse structure
         structure = Structure.from_str(cif_content, fmt="cif")
         analysis_dir = Path(output_dir) / f"{formula}_analysis"
         analysis_dir.mkdir(exist_ok=True)
-        
+
         # Save the CIF file
         cif_path = analysis_dir / f"{formula}.cif"
         with open(cif_path, "w") as f:
             f.write(cif_content)
-        
+
         # Select color scheme
         if color_scheme == "vesta":
             elem_colors = ElemColorScheme.vesta
@@ -116,11 +117,29 @@ def create_pymatviz_analysis_suite(
 
         # Set professional theme
         pmv.set_plotly_template("pymatviz_white")
+
+        # Configure headless environment for better WebGL compatibility
+        os.environ.setdefault("DISPLAY", ":99")
         
+        # Set kaleido to use headless mode with WebGL disabled
+        try:
+            import kaleido
+            # Configure kaleido for headless rendering
+            if hasattr(kaleido, 'config') and hasattr(kaleido.config, 'scope'):
+                kaleido.config.scope.chromium.disable_features = [
+                    "VizDisplayCompositor",
+                    "UseOzonePlatform",
+                    "WebGL",
+                    "WebGL2"
+                ]
+        except (ImportError, AttributeError):
+            pass
+
         # Create analysis suite
         analysis_files = [str(cif_path)]
+        visualization_results = {}
 
-        # 3D structure visualization
+        # 3D structure visualization (skip if WebGL fails)
         try:
             struct_3d_fig = pmv.structure_3d_plotly(
                 structure, 
@@ -128,42 +147,50 @@ def create_pymatviz_analysis_suite(
                 show_bonds=True
             )
             struct_3d_fig.update_layout(title=dict(text=f"3D Structure: {formula}", x=0.5))
-            struct_3d_path = analysis_dir / f"{formula}_structure_3d.pdf"
+            struct_3d_path = analysis_dir / f"3D_Structure_{formula}.pdf"
             pmv.save_fig(struct_3d_fig, str(struct_3d_path))
             analysis_files.append(str(struct_3d_path))
+            visualization_results["3d_structure"] = "success"
         except Exception as e:
             logger.warning(f"3D structure visualization failed: {e}")
-        
+            visualization_results["3d_structure"] = f"failed: {e}"
+
         # XRD Pattern
         try:
             xrd_fig = pmv.xrd_pattern(structure, annotate_peaks=5)
             xrd_fig.update_layout(title=dict(text=f"XRD Pattern: {formula}", x=0.5))
-            xrd_path = analysis_dir / f"{formula}_xrd.pdf"
+            xrd_path = analysis_dir / f"XRD_Pattern_{formula}.pdf"
             pmv.save_fig(xrd_fig, str(xrd_path))
             analysis_files.append(str(xrd_path))
+            visualization_results["xrd_pattern"] = "success"
         except Exception as e:
             logger.warning(f"XRD generation failed: {e}")
-        
+            visualization_results["xrd_pattern"] = f"failed: {e}"
+
         # Radial Distribution Function
         try:
             rdf_fig = pmv.element_pair_rdfs(structure)
             rdf_fig.update_layout(title=dict(text=f"RDF Analysis: {formula}", x=0.5))
-            rdf_path = analysis_dir / f"{formula}_rdf.pdf"
+            rdf_path = analysis_dir / f"RDF_Analysis_{formula}.pdf"
             pmv.save_fig(rdf_fig, str(rdf_path))
             analysis_files.append(str(rdf_path))
+            visualization_results["rdf_analysis"] = "success"
         except Exception as e:
             logger.warning(f"RDF generation failed: {e}")
-        
+            visualization_results["rdf_analysis"] = f"failed: {e}"
+
         # Coordination Environment
         try:
             coord_fig = pmv.coordination_hist(structure)
             coord_fig.update_layout(title=dict(text=f"Coordination Analysis: {formula}", x=0.5))
-            coord_path = analysis_dir / f"{formula}_coordination.pdf"
+            coord_path = analysis_dir / f"Coordination_Analysis_{formula}.pdf"
             pmv.save_fig(coord_fig, str(coord_path))
             analysis_files.append(str(coord_path))
+            visualization_results["coordination_analysis"] = "success"
         except Exception as e:
             logger.warning(f"Coordination analysis failed: {e}")
-        
+            visualization_results["coordination_analysis"] = f"failed: {e}"
+
         result = {
             "type": "pymatviz_analysis_suite",
             "status": "success",
@@ -172,12 +199,13 @@ def create_pymatviz_analysis_suite(
             "formula": formula,
             "visualization_type": "comprehensive_analysis",
             "sharing": "professional",
-            "description": f"Comprehensive materials analysis suite for {formula}"
+            "description": f"Comprehensive materials analysis suite for {formula}",
+            "component_results": visualization_results
         }
-        
+
         logger.info(f"✅ pymatviz analysis suite created: {analysis_dir}")
         return json.dumps(result)
-        
+
     except Exception as e:
         error_result = {
             "type": "pymatviz_analysis_suite",
