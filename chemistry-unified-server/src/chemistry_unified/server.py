@@ -89,8 +89,15 @@ if CHEMELEON_AVAILABLE:
 if MACE_AVAILABLE:
     @mcp.tool()
     def calculate_energy_mace(structure: Dict[str, Any]) -> str:
-        """Calculate formation energy using MACE."""        
-        return calculate_formation_energy(structure)
+        """Calculate formation energy using MACE."""
+        # Extract mace_input from converter output if present
+        if isinstance(structure, dict) and "mace_input" in structure:
+            mace_structure = structure["mace_input"]
+        else:
+            # Assume it's already in the correct format
+            mace_structure = structure
+        
+        return calculate_formation_energy(mace_structure)
 
 # Expose the new converter tool
 if CONVERTER_AVAILABLE:
@@ -114,6 +121,22 @@ if SUPERCELL_CONVERTER_AVAILABLE:
     def create_supercell(cif_string: str, supercell_matrix: List[List[int]]) -> Dict[str, Any]:
         """Creates a supercell from a CIF string and returns the supercell as a CIF string."""
         return create_supercell_cif(cif_string, supercell_matrix)
+
+# Import and expose the new validation function
+try:
+    from converters import validate_cif_string
+    VALIDATOR_AVAILABLE = True
+    logger.info("CIF validator loaded successfully")
+except ImportError as e:
+    logger.warning(f"CIF validator not available: {e}")
+    VALIDATOR_AVAILABLE = False
+
+# Expose the validation function
+if VALIDATOR_AVAILABLE:
+    @mcp.tool()
+    def validate_cif(cif_string: str) -> Dict[str, Any]:
+        """Validate a CIF string and return diagnostic information."""
+        return validate_cif_string(cif_string)
 
 
 # Add visualization function after existing tools
@@ -159,7 +182,11 @@ async def health_check() -> Dict[str, Any]:
     return health
 
 # --- Server Startup ---
-if __name__ == "__main__":
+def main():
+    """Main entry point for the chemistry-unified-server."""
     logger.info("Starting Chemistry Unified MCP Server")
     logger.info(f"Available tools: SMACT={SMACT_AVAILABLE}, Chemeleon={CHEMELEON_AVAILABLE}, MACE={MACE_AVAILABLE}, Converter={CONVERTER_AVAILABLE}")
     mcp.run()
+
+if __name__ == "__main__":
+    main()

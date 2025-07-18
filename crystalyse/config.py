@@ -137,7 +137,12 @@ class CrystaLyseConfig:
 
 # Global configuration instance
 config = CrystaLyseConfig()
-config.validate_dependencies()
+# Optional dependency validation (may fail in some environments)
+try:
+    config.validate_dependencies()
+except RuntimeError as e:
+    import warnings
+    warnings.warn(f"Some dependencies not available: {e}")
 
 # Backward compatibility functions
 def get_agent_config():

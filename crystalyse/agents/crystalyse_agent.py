@@ -14,7 +14,7 @@ from contextlib import AsyncExitStack
 
 # Core agent framework
 from agents import Agent, Runner, function_tool, gen_trace_id, trace
-from agents.mcp import MCPServer, MCPServerStdio
+from agents.mcp import MCPServerStdio
 from agents.model_settings import ModelSettings
 from pydantic import BaseModel
 
@@ -31,28 +31,14 @@ from ..infrastructure import (
 
 logger = logging.getLogger(__name__)
 
-# Memory system imports with proper path handling
+# Simple memory system imports
 try:
-    import sys
-    from pathlib import Path
-    
-    # Add memory implementation to path
-    memory_path = Path(__file__).parent.parent.parent / "memory-implementation" / "src"
-    if memory_path.exists():
-        sys.path.insert(0, str(memory_path))
-        
-        from crystalyse_memory import (
-            create_complete_memory_system,
-            get_all_tools as get_memory_tools
-        )
-        MEMORY_AVAILABLE = True
-        logger.info("✅ Memory system components loaded successfully")
-    else:
-        raise ImportError("Memory implementation path not found")
-        
+    from ..memory import CrystaLyseMemory, get_memory_tools
+    MEMORY_AVAILABLE = True
+    logger.info("✅ Simple memory system loaded successfully")
 except ImportError as e:
     MEMORY_AVAILABLE = False
-    logger.info(f"Memory system components not available: {e} - using graceful fallbacks")
+    logger.info(f"Simple memory system not available: {e} - using graceful fallbacks")
 
 @dataclass
 class AgentConfig:
@@ -273,11 +259,14 @@ class CrystaLyse:
         
         if self.mode in mode_additions:
             prompt += mode_additions[self.mode]
+        
+        # Add memory system information
+        prompt += "\n\n## Memory System\n\nYou have access to a simple file-based memory system with the following tools:\n- `save_to_memory(fact, section)` - Save important information to user memory\n- `search_memory(query)` - Search user memory for relevant information\n- `save_discovery(formula, properties)` - Cache expensive computational results\n- `search_discoveries(query)` - Search cached discoveries\n- `get_cached_discovery(formula)` - Check if a material has been analyzed before\n- `get_memory_context()` - Get comprehensive memory context\n- `generate_weekly_summary()` - Generate research progress summary\n- `get_memory_statistics()` - Get memory system statistics\n\n**Use these tools to:**\n- Remember important user preferences and constraints\n- Cache expensive MACE, Chemeleon, and SMACT calculations\n- Build on previous discoveries and research\n- Maintain continuity across sessions\n- Provide personalized recommendations based on user history"
             
         return prompt
 
     async def _initialize_memory_system(self):
-        """Initialize the complete memory system with DualWorkingMemory, Discovery Store, and User Profiles."""
+        """Initialize the simple file-based memory system."""
         if not self.agent_config.enable_memory:
             logger.info("Memory system disabled by configuration")
             return None
@@ -287,28 +276,20 @@ class CrystaLyse:
             return None
             
         try:
-            # Create complete memory system with all components
-            session_id = f"{self.user_id}_session_{int(time.time())}"
+            # Create simple memory system
+            logger.info(f"Initialising simple memory system for user {self.user_id}")
             
-            logger.info(f"Initialising complete memory system for user {self.user_id}, session {session_id}")
-            
-            self.memory_system = await create_complete_memory_system(
-                session_id=session_id,
-                user_id=self.user_id
-            )
+            self.memory_system = CrystaLyseMemory(user_id=self.user_id)
             
             # Log memory system components
-            components = []
-            if hasattr(self.memory_system, 'dual_working_memory'):
-                components.append("DualWorkingMemory (cache + scratchpad)")
-            if hasattr(self.memory_system, 'discovery_store'):
-                components.append("Discovery Store (ChromaDB)")
-            if hasattr(self.memory_system, 'user_store'):
-                components.append("User Profile Store (SQLite)")
-            if hasattr(self.memory_system, 'knowledge_graph'):
-                components.append("Knowledge Graph (Neo4j)")
+            components = [
+                "Session Memory (conversation context)",
+                "Discovery Cache (JSON file)",
+                "User Memory (markdown file)",
+                "Cross-Session Context (auto-generated insights)"
+            ]
                 
-            logger.info(f"✅ Memory system initialised with: {', '.join(components)}")
+            logger.info(f"✅ Simple memory system initialised with: {', '.join(components)}")
             return self.memory_system
             
         except Exception as e:
@@ -317,14 +298,14 @@ class CrystaLyse:
             return None
 
     def _get_all_tools(self) -> List:
-        """Get all available tools including 23 memory tools for enhanced agent capabilities."""
+        """Get all available tools including simple memory tools for enhanced agent capabilities."""
         base_tools = [assess_progress, explore_alternatives, ask_clarifying_questions]
         
         # Add memory tools if memory system is available
         if MEMORY_AVAILABLE and self.memory_system:
             try:
                 memory_tools = get_memory_tools()
-                logger.info(f"Added {len(memory_tools)} memory tools to agent (cache, scratchpad, discovery tools)")
+                logger.info(f"Added {len(memory_tools)} simple memory tools to agent (session, cache, user memory, insights)")
                 return base_tools + memory_tools
             except Exception as e:
                 logger.warning(f"Could not load memory tools: {e}")
@@ -610,25 +591,29 @@ class CrystaLyse:
                     self.session.record_tool_call("crystalyse", True, "discovery")
                     self.session.add_discovered_material(query, {"result": final_content})
                 
-                # Update memory system discovery store
-                if self.memory_system and hasattr(self.memory_system, 'discovery_store'):
+                # Update simple memory system
+                if self.memory_system:
                     try:
-                        # Extract material information for discovery storage
-                        material_data = {
-                            "query": query,
-                            "result": final_content,
-                            "tool_calls": tool_call_count,
-                            "model": self.model_name,
-                            "mode": self.mode,
-                            "timestamp": time.time()
-                        }
-                        await self.memory_system.discovery_store.store_discovery(
-                            user_id=self.user_id,
-                            discovery_data=material_data
-                        )
-                        logger.info("✅ Discovery stored in memory system")
+                        # Add interaction to session memory
+                        self.memory_system.add_interaction(query, final_content)
+                        
+                        # Try to extract material formula and properties for caching
+                        # This is a simplified approach - in practice, we'd extract from tool results
+                        if "formula" in final_content.lower():
+                            # Simple extraction - could be improved with regex or parsing
+                            lines = final_content.split('\n')
+                            for line in lines:
+                                if any(keyword in line.lower() for keyword in ['formula', 'material', 'compound']):
+                                    # Save discovery to user memory
+                                    self.memory_system.save_to_memory(
+                                        f"Discovery: {line.strip()}", 
+                                        "Recent Discoveries"
+                                    )
+                                    break
+                        
+                        logger.info("✅ Discovery stored in simple memory system")
                     except Exception as e:
-                        logger.warning(f"Could not store discovery in memory system: {e}")
+                        logger.warning(f"Could not store discovery in simple memory system: {e}")
 
             # Include session info and infrastructure stats in metrics
             session_info = None
@@ -880,40 +865,11 @@ class CrystaLyse:
                 logger.warning(f"Could not get session info: {e}")
                 stats["session_info"] = {"error": str(e)}
         
-        # Memory system comprehensive stats
+        # Simple memory system stats
         if self.memory_system:
             try:
-                memory_stats = {"status": "active"}
-                
-                # DualWorkingMemory stats
-                if hasattr(self.memory_system, 'dual_working_memory'):
-                    try:
-                        cache_stats = await self.memory_system.dual_working_memory.working_memory.get_statistics()
-                        scratchpad_stats = await self.memory_system.dual_working_memory.scratchpad.get_statistics()
-                        memory_stats.update({
-                            "cache_hits": cache_stats.get("hit_rate", 0),
-                            "cache_entries": cache_stats.get("total_entries", 0),
-                            "scratchpad_entries": scratchpad_stats.get("total_entries", 0)
-                        })
-                    except Exception as e:
-                        memory_stats["cache_error"] = str(e)
-                
-                # Discovery Store stats
-                if hasattr(self.memory_system, 'discovery_store'):
-                    try:
-                        discovery_count = await self.memory_system.discovery_store.get_discovery_count(self.user_id)
-                        memory_stats["discoveries_stored"] = discovery_count
-                    except Exception as e:
-                        memory_stats["discovery_error"] = str(e)
-                
-                # User Profile stats
-                if hasattr(self.memory_system, 'user_store'):
-                    try:
-                        profile = await self.memory_system.user_store.get_user_profile(self.user_id)
-                        memory_stats["user_profile_exists"] = profile is not None
-                    except Exception as e:
-                        memory_stats["profile_error"] = str(e)
-                        
+                memory_stats = self.memory_system.get_memory_statistics()
+                memory_stats["status"] = "active"
                 stats["memory_system"] = memory_stats
                 
             except Exception as e:
@@ -971,24 +927,11 @@ class CrystaLyse:
         """Cleanup session, memory system, and connection resources."""
         cleanup_errors = []
         
-        # Cleanup memory system components
+        # Cleanup simple memory system
         if self.memory_system:
             try:
-                # Cleanup individual components if they exist
-                if hasattr(self.memory_system, 'dual_working_memory'):
-                    await self.memory_system.dual_working_memory.cleanup()
-                if hasattr(self.memory_system, 'discovery_store'):
-                    await self.memory_system.discovery_store.cleanup()
-                if hasattr(self.memory_system, 'user_store'):
-                    await self.memory_system.user_store.cleanup()
-                if hasattr(self.memory_system, 'knowledge_graph'):
-                    await self.memory_system.knowledge_graph.cleanup()
-                    
-                # General cleanup if available
-                if hasattr(self.memory_system, 'cleanup'):
-                    await self.memory_system.cleanup()
-                    
-                logger.info("✅ Memory system cleaned up successfully")
+                self.memory_system.cleanup()
+                logger.info("✅ Simple memory system cleaned up successfully")
             except Exception as e:
                 cleanup_errors.append(f"Memory cleanup: {e}")
                 logger.warning(f"Memory cleanup error: {e}")

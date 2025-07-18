@@ -36,7 +36,7 @@ def create_3dmol_visualization(
             sys.path.insert(0, str(crystalyse_root))
         
         # Import existing visualizer
-        from output.universal_cif_visualizer import UniversalCIFVisualizer
+        from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
         
         visualizer = UniversalCIFVisualizer(color_scheme=color_scheme)
         output_path = Path(output_dir) / f"{formula}_3dmol.html"

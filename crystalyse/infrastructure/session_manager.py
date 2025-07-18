@@ -192,13 +192,17 @@ class PersistentSessionManager:
         self.cleanup_interval = cleanup_interval
         self._cleanup_task: Optional[asyncio.Task] = None
         
-        # Start background cleanup task
+        # Start background cleanup task (only if event loop is available)
         self._start_cleanup_task()
     
     def _start_cleanup_task(self) -> None:
         """Start the background cleanup task."""
-        if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
+        try:
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
+        except RuntimeError:
+            # No event loop available (CLI context) - cleanup will be done manually
+            logger.info("No event loop available, background cleanup disabled")
     
     async def _cleanup_expired_sessions(self) -> None:
         """Background task to clean up expired sessions."""

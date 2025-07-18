@@ -8,6 +8,7 @@ import sys
 import logging
 from contextlib import nullcontext
 from io import StringIO
+from pathlib import Path
 from prompt_toolkit import prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from rich.console import Console
@@ -19,11 +20,9 @@ from rich.logging import RichHandler
 from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.status import Status
+from rich.prompt import Prompt
 
-from crystalyse.agents.crystalyse_agent import analyse_materials, CrystaLyse
-from crystalyse.config import config
-
-# Configure logging with a cleaner format
+# Configure logging with a cleaner format first
 logging.basicConfig(
     level=logging.WARNING,
     format="%(message)s",
@@ -31,12 +30,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from crystalyse.config import config
+from crystalyse.memory import CrystaLyseMemory
+
+# Import session-based system
+try:
+    from crystalyse.agents.session_based_agent import (
+        CrystaLyseSession, 
+        CrystaLyseSessionManager,
+        get_session_manager
+    )
+    SESSION_BASED_AVAILABLE = True
+except ImportError as e:
+    SESSION_BASED_AVAILABLE = False
+    logger.warning(f"Session-based functionality not available: {e}")
+
+# Import legacy agent functionality
+try:
+    from crystalyse.agents.crystalyse_agent import analyse_materials, CrystaLyse
+    LEGACY_AGENT_AVAILABLE = True
+except ImportError as e:
+    LEGACY_AGENT_AVAILABLE = False
+    logger.warning(f"Legacy agent functionality not available: {e}")
+
+# Exception for chat exit
+class ChatExit(Exception):
+    """Exception to signal chat session should exit."""
+    pass
+
 # --- Main CLI Group ---
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def cli():
     """
     CrystaLyse.AI: A modern, intuitive CLI for computational materials discovery.
+    
+    Features:
+    • Session-based conversations with automatic history
+    • Persistent memory across sessions
+    • Multi-turn context understanding
+    • Computational validation with live tools
+    • SQLiteSession-like behavior for conversation management
     """
     pass
 
@@ -81,13 +115,432 @@ cli.add_command(new)
 def analyse(query: str, mode: str, user_id: str, verbose: bool):
     """Run a materials discovery analysis."""
     console = Console()
+    
+    # Check if legacy agent functionality is available
+    if not LEGACY_AGENT_AVAILABLE:
+        console.print(Panel(
+            "[bold red]❌ Analysis functionality not available[/bold red]\n\n"
+            "The analysis functionality requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Please install the required dependencies:\n"
+            "• pip install mcp\n"
+            "• Ensure OpenAI Agents SDK is properly installed\n\n"
+            "Or try `crystalyse legacy-chat` for basic memory functionality.",
+            title="Analysis Unavailable",
+            border_style="red"
+        ))
+        return
+    
     _run_and_display_analysis(query, mode, user_id, console, verbose)
 
 cli.add_command(analyse)
 
+# --- Session-Based Commands (only available when session system is available) ---
+
+if SESSION_BASED_AVAILABLE:
+    
+    @cli.command()
+    @click.option('--user-id', '-u', default='default', help='User ID for memory system')
+    @click.option('--session-id', '-s', default=None, help='Session ID (auto-generated if not provided)')
+    @click.option('--mode', '-m', type=click.Choice(['creative', 'rigorous']), default='creative', help='Analysis mode')
+    @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+    def chat(user_id: str, session_id: str, mode: str, verbose: bool):
+        """
+        Start an interactive session-based chat with automatic conversation history.
+        
+        This provides SQLiteSession-like behavior:
+        • Automatic conversation history retrieval
+        • Persistent memory across sessions
+        • Context continuity between queries
+        • Session management with cleanup
+        
+        Commands:
+        • /history - Show conversation history
+        • /clear - Clear conversation history
+        • /undo - Remove last interaction (like SQLiteSession.pop_item)
+        • /sessions - List all sessions
+        • /resume <session_id> - Resume a session
+        • /help - Show help
+        • /exit - Exit chat
+        """
+        if verbose:
+            logging.getLogger().setLevel(logging.DEBUG)
+        
+        # Generate session ID if not provided
+        if session_id is None:
+            from datetime import datetime
+            session_id = f"{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Run the async chat session
+        asyncio.run(_run_session_chat(user_id, session_id, mode))
+
+    @cli.command()
+    @click.option('--user-id', '-u', default='default', help='User ID')
+    def sessions(user_id: str):
+        """List all sessions for a user."""
+        console = Console()
+        _show_user_sessions(console, user_id)
+
+    @cli.command()
+    @click.argument('session_id')
+    @click.option('--user-id', '-u', default='default', help='User ID')
+    @click.option('--mode', '-m', type=click.Choice(['creative', 'rigorous']), default='creative', help='Analysis mode')
+    def resume(session_id: str, user_id: str, mode: str):
+        """Resume a previous session."""
+        console = Console()
+        console.print(f"[bold]Resuming session: {session_id}[/bold]")
+        
+        # Resume the session
+        asyncio.run(_run_session_chat(user_id, session_id, mode))
+
+    @cli.command()
+    @click.option('--user-id', '-u', default='demo_user', help='User ID for demo')
+    def demo():
+        """Run a demonstration of the session-based system."""
+        console = Console()
+        console.print("[bold]🎭 CrystaLyse Session-Based Demo[/bold]")
+        asyncio.run(_run_session_demo(console))
+
+    # Session-based helper functions
+    async def _run_session_chat(user_id: str, session_id: str, mode: str):
+        """Run the session-based chat."""
+        console = Console()
+        
+        # Get session manager
+        manager = get_session_manager()
+        
+        # Create session
+        session = manager.get_or_create_session(session_id, user_id)
+        
+        # Display welcome message
+        _display_session_welcome(console, user_id, session_id, mode)
+        
+        # Show existing conversation history if any
+        await _show_conversation_history(console, session)
+        
+        # Setup agent
+        console.print("[dim]Setting up CrystaLyse agent...[/dim]")
+        await session.setup_agent(mode)
+        console.print("[green]✅ Agent ready![/green]")
+        
+        # Main chat loop
+        try:
+            while True:
+                # Get user input
+                user_input = Prompt.ask("\n🔬 You", console=console)
+                
+                # Handle commands
+                if user_input.lower() in ['/exit', '/quit', 'quit', 'bye']:
+                    console.print("[green]Goodbye![/green]")
+                    break
+                
+                elif user_input.lower() == '/history':
+                    await _show_conversation_history(console, session)
+                    continue
+                
+                elif user_input.lower() == '/clear':
+                    session.clear_conversation()
+                    console.print("[yellow]Conversation history cleared[/yellow]")
+                    continue
+                
+                elif user_input.lower() == '/undo':
+                    last_item = session.pop_last_item()
+                    if last_item:
+                        console.print(f"[yellow]Removed: {last_item.role}: {last_item.content[:50]}...[/yellow]")
+                    else:
+                        console.print("[yellow]No items to undo[/yellow]")
+                    continue
+                
+                elif user_input.lower() == '/sessions':
+                    _show_user_sessions(console, user_id)
+                    continue
+                
+                elif user_input.startswith('/resume '):
+                    resume_session_id = user_input[8:].strip()
+                    if resume_session_id:
+                        console.print(f"[yellow]Use 'crystalyse chat -s {resume_session_id}' to resume that session[/yellow]")
+                    else:
+                        console.print("[red]Usage: /resume <session_id>[/red]")
+                    continue
+                
+                elif user_input.lower() == '/help':
+                    _show_session_help(console)
+                    continue
+                
+                # Regular query with automatic history
+                console.print("\n[cyan]🤖 CrystaLyse is thinking...[/cyan]")
+                
+                try:
+                    # This automatically handles conversation history!
+                    result = await session.run_with_history(user_input)
+                    
+                    if result['status'] == 'success':
+                        # Display response
+                        console.print(Panel(
+                            result['response'],
+                            title="[bold green]🔬 CrystaLyse Response[/bold green]",
+                            border_style="green"
+                        ))
+                        
+                        # Show session stats
+                        if result.get('history_length', 0) > 0:
+                            console.print(f"[dim]Session context: {result['history_length']} previous interactions[/dim]")
+                    
+                    else:
+                        console.print(Panel(
+                            f"[bold red]Error:[/bold red] {result['error']}",
+                            border_style="red"
+                        ))
+                    
+                except Exception as e:
+                    console.print(f"[red]Error: {str(e)}[/red]")
+                    logger.error(f"Chat error: {e}", exc_info=True)
+        
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Chat interrupted[/yellow]")
+        
+        finally:
+            # Cleanup
+            console.print("\n[dim]Cleaning up session...[/dim]")
+            await session.cleanup()
+            console.print("[green]✅ Session ended successfully[/green]")
+
+    def _display_session_welcome(console: Console, user_id: str, session_id: str, mode: str):
+        """Display welcome message for session-based chat."""
+        console.print(Panel(
+            f"[bold green]🔬 CrystaLyse.AI - Session-Based Chat[/bold green]\n\n"
+            f"User: {user_id}\n"
+            f"Session: {session_id}\n"
+            f"Mode: {mode.capitalize()}\n\n"
+            f"[bold]Key Features:[/bold]\n"
+            f"✅ Automatic conversation history\n"
+            f"✅ Persistent memory across sessions\n"
+            f"✅ Multi-turn context understanding\n"
+            f"✅ SQLiteSession-like behavior\n"
+            f"✅ Computational validation with live tools\n\n"
+            f"[bold]Available Commands:[/bold]\n"
+            f"• `/history` - Show conversation history\n"
+            f"• `/clear` - Clear conversation history\n"
+            f"• `/undo` - Remove last interaction\n"
+            f"• `/sessions` - List all sessions\n"
+            f"• `/help` - Show detailed help\n"
+            f"• `/exit` - Exit chat\n",
+            title="Welcome to CrystaLyse Session Chat",
+            border_style="green"
+        ))
+
+    def _show_session_help(console: Console):
+        """Show help information for session-based chat."""
+        console.print(Panel(
+            "[bold]CrystaLyse Session-Based Chat Commands:[/bold]\n\n"
+            "[cyan]/history[/cyan] - Show conversation history\n"
+            "[cyan]/clear[/cyan] - Clear conversation history\n"
+            "[cyan]/undo[/cyan] - Remove last interaction (like SQLiteSession.pop_item)\n"
+            "[cyan]/sessions[/cyan] - List all your sessions\n"
+            "[cyan]/resume <session_id>[/cyan] - Resume a specific session\n"
+            "[cyan]/help[/cyan] - Show this help message\n"
+            "[cyan]/exit[/cyan] - Exit chat session\n\n"
+            "[bold]Enhanced Workflow Features:[/bold]\n"
+            "• Automatic conversation history retrieval and persistence\n"
+            "• Context continuity across multi-turn conversations\n"
+            "• Memory integration for caching computational results\n"
+            "• Session resumption for long-running research projects\n"
+            "• Discovery caching to avoid redundant calculations\n\n"
+            "[bold]Example Enhanced Workflow:[/bold]\n"
+            "1. 'Analyze LiCoO₂ battery properties' (starts research)\n"
+            "2. 'What about volume changes during delithiation?' (remembers context)\n"
+            "3. 'Compare with experimental values from Materials Project' (builds on analysis)\n"
+            "4. Exit and resume later - conversation history is preserved!\n"
+            "5. 'How do these results compare to other cathode materials?' (continues research)\n",
+            title="Session-Based Chat Help",
+            border_style="blue"
+        ))
+
+    async def _show_conversation_history(console: Console, session: CrystaLyseSession):
+        """Show conversation history for the session."""
+        history = session.get_conversation_history()
+        
+        if not history:
+            console.print("[dim]No conversation history[/dim]")
+            return
+        
+        # Create table
+        table = Table(title=f"Conversation History - {session.session_id}")
+        table.add_column("Role", style="bold")
+        table.add_column("Content", style="dim")
+        table.add_column("Time", style="cyan")
+        
+        for item in history[-10:]:  # Show last 10 items
+            content = item.content[:80] + "..." if len(item.content) > 80 else item.content
+            table.add_row(
+                item.role,
+                content,
+                item.timestamp.strftime("%H:%M:%S")
+            )
+        
+        console.print(table)
+
+    def _show_user_sessions(console: Console, user_id: str):
+        """Show all sessions for a user."""
+        console.print(f"[bold]Active Sessions for User: {user_id}[/bold]")
+        
+        # Show sessions from database
+        import sqlite3
+        
+        db_path = Path.home() / ".crystalyse" / "conversations.db"
+        
+        if not db_path.exists():
+            console.print("[dim]No conversation database found[/dim]")
+            return
+        
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute('''
+                SELECT DISTINCT session_id, COUNT(*) as message_count, 
+                       MAX(timestamp) as last_activity
+                FROM conversations
+                WHERE user_id = ?
+                GROUP BY session_id
+                ORDER BY last_activity DESC
+            ''', (user_id,))
+            
+            sessions = cursor.fetchall()
+            
+            if not sessions:
+                console.print("[dim]No sessions found[/dim]")
+                return
+            
+            table = Table(title="Your Sessions")
+            table.add_column("Session ID", style="bold")
+            table.add_column("Messages", style="cyan")
+            table.add_column("Last Activity", style="dim")
+            
+            for session_id, count, last_activity in sessions:
+                table.add_row(session_id, str(count), last_activity)
+            
+            console.print(table)
+
+    async def _run_session_demo(console: Console):
+        """Run a demonstration showing SQLiteSession-like behavior."""
+        
+        console.print("\n[bold cyan]Creating a new session...[/bold cyan]")
+        
+        # Get session manager
+        manager = get_session_manager()
+        
+        # Create demo session
+        session = manager.get_or_create_session("demo_session", "demo_user")
+        
+        # Setup agent
+        console.print("[dim]Setting up agent...[/dim]")
+        await session.setup_agent("creative")
+        
+        # Demo queries showing context persistence
+        demo_queries = [
+            "What is a perovskite material?",
+            "Give me an example of one",
+            "What are its typical applications?",
+            "How stable is it compared to other materials?"
+        ]
+        
+        for i, query in enumerate(demo_queries, 1):
+            console.print(f"\n[bold]Demo Query {i}:[/bold] {query}")
+            
+            result = await session.run_with_history(query)
+            
+            if result['status'] == 'success':
+                response = result['response'][:200] + "..." if len(result['response']) > 200 else result['response']
+                console.print(f"[green]Response:[/green] {response}")
+                console.print(f"[dim]Context length: {result['history_length']} previous interactions[/dim]")
+            else:
+                console.print(f"[red]Error: {result['error']}[/red]")
+        
+        # Show final conversation history
+        console.print("\n[bold]Final Conversation History:[/bold]")
+        await _show_conversation_history(console, session)
+        
+        # Cleanup
+        await session.cleanup()
+        console.print("\n[green]✅ Demo completed![/green]")
+
+# --- Fallback commands for when session system is not available ---
+
+else:
+    # Provide fallback commands that show helpful error messages
+    
+    @cli.command()
+    @click.option('--user-id', '-u', default='default', help='User ID for memory system')
+    @click.option('--session-id', '-s', default=None, help='Session ID (auto-generated if not provided)')
+    @click.option('--mode', '-m', type=click.Choice(['creative', 'rigorous']), default='creative', help='Analysis mode')
+    @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+    def chat(user_id: str, session_id: str, mode: str, verbose: bool):
+        """Start an interactive session-based chat (requires dependencies)."""
+        console = Console()
+        console.print(Panel(
+            "[bold red]❌ Session-based chat not available[/bold red]\n\n"
+            "The session-based chat functionality requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Please try:\n"
+            "• `crystalyse legacy-chat` for basic chat functionality\n"
+            "• `crystalyse analyse \"your query\"` for one-shot analysis\n\n"
+            "Or install the required dependencies.",
+            title="Chat Unavailable",
+            border_style="red"
+        ))
+
+    @cli.command()
+    @click.option('--user-id', '-u', default='default', help='User ID')
+    def sessions(user_id: str):
+        """List all sessions for a user (requires dependencies)."""
+        console = Console()
+        console.print(Panel(
+            "[bold red]❌ Sessions not available[/bold red]\n\n"
+            "Session management requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Please install the required dependencies.",
+            title="Sessions Unavailable",
+            border_style="red"
+        ))
+
+    @cli.command()
+    @click.argument('session_id')
+    @click.option('--user-id', '-u', default='default', help='User ID')
+    @click.option('--mode', '-m', type=click.Choice(['creative', 'rigorous']), default='creative', help='Analysis mode')
+    def resume(session_id: str, user_id: str, mode: str):
+        """Resume a previous session (requires dependencies)."""
+        console = Console()
+        console.print(Panel(
+            "[bold red]❌ Resume not available[/bold red]\n\n"
+            "Session resumption requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Please install the required dependencies.",
+            title="Resume Unavailable",
+            border_style="red"
+        ))
+
+    @cli.command()
+    @click.option('--user-id', '-u', default='demo_user', help='User ID for demo')
+    def demo():
+        """Run a demonstration of the session-based system (requires dependencies)."""
+        console = Console()
+        console.print(Panel(
+            "[bold red]❌ Demo not available[/bold red]\n\n"
+            "The session-based demo requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Please install the required dependencies and try again.\n\n"
+            "Available commands:\n"
+            "• `crystalyse examples` - View example workflows\n"
+            "• `crystalyse config show` - Check configuration\n"
+            "• `crystalyse legacy-chat` - Basic memory functionality",
+            title="Demo Unavailable",
+            border_style="red"
+        ))
+
 # --- Dashboard Command ---
 
 async def get_stats():
+    if not LEGACY_AGENT_AVAILABLE:
+        return {"error": "Agent functionality not available"}
+    
     agent = CrystaLyse()
     stats = await agent._get_infrastructure_stats()
     await agent.cleanup()
@@ -108,7 +561,7 @@ def dashboard():
     with Live(console=console, screen=False, redirect_stderr=False) as live:
         while True:
             try:
-                stats = asyncio.run(get_stats())
+                stats = _run_stats_async_aware()
                 panel = generate_dashboard_panel(stats)
                 live.update(panel)
                 time.sleep(5)
@@ -154,18 +607,176 @@ cli.add_command(config_cli)
 
 @click.command()
 def examples():
-    """Show example queries."""
+    """Show example queries and enhanced workflow patterns."""
     console = Console()
-    table = Table(title="Example Queries")
+    
+    # Basic examples
+    table = Table(title="Basic Example Queries")
     table.add_column("Category", style="cyan")
     table.add_column("Query", style="green")
     table.add_row("Basic Discovery", "Find a new material for solar cells")
     table.add_row("Property-driven", "Design a material with high thermal conductivity")
+    table.add_row("Battery Analysis", "Analyze LiCoO₂ battery properties and delithiation")
+    table.add_row("Structural Analysis", "Compare perovskite stability under pressure")
     console.print(table)
+    
+    # Enhanced workflow examples
+    console.print("\n")
+    console.print(Panel(
+        "[bold]Enhanced Session-Based Workflow Examples:[/bold]\n\n"
+        "[cyan]1. Battery Research Session:[/cyan]\n"
+        "   • crystalyse chat -u battery_researcher\n"
+        "   • 'Analyze LiCoO₂ cathode material properties'\n"
+        "   • 'What happens during delithiation to CoO₂?'\n"
+        "   • 'Calculate volume changes and energy density'\n"
+        "   • 'Compare with Materials Project mp-552024_Li data'\n"
+        "   • Exit and resume later - all context preserved!\n\n"
+        "[cyan]2. Perovskite Discovery Session:[/cyan]\n"
+        "   • crystalyse chat -u perovskite_researcher -m rigorous\n"
+        "   • 'Find stable perovskite materials for solar cells'\n"
+        "   • 'What about their band gaps and optical properties?'\n"
+        "   • 'How do they perform under different conditions?'\n"
+        "   • 'Compare computational predictions with experiments'\n\n"
+        "[cyan]3. Multi-Day Research Project:[/cyan]\n"
+        "   • Day 1: crystalyse chat -s project_2024 -u researcher\n"
+        "   • Day 2: crystalyse resume project_2024 -u researcher\n"
+        "   • All conversation history and discoveries preserved\n"
+        "   • Memory system caches computational results\n"
+        "   • Context continuity across sessions\n",
+        title="Session-Based Workflow Examples",
+        border_style="green"
+    ))
 
 cli.add_command(examples)
 
-# --- Improved Helper Function for Analysis ---
+# --- Legacy Memory-Based Chat (for backward compatibility) ---
+
+@cli.command(name='legacy-chat')
+@click.option('--user-id', '-u', default='default', help='User ID for personalized memory')
+@click.option('--mode', '-m', type=click.Choice(['creative', 'rigorous']), default='creative', help='Analysis mode')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def legacy_chat(user_id: str, mode: str, verbose: bool):
+    """
+    Legacy chat mode using the old memory system (for backward compatibility).
+    
+    Note: Consider using the new 'chat' command for better session management.
+    """
+    console = Console()
+    
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
+    
+    # Initialize memory system
+    memory = CrystaLyseMemory(user_id=user_id)
+    
+    # Display welcome message
+    console.print(Panel(
+        f"[bold yellow]🔬 CrystaLyse.AI Legacy Chat Mode[/bold yellow]\n\n"
+        f"Mode: {mode.capitalize()}\n"
+        f"User ID: {user_id}\n"
+        f"Memory Directory: {memory.memory_dir}\n\n"
+        f"[bold red]⚠️ This is the legacy chat mode.[/bold red]\n"
+        f"[bold green]Consider using 'crystalyse chat' for better session management.[/bold green]\n\n"
+        f"Available commands:\n"
+        f"• Type your materials science questions naturally\n"
+        f"• Use `/save <fact>` to save important information\n"
+        f"• Use `/search <query>` to search your memory\n"
+        f"• Use `/discoveries <query>` to search cached discoveries\n"
+        f"• Use `/summary` to generate weekly research summary\n"
+        f"• Use `/memory` to view memory statistics\n"
+        f"• Use `/help` to see all commands\n"
+        f"• Use `/exit` to quit\n",
+        title="Legacy Chat Mode",
+        border_style="yellow"
+    ))
+    
+    # Show memory context if available
+    context = memory.get_context_for_agent()
+    if context != "No previous context available.":
+        console.print(Panel(
+            context,
+            title="[bold blue]Your Research Context[/bold blue]",
+            border_style="blue"
+        ))
+    
+    # Check if legacy agent is available
+    if not LEGACY_AGENT_AVAILABLE:
+        console.print(Panel(
+            "[bold red]❌ Legacy chat agent not available[/bold red]\n\n"
+            "The legacy chat functionality requires the OpenAI Agents SDK "
+            "and MCP packages to be properly installed.\n\n"
+            "Only basic memory functionality is available.",
+            title="Limited Functionality",
+            border_style="red"
+        ))
+        return
+    
+    # Initialize agent and run chat loop in single async context
+    from crystalyse.agents.crystalyse_agent import AgentConfig
+    agent_config = AgentConfig(mode=mode, enable_memory=True)
+    console.print("[dim]Initializing CrystaLyse agent...[/dim]")
+    
+    # Run the chat session with proper memory integration
+    _run_chat_session_sync(agent_config, user_id, memory, console, verbose)
+
+# --- Helper Functions ---
+
+def _run_stats_async_aware():
+    """
+    Run get_stats() in either sync or async context.
+    Detects if there's already an event loop running and handles accordingly.
+    """
+    try:
+        # Check if there's already an event loop running
+        loop = asyncio.get_running_loop()
+        # Run in a separate thread with its own event loop
+        import concurrent.futures
+        
+        def run_in_thread():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(get_stats())
+            finally:
+                new_loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            return future.result()
+            
+    except RuntimeError:
+        # No running event loop, safe to use asyncio.run()
+        return asyncio.run(get_stats())
+
+def _run_analysis_async_aware(query: str, mode: str, user_id: str):
+    """
+    Run analysis in either sync or async context.
+    Detects if there's already an event loop running and handles accordingly.
+    """
+    try:
+        # Check if there's already an event loop running
+        loop = asyncio.get_running_loop()
+        # If we're in an async context, we need to use create_task or similar
+        # But since we're in a sync function, we'll use a different approach
+        import concurrent.futures
+        import threading
+        
+        # Run the async function in a separate thread with its own event loop
+        def run_in_thread():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(analyse_materials(query=query, mode=mode, user_id=user_id))
+            finally:
+                new_loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            return future.result()
+            
+    except RuntimeError:
+        # No running event loop, safe to use asyncio.run()
+        return asyncio.run(analyse_materials(query=query, mode=mode, user_id=user_id))
 
 def _run_and_display_analysis(query: str, mode: str, user_id: str, console: Console, verbose: bool = False):
     """
@@ -268,15 +879,15 @@ def _run_and_display_analysis(query: str, mode: str, user_id: str, console: Cons
                 root_logger.addHandler(progress_handler)
                 
                 try:
-                    # Run the analysis
-                    result = asyncio.run(analyse_materials(query=query, mode=mode, user_id=user_id))
+                    # Run the analysis - handle both sync and async contexts
+                    result = _run_analysis_async_aware(query=query, mode=mode, user_id=user_id)
                 finally:
                     # Always remove the handler
                     root_logger.removeHandler(progress_handler)
         else:
             # Verbose mode - show all logs
             console.print("[dim]Running analysis in verbose mode...[/dim]")
-            result = asyncio.run(analyse_materials(query=query, mode=mode, user_id=user_id))
+            result = _run_analysis_async_aware(query=query, mode=mode, user_id=user_id)
         
     except Exception as e:
         _display_error(console, f"Analysis failed: {str(e)}", verbose, stderr_capture)
@@ -379,6 +990,212 @@ def _display_error(console: Console, error_message: str, verbose: bool, stderr_c
             title="[bold red]Error Details[/bold red]",
             border_style="red"
         ))
+
+# Legacy chat functions for backward compatibility
+if LEGACY_AGENT_AVAILABLE:
+    async def _run_chat_session(agent_config, user_id: str, memory: CrystaLyseMemory, console: Console, verbose: bool):
+        """Run the entire chat session in a single async context to maintain MCP connections."""
+        from crystalyse.agents.crystalyse_agent import CrystaLyse
+        
+        # Initialize agent once for the entire session
+        agent = CrystaLyse(agent_config=agent_config, user_id=user_id)
+        console.print("[dim]Agent initialized successfully![/dim]")
+        
+        # Chat loop
+        console.print("[dim]Starting chat loop...[/dim]")
+        try:
+            while True:
+                try:
+                    # Get user input (synchronous)
+                    user_input = prompt("\n🔬 You: ", validator=None)
+                    
+                    if not user_input.strip():
+                        continue
+                    
+                    # Handle special commands
+                    if user_input.startswith('/'):
+                        try:
+                            _handle_chat_command(user_input, memory, console)
+                        except ChatExit:
+                            console.print("\n[green]Exiting chat session...[/green]")
+                            break
+                        continue
+                    
+                    # Regular materials science query
+                    console.print(f"\n[bold cyan]🤖 CrystaLyse is thinking...[/bold cyan]")
+                    
+                    with console.status("[bold green]Analyzing materials...", spinner="dots"):
+                        # Use await instead of asyncio.run to maintain async context
+                        result = await agent.discover_materials(user_input)
+                    
+                    if result['status'] == 'completed':
+                        response = result['discovery_result']
+                        
+                        # Display response
+                        console.print(Panel(
+                            response,
+                            title="[bold green]🔬 CrystaLyse Analysis[/bold green]",
+                            border_style="green"
+                        ))
+                        
+                        # Show memory statistics if verbose
+                        if verbose:
+                            memory_stats = result.get('metrics', {}).get('infrastructure_stats', {}).get('memory_system', {})
+                            if memory_stats:
+                                console.print(f"\n[dim]Memory: {memory_stats.get('cache', {}).get('total_entries', 0)} cached discoveries, "
+                                            f"{memory_stats.get('session', {}).get('total_interactions', 0)} session interactions[/dim]")
+                        
+                        # Auto-generate insights if needed
+                        memory.auto_generate_insights()
+                        
+                    else:
+                        console.print(Panel(
+                            f"[bold red]❌ Analysis Failed[/bold red]\n\n{result.get('error', 'Unknown error')}",
+                            border_style="red"
+                        ))
+                    
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]Use /exit to quit properly[/yellow]")
+                    continue
+                except Exception as e:
+                    console.print(f"[red]Error: {str(e)}[/red]")
+                    
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Chat session interrupted[/yellow]")
+        finally:
+            # Cleanup
+            await agent.cleanup()
+            console.print("\n[green]✅ Chat session ended. Your memory has been saved.[/green]")
+
+    def _run_chat_session_sync(agent_config, user_id: str, memory: CrystaLyseMemory, console: Console, verbose: bool):
+        """Synchronous wrapper for the async chat session."""
+        try:
+            # Check if there's already an event loop running
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, we need to use a different approach
+            import concurrent.futures
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(_run_chat_session(agent_config, user_id, memory, console, verbose))
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+                
+        except RuntimeError:
+            # No running event loop, safe to use asyncio.run()
+            return asyncio.run(_run_chat_session(agent_config, user_id, memory, console, verbose))
+
+    def _handle_chat_command(command: str, memory: CrystaLyseMemory, console: Console):
+        """Handle special chat commands."""
+        command = command.strip()
+        
+        if command == '/exit':
+            raise ChatExit()
+        
+        elif command == '/help':
+            console.print(Panel(
+                "[bold]Available Commands:[/bold]\n\n"
+                "• `/save <fact>` - Save important information to memory\n"
+                "• `/search <query>` - Search your memory\n"
+                "• `/discoveries <query>` - Search cached discoveries\n"
+                "• `/summary` - Generate weekly research summary\n"
+                "• `/memory` - View memory statistics\n"
+                "• `/context` - View current memory context\n"
+                "• `/help` - Show this help message\n"
+                "• `/exit` - Exit chat mode\n",
+                title="Chat Commands",
+                border_style="blue"
+            ))
+        
+        elif command.startswith('/save '):
+            fact = command[6:].strip()
+            if fact:
+                memory.save_to_memory(fact)
+                console.print(f"[green]✅ Saved to memory: {fact[:50]}{'...' if len(fact) > 50 else ''}[/green]")
+            else:
+                console.print("[red]Usage: /save <fact to save>[/red]")
+        
+        elif command.startswith('/search '):
+            query = command[8:].strip()
+            if query:
+                results = memory.search_memory(query)
+                if results:
+                    console.print(Panel(
+                        "\n".join(f"• {result}" for result in results[:10]),
+                        title=f"Memory Search Results for '{query}'",
+                        border_style="blue"
+                    ))
+                else:
+                    console.print(f"[yellow]No memory entries found for '{query}'[/yellow]")
+            else:
+                console.print("[red]Usage: /search <query>[/red]")
+        
+        elif command.startswith('/discoveries '):
+            query = command[13:].strip()
+            if query:
+                results = memory.search_discoveries(query)
+                if results:
+                    discovery_lines = []
+                    for result in results:
+                        formula = result.get('formula', 'Unknown')
+                        cached_at = result.get('cached_at', 'Unknown time')
+                        discovery_lines.append(f"• {formula} (cached: {cached_at})")
+                    
+                    console.print(Panel(
+                        "\n".join(discovery_lines),
+                        title=f"Discovery Search Results for '{query}'",
+                        border_style="cyan"
+                    ))
+                else:
+                    console.print(f"[yellow]No cached discoveries found for '{query}'[/yellow]")
+            else:
+                console.print("[red]Usage: /discoveries <query>[/red]")
+        
+        elif command == '/summary':
+            console.print("[cyan]Generating weekly research summary...[/cyan]")
+            summary = memory.generate_weekly_summary()
+            console.print(Panel(
+                summary,
+                title="Weekly Research Summary",
+                border_style="green"
+            ))
+        
+        elif command == '/memory':
+            stats = memory.get_memory_statistics()
+            stats_text = f"""[bold]Memory Statistics:[/bold]
+
+User ID: {stats['user_id']}
+Memory Directory: {stats['memory_directory']}
+Session Interactions: {stats['session']['total_interactions']}
+Cached Discoveries: {stats['cache']['total_entries']}
+User Preferences: {stats['user_preferences']}
+Research Interests: {stats['research_interests']}
+Recent Discoveries: {stats['recent_discoveries']}
+Insights Available: {stats['insights_available']}
+"""
+            console.print(Panel(
+                stats_text,
+                title="Memory System Status",
+                border_style="blue"
+            ))
+        
+        elif command == '/context':
+            context = memory.get_context_for_agent()
+            console.print(Panel(
+                context,
+                title="Current Memory Context",
+                border_style="blue"
+            ))
+        
+        else:
+            console.print(f"[red]Unknown command: {command}[/red]")
+            console.print("[yellow]Type /help for available commands[/yellow]")
 
 def main():
     cli()

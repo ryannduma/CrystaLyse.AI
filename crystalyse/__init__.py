@@ -17,13 +17,24 @@ Key Features:
 __version__ = "0.2.0"
 
 # Import unified agent
-from .agents.crystalyse_agent import (
-    CrystaLyse,
-    AgentConfig,
-    analyse_materials,
-    rigorous_analysis,
-    creative_analysis
-)
+# Optional agent imports (may fail if dependencies not available)
+try:
+    from .agents.crystalyse_agent import (
+        CrystaLyse,
+        AgentConfig,
+        analyse_materials,
+        rigorous_analysis,
+        creative_analysis
+    )
+except ImportError as e:
+    import warnings
+    warnings.warn(f"Agent functionality not available: {e}")
+    # Provide placeholder classes/functions
+    CrystaLyse = None
+    AgentConfig = None
+    analyse_materials = None
+    rigorous_analysis = None
+    creative_analysis = None
 
 # Configuration
 from .config import config
