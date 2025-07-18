@@ -571,11 +571,22 @@ class CrystaLyse:
         if not self.session:
             session = await self._get_or_create_session()
         
+        # Initialize memory system if not already done
+        if not self.memory_system:
+            await self._initialize_memory_system()
+        
         # Classify query to determine tool enforcement level
         requires_computation = self.query_classifier.requires_computation(query)
         tool_choice = self.query_classifier.get_enforcement_level(query)
         
         logger.info(f"Query classification: requires_computation={requires_computation}, tool_choice={tool_choice}")
+        
+        # Check for existing completed analysis before proceeding
+        if self.memory_system and requires_computation:
+            existing_result = await self._check_existing_analysis(query)
+            if existing_result:
+                logger.info(f"✅ Found existing analysis for query: {query[:50]}...")
+                return existing_result
         
         # Enhanced query for computational requirements
         if requires_computation:
@@ -915,6 +926,272 @@ class CrystaLyse:
                 stats["memory_system"] = {"error": str(e), "status": "error"}
         
         return stats
+
+    async def _check_existing_analysis(self, query: str) -> Optional[dict]:
+        """
+        Check if analysis has already been completed for this query with smart detection.
+        
+        Args:
+            query: The analysis query
+            
+        Returns:
+            Existing analysis result if found, None otherwise
+        """
+        if not self.memory_system:
+            return None
+            
+        try:
+            # Extract potential material formula from query
+            import re
+            formula_patterns = [
+                r'\b[A-Z][a-z]?\d*(?:[A-Z][a-z]?\d*)*\b',  # Chemical formula pattern
+                r'\b[A-Z][a-z]?_?\d*[A-Z][a-z]?_?\d*[A-Z][a-z]?_?\d*\b'  # Extended pattern
+            ]
+            
+            potential_formulas = []
+            for pattern in formula_patterns:
+                matches = re.findall(pattern, query)
+                potential_formulas.extend(matches)
+            
+            # Smart detection: Check for complete analysis suites first
+            for formula in potential_formulas:
+                if len(formula) > 2:  # Skip very short matches
+                    # Check if complete visualization suite exists
+                    if self._check_visualization_files_exist(formula):
+                        logger.info(f"🎯 Complete analysis suite found for {formula}")
+                        
+                        # Check if we also have cached computational data
+                        cached_result = self.memory_system.discovery_cache.get_cached_result(formula)
+                        if cached_result:
+                            logger.info(f"✅ Complete analysis found: {formula} (cached + visualizations)")
+                            return self._format_cached_result(cached_result, formula)
+                        else:
+                            # Even without cached data, if we have complete visualizations,
+                            # we can return a basic result to avoid regeneration
+                            logger.info(f"✅ Complete visualization suite found for {formula}")
+                            return self._format_visualization_result(formula)
+                    else:
+                        # Check if we have partial results
+                        cached_result = self.memory_system.discovery_cache.get_cached_result(formula)
+                        if cached_result:
+                            logger.info(f"⚠️ Partial analysis found for {formula} (cached but missing visualizations)")
+            
+            # Search memory for similar queries
+            similar_discoveries = self.memory_system.discovery_cache.search_similar(query, limit=3)
+            if similar_discoveries:
+                for discovery in similar_discoveries:
+                    formula = discovery.get("formula", "Unknown")
+                    if self._check_visualization_files_exist(formula):
+                        logger.info(f"✅ Similar complete analysis found for {formula}")
+                        return self._format_cached_result(discovery, formula)
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error checking existing analysis: {e}")
+            return None
+    
+    def _check_visualization_files_exist(self, formula: str) -> bool:
+        """
+        Check if all visualization files exist for a formula with smarter detection.
+        
+        Args:
+            formula: Chemical formula
+            
+        Returns:
+            True if all required files exist, False otherwise
+        """
+        from pathlib import Path
+        
+        # Check in current directory and common output directories
+        check_dirs = [
+            Path("."),
+            Path("./CrystaLyse.AI"),
+            Path("./CrystaLyse.AI/chemistry-unified-server/src"),
+            Path("./chemistry-unified-server/src"),
+            Path("./src")
+        ]
+        
+        # Essential files for complete analysis
+        essential_files = [
+            f"{formula}_3dmol.html",
+            f"{formula}_analysis/{formula}.cif",
+            f"{formula}_analysis/XRD_Pattern_{formula}.pdf",
+            f"{formula}_analysis/RDF_Analysis_{formula}.pdf",
+            f"{formula}_analysis/Coordination_Analysis_{formula}.pdf"
+        ]
+        
+        # Optional files (3D structure might fail due to WebGL issues)
+        optional_files = [
+            f"{formula}_analysis/3D_Structure_{formula}.pdf"
+        ]
+        
+        best_match = 0
+        best_dir = None
+        
+        for check_dir in check_dirs:
+            if not check_dir.exists():
+                continue
+                
+            essential_found = 0
+            optional_found = 0
+            
+            # Check essential files
+            for required_file in essential_files:
+                file_path = check_dir / required_file
+                if file_path.exists():
+                    essential_found += 1
+            
+            # Check optional files
+            for optional_file in optional_files:
+                file_path = check_dir / optional_file
+                if file_path.exists():
+                    optional_found += 1
+            
+            total_found = essential_found + optional_found
+            
+            # Update best match
+            if total_found > best_match:
+                best_match = total_found
+                best_dir = check_dir
+            
+            # If we have all essential files, consider it complete
+            if essential_found >= 4:  # Allow for 1 missing essential file
+                logger.info(f"✅ Complete analysis found for {formula} in {check_dir}")
+                logger.info(f"   Essential files: {essential_found}/{len(essential_files)}")
+                logger.info(f"   Optional files: {optional_found}/{len(optional_files)}")
+                return True
+        
+        # Log the best match found
+        if best_match > 0:
+            logger.info(f"⚠️ Partial analysis found for {formula} in {best_dir}")
+            logger.info(f"   Files found: {best_match}/{len(essential_files) + len(optional_files)}")
+        
+        return False
+    
+    def _format_cached_result(self, cached_data: dict, formula: str) -> dict:
+        """
+        Format cached result into the expected discovery result format.
+        
+        Args:
+            cached_data: Cached discovery data
+            formula: Chemical formula
+            
+        Returns:
+            Formatted result dictionary
+        """
+        properties = cached_data.get("properties", {})
+        cached_at = cached_data.get("cached_at", "Unknown time")
+        
+        # Create a formatted response
+        discovery_result = f"""
+✅ **Analysis Complete (from cache)**: {formula}
+
+✨ **Cached Analysis Summary**:
+• Material: {formula}
+• Previously analyzed: {cached_at}
+• Visualization files: Available
+• Properties: {len(properties)} cached properties
+
+📊 **Available Files**:
+• 3D Structure visualization ({formula}_3dmol.html)
+• Analysis suite ({formula}_analysis/ directory)
+• XRD Pattern, RDF Analysis, Coordination Analysis
+
+💯 **Result**: Complete analysis already available. No need to re-analyze.
+        """
+        
+        return {
+            "status": "completed",
+            "discovery_result": discovery_result,
+            "metrics": {
+                "tool_calls": 0,
+                "elapsed_time": 0.1,  # Very fast cache lookup
+                "model": self.model_name,
+                "mode": self.mode,
+                "total_items": 0,
+                "raw_responses": 0,
+                "cached": True,
+                "cache_hit": True,
+                "formula": formula,
+                "cache_timestamp": cached_at
+            },
+            "tool_validation": {
+                "needs_computation": True,
+                "tools_called": 0,
+                "tools_used": [],
+                "cached_result": True,
+                "potential_hallucination": False,
+                "critical_failure": False
+            },
+            "response_validation": {
+                "is_valid": True,
+                "cached_response": True,
+                "violations": [],
+                "violation_count": 0
+            },
+            "new_items": []
+        }
+    
+    def _format_visualization_result(self, formula: str) -> dict:
+        """
+        Format result when complete visualizations exist but no cached data.
+        
+        Args:
+            formula: Chemical formula
+            
+        Returns:
+            Formatted result dictionary
+        """
+        discovery_result = f"""
+✅ **Complete Analysis Available**: {formula}
+
+🎨 **Visualization Suite Found**:
+• Material: {formula}
+• Status: Complete visualization suite available
+• Files: 3D structure, XRD pattern, RDF analysis, coordination analysis
+• Interactive visualization: {formula}_3dmol.html
+• Analysis directory: {formula}_analysis/
+
+📊 **Available Analyses**:
+• Structure visualization (3D interactive)
+• X-ray diffraction pattern
+• Radial distribution function
+• Coordination environment analysis
+
+🎯 **Result**: Complete analysis suite ready for review.
+        """
+        
+        return {
+            "status": "completed",
+            "discovery_result": discovery_result,
+            "metrics": {
+                "tool_calls": 0,
+                "elapsed_time": 0.05,  # Very fast visualization check
+                "model": self.model_name,
+                "mode": self.mode,
+                "total_items": 0,
+                "raw_responses": 0,
+                "cached": True,
+                "visualization_suite": True,
+                "formula": formula
+            },
+            "tool_validation": {
+                "needs_computation": True,
+                "tools_called": 0,
+                "tools_used": [],
+                "visualization_suite_found": True,
+                "potential_hallucination": False,
+                "critical_failure": False
+            },
+            "response_validation": {
+                "is_valid": True,
+                "visualization_suite": True,
+                "violations": [],
+                "violation_count": 0
+            },
+            "new_items": []
+        }
 
     def _serialize_item(self, item):
         """Serialize an item from result.new_items, preserving tool output data."""

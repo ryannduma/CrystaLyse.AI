@@ -75,8 +75,9 @@ class ChatExit(Exception):
 
 # --- Main CLI Group ---
 
-@click.group(context_settings=dict(help_option_names=['-h', '--help']))
-def cli():
+@click.group(context_settings=dict(help_option_names=['-h', '--help']), invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
     """
     CrystaLyse.AI: A modern, intuitive CLI for computational materials discovery.
     
@@ -87,7 +88,10 @@ def cli():
     • Computational validation with live tools
     • SQLiteSession-like behavior for conversation management
     """
-    pass
+    if ctx.invoked_subcommand is None:
+        # No subcommand provided - launch unified interface
+        from crystalyse.unified_cli import main as unified_main
+        unified_main()
 
 # --- New Command ---
 

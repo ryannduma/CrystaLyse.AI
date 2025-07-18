@@ -3,10 +3,18 @@
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Import browser session manager
+try:
+    from .browser_pool import batch_save_figures, optimize_pymatviz_performance
+    BROWSER_POOL_AVAILABLE = True
+except ImportError:
+    BROWSER_POOL_AVAILABLE = False
+    logger.warning("Browser session manager not available - using individual sessions")
 
 def create_3dmol_visualization(
     cif_content: str,
@@ -29,6 +37,22 @@ def create_3dmol_visualization(
         JSON string with visualization details
     """
     try:
+        # Check if visualization already exists
+        output_path = Path(output_dir) / f"{formula}_3dmol.html"
+        if output_path.exists():
+            result = {
+                "type": "3dmol_visualization",
+                "status": "success",
+                "output_path": str(output_path),
+                "formula": formula,
+                "visualization_type": "interactive_html",
+                "sharing": "easy",
+                "description": f"Fast 3Dmol.js visualization for {formula} (cached)",
+                "cached": True
+            }
+            logger.info(f"✅ 3Dmol.js visualization found (cached): {output_path}")
+            return json.dumps(result)
+        
         # Fix import path to avoid circular imports
         current_dir = Path(__file__).parent
         crystalyse_root = current_dir.parent.parent.parent / "crystalyse"
@@ -39,7 +63,6 @@ def create_3dmol_visualization(
         from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
         
         visualizer = UniversalCIFVisualizer(color_scheme=color_scheme)
-        output_path = Path(output_dir) / f"{formula}_3dmol.html"
         
         # Create HTML visualization
         cif_data = visualizer.parse_cif_data(cif_content)
@@ -55,7 +78,8 @@ def create_3dmol_visualization(
             "formula": formula,
             "visualization_type": "interactive_html",
             "sharing": "easy",
-            "description": f"Fast 3Dmol.js visualization for {formula}"
+            "description": f"Fast 3Dmol.js visualization for {formula}",
+            "cached": False
         }
         
         logger.info(f"✅ 3Dmol.js visualization created: {output_path}")
@@ -92,6 +116,43 @@ def create_pymatviz_analysis_suite(
         JSON string with analysis details
     """
     try:
+        # Check if analysis suite already exists
+        analysis_dir = Path(output_dir) / f"{formula}_analysis"
+        required_files = [
+            analysis_dir / f"{formula}.cif",
+            analysis_dir / f"XRD_Pattern_{formula}.pdf",
+            analysis_dir / f"RDF_Analysis_{formula}.pdf",
+            analysis_dir / f"Coordination_Analysis_{formula}.pdf"
+        ]
+        
+        if analysis_dir.exists() and all(f.exists() for f in required_files):
+            # Return cached result
+            existing_files = [str(f) for f in required_files if f.exists()]
+            # Also check for optional 3D structure file
+            struct_3d_path = analysis_dir / f"3D_Structure_{formula}.pdf"
+            if struct_3d_path.exists():
+                existing_files.append(str(struct_3d_path))
+            
+            result = {
+                "type": "pymatviz_analysis_suite",
+                "status": "success",
+                "analysis_dir": str(analysis_dir),
+                "analysis_files": existing_files,
+                "formula": formula,
+                "visualization_type": "comprehensive_analysis",
+                "sharing": "professional",
+                "description": f"Comprehensive materials analysis suite for {formula} (cached)",
+                "cached": True,
+                "component_results": {
+                    "xrd_pattern": "cached",
+                    "rdf_analysis": "cached",
+                    "coordination_analysis": "cached",
+                    "3d_structure": "cached" if struct_3d_path.exists() else "not_available"
+                }
+            }
+            logger.info(f"✅ pymatviz analysis suite found (cached): {analysis_dir}")
+            return json.dumps(result)
+        
         import pymatviz as pmv
         from pymatviz.enums import ElemColorScheme
         from pymatgen.core import Structure
@@ -99,13 +160,16 @@ def create_pymatviz_analysis_suite(
 
         # Parse structure
         structure = Structure.from_str(cif_content, fmt="cif")
-        analysis_dir = Path(output_dir) / f"{formula}_analysis"
         analysis_dir.mkdir(exist_ok=True)
 
-        # Save the CIF file
+        # Save the CIF file (only if it doesn't exist)
         cif_path = analysis_dir / f"{formula}.cif"
-        with open(cif_path, "w") as f:
-            f.write(cif_content)
+        if not cif_path.exists():
+            with open(cif_path, "w") as f:
+                f.write(cif_content)
+            logger.info(f"CIF file created: {cif_path}")
+        else:
+            logger.info(f"CIF file already exists: {cif_path}")
 
         # Select color scheme
         if color_scheme == "vesta":
@@ -121,75 +185,181 @@ def create_pymatviz_analysis_suite(
         # Configure headless environment for better WebGL compatibility
         os.environ.setdefault("DISPLAY", ":99")
         
-        # Set kaleido to use headless mode with WebGL disabled
-        try:
-            import kaleido
-            # Configure kaleido for headless rendering
-            if hasattr(kaleido, 'config') and hasattr(kaleido.config, 'scope'):
-                kaleido.config.scope.chromium.disable_features = [
-                    "VizDisplayCompositor",
-                    "UseOzonePlatform",
-                    "WebGL",
-                    "WebGL2"
-                ]
-        except (ImportError, AttributeError):
+        # Apply browser session optimizations
+        if BROWSER_POOL_AVAILABLE:
+            # Browser session manager will handle optimization
             pass
+        else:
+            # Fallback kaleido configuration
+            try:
+                import kaleido
+                if hasattr(kaleido, 'config') and hasattr(kaleido.config, 'scope'):
+                    kaleido.config.scope.chromium.disable_features = [
+                        "VizDisplayCompositor",
+                        "UseOzonePlatform",
+                        "WebGL",
+                        "WebGL2"
+                    ]
+                    kaleido.config.scope.chromium.timeout = 30
+            except (ImportError, AttributeError):
+                pass
 
-        # Create analysis suite
+        # Create analysis suite with optimized browser session management
         analysis_files = [str(cif_path)]
         visualization_results = {}
+        
+        # Define all potential visualization files
+        struct_3d_path = analysis_dir / f"3D_Structure_{formula}.pdf"
+        xrd_path = analysis_dir / f"XRD_Pattern_{formula}.pdf"
+        rdf_path = analysis_dir / f"RDF_Analysis_{formula}.pdf"
+        coord_path = analysis_dir / f"Coordination_Analysis_{formula}.pdf"
+        
+        # Check if ALL visualizations already exist (smart detection)
+        all_viz_files = [struct_3d_path, xrd_path, rdf_path, coord_path]
+        all_exist = all(f.exists() for f in all_viz_files)
+        
+        if all_exist:
+            logger.info(f"✅ All visualizations already exist for {formula}, returning cached results")
+            return json.dumps({
+                "type": "pymatviz_analysis_suite",
+                "status": "success",
+                "analysis_dir": str(analysis_dir),
+                "analysis_files": [str(cif_path)] + [str(f) for f in all_viz_files],
+                "formula": formula,
+                "visualization_type": "comprehensive_analysis",
+                "sharing": "professional",
+                "description": f"Comprehensive materials analysis suite for {formula} (all cached)",
+                "cached": True,
+                "component_results": {
+                    "xrd_pattern": "cached",
+                    "rdf_analysis": "cached",
+                    "coordination_analysis": "cached",
+                    "3d_structure": "cached"
+                }
+            })
+        
+        # Apply performance optimizations
+        if BROWSER_POOL_AVAILABLE:
+            optimize_pymatviz_performance()
+        
+        # Create all figures in memory first (batch preparation)
+        logger.info(f"🎨 Creating visualizations for {formula} using optimized browser session")
+        figures_to_save = []
+        
+        # Check which visualizations need to be created
+        pending_visualizations = []
+        for viz_path in all_viz_files:
+            if not viz_path.exists():
+                viz_type = viz_path.stem.split('_')[0].lower()
+                pending_visualizations.append((viz_type, viz_path))
+        
+        logger.info(f"Creating {len(pending_visualizations)} new visualizations for {formula}")
 
-        # 3D structure visualization (skip if WebGL fails)
-        try:
-            struct_3d_fig = pmv.structure_3d_plotly(
-                structure, 
-                elem_colors=elem_colors,
-                show_bonds=True
-            )
-            struct_3d_fig.update_layout(title=dict(text=f"3D Structure: {formula}", x=0.5))
-            struct_3d_path = analysis_dir / f"3D_Structure_{formula}.pdf"
-            pmv.save_fig(struct_3d_fig, str(struct_3d_path))
-            analysis_files.append(str(struct_3d_path))
-            visualization_results["3d_structure"] = "success"
-        except Exception as e:
-            logger.warning(f"3D structure visualization failed: {e}")
-            visualization_results["3d_structure"] = f"failed: {e}"
-
-        # XRD Pattern
-        try:
-            xrd_fig = pmv.xrd_pattern(structure, annotate_peaks=5)
-            xrd_fig.update_layout(title=dict(text=f"XRD Pattern: {formula}", x=0.5))
-            xrd_path = analysis_dir / f"XRD_Pattern_{formula}.pdf"
-            pmv.save_fig(xrd_fig, str(xrd_path))
-            analysis_files.append(str(xrd_path))
-            visualization_results["xrd_pattern"] = "success"
-        except Exception as e:
-            logger.warning(f"XRD generation failed: {e}")
-            visualization_results["xrd_pattern"] = f"failed: {e}"
-
-        # Radial Distribution Function
-        try:
-            rdf_fig = pmv.element_pair_rdfs(structure)
-            rdf_fig.update_layout(title=dict(text=f"RDF Analysis: {formula}", x=0.5))
-            rdf_path = analysis_dir / f"RDF_Analysis_{formula}.pdf"
-            pmv.save_fig(rdf_fig, str(rdf_path))
-            analysis_files.append(str(rdf_path))
-            visualization_results["rdf_analysis"] = "success"
-        except Exception as e:
-            logger.warning(f"RDF generation failed: {e}")
-            visualization_results["rdf_analysis"] = f"failed: {e}"
-
-        # Coordination Environment
-        try:
-            coord_fig = pmv.coordination_hist(structure)
-            coord_fig.update_layout(title=dict(text=f"Coordination Analysis: {formula}", x=0.5))
-            coord_path = analysis_dir / f"Coordination_Analysis_{formula}.pdf"
-            pmv.save_fig(coord_fig, str(coord_path))
-            analysis_files.append(str(coord_path))
-            visualization_results["coordination_analysis"] = "success"
-        except Exception as e:
-            logger.warning(f"Coordination analysis failed: {e}")
-            visualization_results["coordination_analysis"] = f"failed: {e}"
+        # Create all figures in memory first (Phase 1: Figure Generation)
+        logger.info("📊 Phase 1: Creating figures in memory...")
+        
+        # Create figures for pending visualizations
+        for viz_type, viz_path in pending_visualizations:
+            try:
+                figure = None
+                viz_name = viz_path.stem.split('_', 1)[0].lower()
+                
+                if viz_name == '3d':
+                    figure = pmv.structure_3d_plotly(
+                        structure, 
+                        elem_colors=elem_colors,
+                        show_bonds=True
+                    )
+                    figure.update_layout(title=dict(text=f"3D Structure: {formula}", x=0.5))
+                    visualization_results["3d_structure"] = "prepared"
+                    
+                elif viz_name == 'xrd':
+                    figure = pmv.xrd_pattern(structure, annotate_peaks=5)
+                    figure.update_layout(title=dict(text=f"XRD Pattern: {formula}", x=0.5))
+                    visualization_results["xrd_pattern"] = "prepared"
+                    
+                elif viz_name == 'rdf':
+                    figure = pmv.element_pair_rdfs(structure)
+                    figure.update_layout(title=dict(text=f"RDF Analysis: {formula}", x=0.5))
+                    visualization_results["rdf_analysis"] = "prepared"
+                    
+                elif viz_name == 'coordination':
+                    figure = pmv.coordination_hist(structure)
+                    figure.update_layout(title=dict(text=f"Coordination Analysis: {formula}", x=0.5))
+                    visualization_results["coordination_analysis"] = "prepared"
+                
+                if figure is not None:
+                    figures_to_save.append((figure, str(viz_path)))
+                    logger.info(f"  ✅ {viz_name.upper()} figure prepared")
+                    
+            except Exception as e:
+                logger.warning(f"❌ Failed to create {viz_type} figure: {e}")
+                viz_key = viz_type.replace('_structure', '_structure').replace('_pattern', '_pattern').replace('_analysis', '_analysis')
+                if viz_key not in visualization_results:
+                    visualization_results[viz_key] = f"failed: {e}"
+        
+        # Phase 2: Batch Save All Figures Using Single Browser Session
+        if figures_to_save:
+            logger.info(f"🚀 Phase 2: Saving {len(figures_to_save)} figures using single browser session...")
+            
+            if BROWSER_POOL_AVAILABLE:
+                # Use optimized browser session manager
+                save_results = batch_save_figures(figures_to_save)
+                
+                # Update results based on save outcomes
+                for viz_path, result in save_results.items():
+                    viz_name = Path(viz_path).stem.split('_', 1)[0].lower()
+                    
+                    if viz_name == '3d':
+                        visualization_results["3d_structure"] = "success" if result == "success" else result
+                    elif viz_name == 'xrd':
+                        visualization_results["xrd_pattern"] = "success" if result == "success" else result
+                    elif viz_name == 'rdf':
+                        visualization_results["rdf_analysis"] = "success" if result == "success" else result
+                    elif viz_name == 'coordination':
+                        visualization_results["coordination_analysis"] = "success" if result == "success" else result
+                    
+                    if result == "success":
+                        analysis_files.append(viz_path)
+                        
+                logger.info(f"✅ Batch save completed with single browser session")
+                
+            else:
+                # Fallback to individual saves (less efficient)
+                logger.warning("Browser session manager not available, using individual saves")
+                
+                for figure, viz_path in figures_to_save:
+                    try:
+                        pmv.save_fig(figure, viz_path)
+                        analysis_files.append(viz_path)
+                        
+                        viz_name = Path(viz_path).stem.split('_', 1)[0].lower()
+                        if viz_name == '3d':
+                            visualization_results["3d_structure"] = "success"
+                        elif viz_name == 'xrd':
+                            visualization_results["xrd_pattern"] = "success"
+                        elif viz_name == 'rdf':
+                            visualization_results["rdf_analysis"] = "success"
+                        elif viz_name == 'coordination':
+                            visualization_results["coordination_analysis"] = "success"
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to save {viz_path}: {e}")
+        
+        # Add cached results for files that already existed
+        for viz_path in all_viz_files:
+            if viz_path.exists() and str(viz_path) not in analysis_files:
+                analysis_files.append(str(viz_path))
+                
+                viz_name = viz_path.stem.split('_', 1)[0].lower()
+                if viz_name == '3d':
+                    visualization_results["3d_structure"] = "cached"
+                elif viz_name == 'xrd':
+                    visualization_results["xrd_pattern"] = "cached"
+                elif viz_name == 'rdf':
+                    visualization_results["rdf_analysis"] = "cached"
+                elif viz_name == 'coordination':
+                    visualization_results["coordination_analysis"] = "cached"
 
         result = {
             "type": "pymatviz_analysis_suite",
@@ -200,7 +370,8 @@ def create_pymatviz_analysis_suite(
             "visualization_type": "comprehensive_analysis",
             "sharing": "professional",
             "description": f"Comprehensive materials analysis suite for {formula}",
-            "component_results": visualization_results
+            "component_results": visualization_results,
+            "cached": False
         }
 
         logger.info(f"✅ pymatviz analysis suite created: {analysis_dir}")
