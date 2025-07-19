@@ -6,6 +6,8 @@
 
 CrystaLyse.AI is a computational materials design platform that accelerates materials exploration through AI-powered analysis and validation. Built on the OpenAI Agents framework with Model Context Protocol (MCP) integration, it provides a dual-mode system for rapid materials design workflows.
 
+> **💡 For AI Assistants & Copilots**: If you're using GitHub Copilot, Claude, ChatGPT, or other AI coding assistants, check out [`READMEFORLLMS.md`](READMEFORLLMS.md) - a comprehensive guide designed specifically for AI agents to quickly understand this project's capabilities, installation, and usage patterns. Simply copy-paste its contents into your AI assistant for instant project context!
+
 ## Key Features
 
 ### ✅ Dual-Mode Analysis System
@@ -101,7 +103,7 @@ graph TB
 graph LR
     subgraph "Entry Points"
         USER_QUERY[User Query]
-        MODE_SELECT{Mode Selection<br/>/mode creative|rigorous}
+        MODE_SELECT{Mode Selection<br/>/mode creative or rigorous}
     end
     
     subgraph "Creative Mode (~50s)"
