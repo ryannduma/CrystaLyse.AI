@@ -11,14 +11,10 @@ import os
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 
-# Add parent directories to path for importing existing tools
+# Import from local tools and converters
 current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent.parent
-# Add paths for all the old servers
-sys.path.insert(0, str(project_root / "oldmcpservers" / "smact-mcp-server" / "src"))
-sys.path.insert(0, str(project_root / "oldmcpservers" / "chemeleon-mcp-server" / "src"))
-sys.path.insert(0, str(project_root / "oldmcpservers" / "mace-mcp-server" / "src"))
-# Add path for the new converter
+# Add path for the converter
 sys.path.insert(0, str(project_root / "crystalyse"))
 
 # Configure logging
@@ -30,9 +26,9 @@ mcp = FastMCP("chemistry-unified")
 
 # --- Tool Imports ---
 
-# Import SMACT tools
+# Import chemistry tools from local package
 try:
-    from smact_mcp.tools import smact_validity
+    from crystalyse_ai.tools.smact import smact_validity
     SMACT_AVAILABLE = True
     logger.info("SMACT tools loaded successfully")
 except ImportError as e:
@@ -41,7 +37,7 @@ except ImportError as e:
 
 # Import Chemeleon tools
 try:
-    from chemeleon_mcp.tools import generate_crystal_csp
+    from crystalyse_ai.tools.chemeleon import generate_crystal_csp
     CHEMELEON_AVAILABLE = True
     logger.info("Chemeleon tools loaded successfully")
 except ImportError as e:
@@ -50,7 +46,7 @@ except ImportError as e:
 
 # Import MACE tools
 try:
-    from mace_mcp.tools import (
+    from crystalyse_ai.tools.mace import (
         calculate_formation_energy,
     )
     MACE_AVAILABLE = True
@@ -61,7 +57,7 @@ except ImportError as e:
 
 # Import the new converter tool
 try:
-    from converters import convert_cif_to_mace_input
+    from crystalyse_ai.converters import convert_cif_to_mace_input
     CONVERTER_AVAILABLE = True
     logger.info("CIF to MACE converter loaded successfully")
 except ImportError as e:
@@ -108,7 +104,7 @@ if CONVERTER_AVAILABLE:
 
 # Import the new supercell converter tool
 try:
-    from converters import create_supercell_cif
+    from crystalyse_ai.converters import create_supercell_cif
     SUPERCELL_CONVERTER_AVAILABLE = True
     logger.info("Supercell converter loaded successfully")
 except ImportError as e:
@@ -124,7 +120,7 @@ if SUPERCELL_CONVERTER_AVAILABLE:
 
 # Import and expose the new validation function
 try:
-    from converters import validate_cif_string
+    from crystalyse_ai.converters import validate_cif_string
     VALIDATOR_AVAILABLE = True
     logger.info("CIF validator loaded successfully")
 except ImportError as e:
@@ -153,7 +149,7 @@ def create_structure_visualization(
         output_dir = os.getcwd()
         
         # Import and use visualization tools
-        from visualization_mcp.tools import create_rigorous_visualization
+        from crystalyse_ai.tools.visualization import create_rigorous_visualization
         return create_rigorous_visualization(cif_content, formula, output_dir, title)
         
     except Exception as e:

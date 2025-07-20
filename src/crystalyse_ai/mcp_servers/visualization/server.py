@@ -18,5 +18,9 @@ mcp.tool()(create_creative_visualization)
 mcp.tool()(create_rigorous_visualization)
 mcp.tool()(create_mode_aligned_visualization)
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the crystalyse-visualization-server."""
     mcp.run()
+
+if __name__ == "__main__":
+    main()

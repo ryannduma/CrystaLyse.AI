@@ -45,7 +45,9 @@ try:
     
 except ImportError as e:
     # If that fails, provide placeholder implementations
-    print(f"⚠️  Warning: OpenAI agents SDK not available: {e}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"OpenAI agents SDK not available: {e}")
     
     # Provide minimal placeholder implementations to prevent crashes
     class Agent:
@@ -446,6 +448,14 @@ class CrystaLyse:
                     logger.info(f"✅ Using persistent MCP connection to {chemistry_server_name}")
                 else:
                     logger.warning(f"⚠️ No persistent connection available for {chemistry_server_name}, falling back to traditional setup")
+                
+                # Also get visualization server connection
+                viz_connection = await self.session.connection_pool.get_connection("visualization")
+                if viz_connection:
+                    mcp_servers.append(viz_connection)
+                    logger.info("✅ Using persistent MCP connection to visualization server")
+                else:
+                    logger.warning("⚠️ No persistent connection available for visualization server")
             
             # Fallback to traditional setup if needed
             if not mcp_servers:
@@ -575,6 +585,27 @@ class CrystaLyse:
                     
                     if chemistry_server:
                         mcp_servers.append(chemistry_server)
+                
+                # Always add visualization server (for both creative and rigorous modes)
+                try:
+                    viz_config = self.system_config.get_server_config("visualization")
+                    viz_server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name="Visualization",
+                            params={
+                                "command": viz_config["command"],
+                                "args": viz_config["args"],
+                                "cwd": viz_config["cwd"],
+                                "env": viz_config.get("env", {})
+                            },
+                            client_session_timeout_seconds=300
+                        )
+                    )
+                    mcp_servers.append(viz_server)
+                    logger.info("✅ Successfully connected to visualization server")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to connect to visualization server: {e}")
+                    # Continue without visualization - not critical for core functionality
                 
                 return mcp_servers
                 

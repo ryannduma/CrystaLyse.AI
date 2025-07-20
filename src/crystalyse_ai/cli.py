@@ -23,15 +23,15 @@ from rich.status import Status
 from rich.prompt import Prompt
 
 # Enhanced UI Components - Red theme as default
-from crystalyse.ui.themes import ThemeManager, ThemeType
-from crystalyse.ui.components import (
+from crystalyse_ai.ui.themes import ThemeManager, ThemeType
+from crystalyse_ai.ui.components import (
     CrystaLyseHeader, 
     StatusBar, 
     ChatDisplay, 
     MaterialDisplay,
     ProgressIndicator
 )
-from crystalyse.ui.gradients import create_gradient_text, GradientStyle
+from crystalyse_ai.ui.gradients import create_gradient_text, GradientStyle
 
 # Configure logging with a cleaner format first
 logging.basicConfig(
@@ -45,12 +45,12 @@ logger = logging.getLogger(__name__)
 theme_manager = ThemeManager(ThemeType.CRYSTALYSE_RED)
 enhanced_console = Console(theme=theme_manager.current_theme.rich_theme)
 
-from crystalyse.config import config
-from crystalyse.memory import CrystaLyseMemory
+from crystalyse_ai.config import config
+from crystalyse_ai.memory import CrystaLyseMemory
 
 # Import session-based system
 try:
-    from crystalyse.agents.session_based_agent import (
+    from crystalyse_ai.agents.session_based_agent import (
         CrystaLyseSession, 
         CrystaLyseSessionManager,
         get_session_manager
@@ -62,7 +62,7 @@ except ImportError as e:
 
 # Import legacy agent functionality
 try:
-    from crystalyse.agents.crystalyse_agent import analyse_materials, CrystaLyse
+    from crystalyse_ai.agents.crystalyse_agent import analyse_materials, CrystaLyse
     LEGACY_AGENT_AVAILABLE = True
 except ImportError as e:
     LEGACY_AGENT_AVAILABLE = False
@@ -90,7 +90,7 @@ def cli(ctx):
     """
     if ctx.invoked_subcommand is None:
         # No subcommand provided - launch unified interface
-        from crystalyse.unified_cli import main as unified_main
+        from crystalyse_ai.unified_cli import main as unified_main
         unified_main()
 
 # --- New Command ---
@@ -672,6 +672,76 @@ config_cli.add_command(show_config)
 config_cli.add_command(config_path)
 cli.add_command(config_cli)
 
+# --- Check Command ---
+
+@click.command()
+@click.option('--install', is_flag=True, help='Install missing dependencies automatically')
+@click.option('--details', is_flag=True, help='Show detailed dependency information')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def check(install: bool, details: bool, verbose: bool):
+    """
+    Check all dependencies and optionally install missing components.
+    
+    This command verifies:
+    • Python package dependencies (torch, mace-torch, smact, etc.)
+    • Chemeleon installation (auto-installs from GitHub if missing)
+    • Model checkpoints (downloads if needed)
+    • MCP server availability
+    
+    Use --install to automatically fix any issues found.
+    """
+    from crystalyse_ai.tools.dependency_checker import check_dependencies
+    
+    try:
+        check_dependencies(
+            install_missing=install,
+            verbose=verbose,
+            show_details=details
+        )
+    except Exception as e:
+        console = Console()
+        console.print(Panel(
+            f"[bold red]❌ Dependency check failed[/bold red]\n\n{str(e)}",
+            title="Check Failed",
+            border_style="red"
+        ))
+
+# --- Check Command ---
+
+@click.command()
+@click.option('--install', is_flag=True, help='Install missing dependencies automatically')
+@click.option('--verbose', '-v', is_flag=True, help='Show verbose output')
+@click.option('--details', is_flag=True, help='Show detailed dependency information')
+def check(install: bool, verbose: bool, details: bool):
+    """Check all dependencies and optionally install missing components."""
+    try:
+        from crystalyse_ai.tools.dependency_checker import check_dependencies
+        
+        results = check_dependencies(
+            install_missing=install, 
+            verbose=verbose, 
+            show_details=details
+        )
+        
+        # Exit with appropriate code
+        if results["overall"]["status"] == "ready":
+            sys.exit(0)
+        else:
+            sys.exit(1)
+            
+    except ImportError as e:
+        console = Console()
+        console.print(Panel(
+            f"[bold red]❌ Dependency checker not available[/bold red]\n\n"
+            f"Error: {e}\n\n"
+            f"This usually indicates a packaging issue.",
+            title="Check Command Unavailable",
+            border_style="red"
+        ))
+        sys.exit(1)
+
+cli.add_command(check)
+
 # --- Examples Command ---
 
 @click.command()
@@ -711,7 +781,12 @@ def examples():
         "   • Day 2: crystalyse resume project_2024 -u researcher\n"
         "   • All conversation history and discoveries preserved\n"
         "   • Memory system caches computational results\n"
-        "   • Context continuity across sessions\n",
+        "   • Context continuity across sessions\n\n"
+        "[cyan]4. First-Time Setup:[/cyan]\n"
+        "   • crystalyse check --install --details\n"
+        "   • Verifies all dependencies and downloads Chemeleon\n"
+        "   • Downloads model checkpoints (~500MB)\n"
+        "   • Ready to use chemistry tools\n",
         title="Session-Based Workflow Examples",
         border_style="green"
     ))
@@ -781,7 +856,7 @@ def legacy_chat(user_id: str, mode: str, verbose: bool):
         return
     
     # Initialize agent and run chat loop in single async context
-    from crystalyse.agents.crystalyse_agent import AgentConfig
+    from crystalyse_ai.agents.crystalyse_agent import AgentConfig
     agent_config = AgentConfig(mode=mode, enable_memory=True)
     console.print("[dim]Initializing CrystaLyse agent...[/dim]")
     
@@ -1100,7 +1175,7 @@ def _display_error(console: Console, error_message: str, verbose: bool, stderr_c
 if LEGACY_AGENT_AVAILABLE:
     async def _run_chat_session(agent_config, user_id: str, memory: CrystaLyseMemory, console: Console, verbose: bool):
         """Run the entire chat session in a single async context to maintain MCP connections."""
-        from crystalyse.agents.crystalyse_agent import CrystaLyse
+        from crystalyse_ai.agents.crystalyse_agent import CrystaLyse
         
         # Initialize agent once for the entire session
         agent = CrystaLyse(agent_config=agent_config, user_id=user_id)

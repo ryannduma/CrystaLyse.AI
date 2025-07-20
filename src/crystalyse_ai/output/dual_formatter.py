@@ -387,7 +387,7 @@ class DualOutputFormatter:
         """
         if mode == "creative":
             # Use creative formatter for creative mode
-            from crystalyse.output.creative_formatter import CreativeFormatter
+            from crystalyse_ai.output.creative_formatter import CreativeFormatter
             creative_formatter = CreativeFormatter()
             return creative_formatter.extract_cif_files_creative(result, output_dir)
         else:

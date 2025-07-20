@@ -15,17 +15,17 @@ class CrystaLyseConfig:
     def load_from_env(self):
         """Load configuration from environment variables with sensible defaults"""
         
-        # MCP Server Configurations
+        # MCP Server Configurations - Use built-in servers included in package
         self.mcp_servers = {
             "chemistry_unified": {
-                "command": os.getenv("CHEMISTRY_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMISTRY_MCP_ARGS", "-m chemistry_unified.server").split(),
-                "cwd": os.getenv("CHEMISTRY_MCP_PATH", str(self.base_dir / "chemistry-unified-server" / "src"))
+                "command": os.getenv("CHEMISTRY_MCP_COMMAND", "crystalyse-unified-server"),
+                "args": os.getenv("CHEMISTRY_MCP_ARGS", "").split() if os.getenv("CHEMISTRY_MCP_ARGS") else [],
+                "cwd": os.getenv("CHEMISTRY_MCP_PATH", os.getcwd())
             },
             "chemistry_creative": {
-                "command": os.getenv("CHEMISTRY_CREATIVE_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMISTRY_CREATIVE_MCP_ARGS", "-m chemistry_creative.server").split(),
-                "cwd": os.getenv("CHEMISTRY_CREATIVE_MCP_PATH", str(self.base_dir / "chemistry-creative-server" / "src"))
+                "command": os.getenv("CHEMISTRY_CREATIVE_MCP_COMMAND", "crystalyse-creative-server"),
+                "args": os.getenv("CHEMISTRY_CREATIVE_MCP_ARGS", "").split() if os.getenv("CHEMISTRY_CREATIVE_MCP_ARGS") else [],
+                "cwd": os.getenv("CHEMISTRY_CREATIVE_MCP_PATH", os.getcwd())
             },
             # Keep individual servers as fallback options
             "smact": {
@@ -44,9 +44,9 @@ class CrystaLyseConfig:
                 "cwd": os.getenv("MACE_MCP_PATH", str(self.base_dir / "mace-mcp-server" / "src"))
             },
             "visualization": {
-                "command": os.getenv("VISUALIZATION_MCP_COMMAND", "python"),
-                "args": os.getenv("VISUALIZATION_MCP_ARGS", "-m visualization_mcp.server").split(),
-                "cwd": os.getenv("VISUALIZATION_MCP_PATH", str(self.base_dir / "visualization-mcp-server" / "src"))
+                "command": os.getenv("VISUALIZATION_MCP_COMMAND", "crystalyse-visualization-server"),
+                "args": os.getenv("VISUALIZATION_MCP_ARGS", "").split() if os.getenv("VISUALIZATION_MCP_ARGS") else [],
+                "cwd": os.getenv("VISUALIZATION_MCP_PATH", os.getcwd())
             }
         }
         
@@ -70,10 +70,15 @@ class CrystaLyseConfig:
             
         config = self.mcp_servers[server_name].copy()
         
-        # Ensure the working directory exists
-        cwd_path = Path(config["cwd"])
-        if not cwd_path.exists():
-            raise FileNotFoundError(f"MCP server directory not found: {cwd_path}")
+        # For built-in servers (crystalyse-*), check if command is available
+        if config["command"].startswith("crystalyse-"):
+            if not shutil.which(config["command"]):
+                raise FileNotFoundError(f"MCP server command not found: {config['command']}. Please ensure crystalyse-ai is properly installed.")
+        else:
+            # For legacy servers, ensure the working directory exists
+            cwd_path = Path(config["cwd"])
+            if not cwd_path.exists():
+                raise FileNotFoundError(f"MCP server directory not found: {cwd_path}")
             
         # Add environment variables
         config["env"] = os.environ.copy()

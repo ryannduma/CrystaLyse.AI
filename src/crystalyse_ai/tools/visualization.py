@@ -14,7 +14,7 @@ try:
     BROWSER_POOL_AVAILABLE = True
 except ImportError:
     BROWSER_POOL_AVAILABLE = False
-    logger.warning("Browser session manager not available - using individual sessions")
+    logger.debug("Browser session manager not available - using individual sessions")
 
 def create_3dmol_visualization(
     cif_content: str,
@@ -60,7 +60,7 @@ def create_3dmol_visualization(
             sys.path.insert(0, str(crystalyse_root))
         
         # Import existing visualizer
-        from crystalyse_ai.output.universal_cif_visualizer import UniversalCIFVisualizer
+        from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
         
         visualizer = UniversalCIFVisualizer(color_scheme=color_scheme)
         

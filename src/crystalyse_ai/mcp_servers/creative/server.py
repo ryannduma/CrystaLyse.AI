@@ -12,11 +12,9 @@ from ase.io import write as ase_write
 from ase import Atoms
 import numpy as np
 
-# Add parent directories to path for importing existing tools
+# Import from local tools
 current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent.parent
-sys.path.insert(0, str(project_root / "oldmcpservers" / "chemeleon-mcp-server" / "src"))
-sys.path.insert(0, str(project_root / "oldmcpservers" / "mace-mcp-server" / "src"))
 sys.path.insert(0, str(project_root / "crystalyse"))
 
 
@@ -24,7 +22,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
 try:
-    from converters import convert_cif_to_mace_input
+    from crystalyse_ai.converters import convert_cif_to_mace_input
     CONVERTER_AVAILABLE = True
     logger.info("CIF to MACE converter loaded successfully")
 except ImportError as e:
@@ -34,9 +32,9 @@ except ImportError as e:
 # Initialise creative server
 mcp = FastMCP("chemistry-creative")
 
-# Import Chemeleon and MACE tools only (no SMACT for creative mode)
+# Import chemistry tools from local package
 try:
-    from chemeleon_mcp.tools import generate_crystal_csp, analyse_structure
+    from crystalyse_ai.tools.chemeleon import generate_crystal_csp, analyse_structure
     CHEMELEON_AVAILABLE = True
     logger.info("Chemeleon tools loaded successfully")
 except ImportError as e:
@@ -44,7 +42,7 @@ except ImportError as e:
     CHEMELEON_AVAILABLE = False
 
 try:
-    from mace_mcp.tools import (
+    from crystalyse_ai.tools.mace import (
         calculate_formation_energy,
         relax_structure,
         extract_descriptors_robust,
@@ -345,7 +343,7 @@ async def creative_discovery_pipeline(
         
         # Import visualization tools
         try:
-            from visualization_mcp.tools import create_creative_visualization
+            from crystalyse_ai.tools.visualization import create_creative_visualization
             
             for comp, cif_data in results["most_stable_cifs"].items():
                 cif_content = cif_data["cif"]
@@ -450,7 +448,7 @@ def create_structure_visualization(
         working_dir = os.environ.get('PWD', os.getcwd())
         
         # Import and use visualization tools
-        from visualization_mcp.tools import create_creative_visualization
+        from crystalyse_ai.tools.visualization import create_creative_visualization
         return create_creative_visualization(cif_content, formula, working_dir, title)
         
     except Exception as e:
@@ -462,7 +460,11 @@ def create_structure_visualization(
 
 # ===== SERVER STARTUP =====
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the chemistry-creative-server."""
     logger.info("Starting Chemistry Creative MCP Server")
     logger.info(f"Available tools: Chemeleon={CHEMELEON_AVAILABLE}, MACE={MACE_AVAILABLE}")
     mcp.run()
+
+if __name__ == "__main__":
+    main()

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystalyse-ai"
-version = "1.0.0"
+version = "1.0.12"
 description = "CrystaLyse.AI - Autonomous AI agents for accelerated inorganic materials design through natural language interfaces"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -47,6 +47,15 @@ dependencies = [
     "rdkit>=2023.9.1",
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
+    
+    # AI-Powered Chemistry Tools
+    "smact>=2.7.0",
+    "torch>=2.0.0",
+    "mace-torch>=0.3.4",
+    "gitpython>=3.1.0",
+    
+    # Model Context Protocol
+    "fastmcp>=0.5.0",
     
     # Data Processing
     "numpy>=1.24.0",

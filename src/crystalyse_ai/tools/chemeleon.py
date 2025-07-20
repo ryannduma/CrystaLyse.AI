@@ -7,19 +7,27 @@ from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 import logging
 
-# Import Chemeleon modules
+# Import Chemeleon modules with automatic installation
 import torch
-from chemeleon_dng.diffusion.diffusion_module import DiffusionModule
-from chemeleon_dng.script_util import create_diffusion_module
-from chemeleon_dng.download_util import get_checkpoint_path
 import ase
 from ase.io import write as ase_write
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from .server import mcp
-
 logger = logging.getLogger(__name__)
+
+# Import Chemeleon with auto-installation
+try:
+    from .chemeleon_installer import import_chemeleon
+    DiffusionModule, create_diffusion_module, get_checkpoint_path = import_chemeleon()
+    CHEMELEON_AVAILABLE = True
+    logger.info("Chemeleon imported successfully")
+except ImportError as e:
+    logger.warning(f"Chemeleon not available: {e}")
+    DiffusionModule = None
+    create_diffusion_module = None
+    get_checkpoint_path = None
+    CHEMELEON_AVAILABLE = False
 
 # Global model cache
 _model_cache = {}
@@ -41,8 +49,84 @@ def _get_device(prefer_gpu: bool = False):
     
     return "cpu"
 
+def _ensure_checkpoints_in_correct_location():
+    """Ensure checkpoints are downloaded to the correct location."""
+    import tarfile
+    import requests
+    from tqdm import tqdm
+    
+    # Always use the same checkpoint directory in user's home
+    checkpoint_dir = Path.home() / ".crystalyse" / "checkpoints"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Expected checkpoint files
+    expected_files = [
+        "chemeleon_csp_alex_mp_20_v0.0.2.ckpt",
+        "chemeleon_dng_alex_mp_20_v0.0.2.ckpt",
+        "chemeleon_csp_mp_20_v0.0.2.ckpt",
+        "chemeleon_dng_mp_20_v0.0.2.ckpt"
+    ]
+    
+    # Check if all checkpoints exist
+    all_exist = all((checkpoint_dir / f).exists() for f in expected_files)
+    
+    if all_exist:
+        logger.info("Checkpoints already exist in correct location")
+        return checkpoint_dir
+    
+    # Download checkpoints directly to the correct location
+    logger.info(f"Downloading checkpoints to {checkpoint_dir}...")
+    
+    # Figshare URL from Chemeleon
+    FIGSHARE_URL = "https://figshare.com/ndownloader/files/54966305"
+    
+    try:
+        # Download tar.gz file
+        tar_file = checkpoint_dir / "checkpoints.tar.gz"
+        
+        response = requests.get(FIGSHARE_URL, stream=True)
+        response.raise_for_status()
+        
+        total_size = int(response.headers.get("content-length", 0))
+        
+        with open(tar_file, "wb") as f, tqdm(
+            desc="Downloading checkpoints",
+            total=total_size,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+        
+        # Extract directly to checkpoint directory
+        logger.info("Extracting checkpoints...")
+        with tarfile.open(tar_file, "r:gz") as tar:
+            # Extract files, handling the ckpts/ prefix in the archive
+            for member in tar.getmembers():
+                if member.name.startswith("ckpts/") and member.name.endswith(".ckpt"):
+                    # Remove the ckpts/ prefix when extracting
+                    member.name = os.path.basename(member.name)
+                    tar.extract(member, path=checkpoint_dir)
+        
+        # Clean up tar file
+        tar_file.unlink()
+        
+        logger.info(f"Checkpoints downloaded and extracted to {checkpoint_dir}")
+        
+    except Exception as e:
+        logger.error(f"Failed to download checkpoints: {e}")
+        raise
+    
+    return checkpoint_dir
+
 def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer_gpu: bool = False):
     """Load or retrieve cached Chemeleon model."""
+    if not CHEMELEON_AVAILABLE:
+        raise ImportError("Chemeleon is not available. Please check installation.")
+    
     cache_key = f"{task}_{checkpoint_path or 'default'}"
     
     if cache_key in _model_cache:
@@ -53,15 +137,27 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
     
     # Download checkpoint if needed
     if checkpoint_path is None:
-        # Use user-portable checkpoint directory
-        from pathlib import Path
-        checkpoint_dir = Path.home() / ".crystalyse" / "checkpoints"
-        default_paths = {
-            "csp": str(checkpoint_dir / "chemeleon_csp_alex_mp_20_v0.0.2.ckpt"),
-            "dng": str(checkpoint_dir / "chemeleon_dng_alex_mp_20_v0.0.2.ckpt"),
-            "guide": "."
+        # Ensure checkpoints are in the correct location
+        checkpoint_dir = _ensure_checkpoints_in_correct_location()
+        
+        # Map task to checkpoint file
+        checkpoint_map = {
+            "csp": "chemeleon_csp_alex_mp_20_v0.0.2.ckpt",
+            "dng": "chemeleon_dng_alex_mp_20_v0.0.2.ckpt"
         }
-        checkpoint_path = get_checkpoint_path(task=task, default_paths=default_paths)
+        
+        if task in checkpoint_map:
+            checkpoint_path = str(checkpoint_dir / checkpoint_map[task])
+            
+            # Verify the checkpoint exists
+            if not Path(checkpoint_path).exists():
+                raise FileNotFoundError(
+                    f"Checkpoint not found: {checkpoint_path}\n"
+                    f"Please run 'crystalyse check --install' to download checkpoints."
+                )
+        else:
+            # For guide or other tasks, use default
+            checkpoint_path = "."
     
     # Load model
     device = _get_device(prefer_gpu=prefer_gpu)
@@ -156,9 +252,6 @@ def _atoms_to_cif(atoms: ase.Atoms) -> str:
         os.unlink(f.name)
     return cif_content
 
-@mcp.tool(
-    description="Generate crystal structures from chemical formulas using Chemeleon CSP"
-)
 def generate_crystal_csp(
     formulas: Union[str, List[str]],
     num_samples: int = 1,
@@ -181,6 +274,13 @@ def generate_crystal_csp(
     Returns:
         JSON string with generated structures
     """
+    if not CHEMELEON_AVAILABLE:
+        return json.dumps({
+            "success": False,
+            "error": "Chemeleon is not available. It will be installed automatically on first use.",
+            "formulas": formulas if isinstance(formulas, list) else [formulas]
+        }, indent=2)
+    
     try:
         # Handle single formula
         if isinstance(formulas, str):
@@ -248,9 +348,6 @@ def generate_crystal_csp(
         }, indent=2)
 
 
-@mcp.tool(
-    description="Get information about available Chemeleon models and benchmarks"
-)
 def get_model_info() -> str:
     """
     Get information about available Chemeleon models and benchmarks.
@@ -258,6 +355,11 @@ def get_model_info() -> str:
     Returns:
         JSON string with model information
     """
+    if not CHEMELEON_AVAILABLE:
+        return json.dumps({
+            "error": "Chemeleon is not available. It will be installed automatically on first use."
+        }, indent=2)
+    
     try:
         info = {
             "available_tasks": ["csp"],
@@ -277,9 +379,6 @@ def get_model_info() -> str:
             "error": str(e)
         }, indent=2)
 
-@mcp.tool(
-    description="Analyse and validate generated crystal structures"
-)
 def analyse_structure(
     structure_dict: Dict[str, Any],
     calculate_symmetry: bool = True,
@@ -296,6 +395,7 @@ def analyse_structure(
     Returns:
         JSON string with analysis results
     """
+    # This function doesn't need Chemeleon, just pymatgen and ASE
     try:
         # Reconstruct ASE Atoms
         atoms = ase.Atoms(
@@ -346,9 +446,6 @@ def analyse_structure(
             "error": str(e)
         }, indent=2)
 
-@mcp.tool(
-    description="Clear cached Chemeleon models from memory"
-)
 def clear_model_cache() -> str:
     """
     Clear all cached models from memory.

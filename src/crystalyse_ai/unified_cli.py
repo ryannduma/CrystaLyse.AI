@@ -20,18 +20,18 @@ from rich.layout import Layout
 from rich.align import Align
 
 # Enhanced UI Components
-from crystalyse.ui.themes import ThemeManager, ThemeType
-from crystalyse.ui.components import (
+from crystalyse_ai.ui.themes import ThemeManager, ThemeType
+from crystalyse_ai.ui.components import (
     CrystaLyseHeader, 
     ChatDisplay, 
     MaterialDisplay,
     ProgressIndicator
 )
-from crystalyse.ui.gradients import create_gradient_text, GradientStyle
+from crystalyse_ai.ui.gradients import create_gradient_text, GradientStyle
 
 # Import session-based system
 try:
-    from crystalyse.agents.session_based_agent import (
+    from crystalyse_ai.agents.session_based_agent import (
         CrystaLyseSession, 
         CrystaLyseSessionManager,
         get_session_manager
@@ -42,7 +42,7 @@ except ImportError as e:
 
 # Import legacy agent functionality
 try:
-    from crystalyse.agents.crystalyse_agent import analyse_materials
+    from crystalyse_ai.agents.crystalyse_agent import analyse_materials
     LEGACY_AGENT_AVAILABLE = True
 except ImportError as e:
     LEGACY_AGENT_AVAILABLE = False
@@ -133,7 +133,7 @@ class UnifiedCrystaLyseInterface:
         """Show the clean text input interface."""
         # Create input panel content
         input_text = Text()
-        input_text.append("Type your materials discovery query or use commands:\n\n", style="dim")
+        input_text.append("Ready when you are, design something great. Or use commands:\n\n", style="dim")
         
         # Show available commands
         commands = [
@@ -141,6 +141,7 @@ class UnifiedCrystaLyseInterface:
             ("/mode rigorous", "Switch to rigorous mode"),
             ("/agent chat", "Switch to conversation mode"),
             ("/agent analyse", "Switch to one-shot analysis mode"),
+            ("/check --install", "Check/install dependencies"),
             ("/help", "Show help"),
             ("/exit", "Exit")
         ]
@@ -204,6 +205,25 @@ class UnifiedCrystaLyseInterface:
             self.show_interface()
             return True
         
+        elif cmd.startswith('/check'):
+            # Handle dependency check command
+            parts = cmd.split()
+            install_flag = '--install' in parts or '-i' in parts
+            details_flag = '--details' in parts or '-d' in parts
+            verbose_flag = '--verbose' in parts or '-v' in parts
+            
+            self.show_system_message("Checking dependencies...", "info")
+            try:
+                from crystalyse_ai.tools.dependency_checker import check_dependencies
+                check_dependencies(
+                    install_missing=install_flag,
+                    verbose=verbose_flag,
+                    show_details=details_flag
+                )
+            except Exception as e:
+                self.show_system_message(f"Dependency check failed: {str(e)}", "error")
+            return True
+        
         elif cmd.startswith('/'):
             self.show_system_message(f"Unknown command: {command}", "error")
             return True
@@ -234,6 +254,7 @@ class UnifiedCrystaLyseInterface:
             ("/mode rigorous", "Switch to rigorous mode"),
             ("/agent chat", "Switch to conversation mode"),
             ("/agent analyse", "Switch to one-shot analysis mode"),
+            ("/check [--install] [--details]", "Check dependencies"),
             ("/clear", "Clear screen"),
             ("/help", "Show this help"),
             ("/exit", "Exit interface")

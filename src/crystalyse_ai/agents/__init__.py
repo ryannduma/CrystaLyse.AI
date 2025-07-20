@@ -12,11 +12,17 @@ from .crystalyse_agent import (
     rigorous_analysis, 
     creative_analysis
 )
+from .session_based_agent import (
+    CrystaLyseSession,
+    CrystaLyseSessionManager
+)
 
 __all__ = [
     "CrystaLyse",
     "AgentConfig",
     "analyse_materials",
     "rigorous_analysis",
-    "creative_analysis"
+    "creative_analysis",
+    "CrystaLyseSession",
+    "CrystaLyseSessionManager"
 ]
