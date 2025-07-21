@@ -180,3 +180,6 @@ cython_debug/
 # Claude-specific files
 CLAUDE.md
 .claude/
+
+# Runtime output directory
+all-runtime-output/

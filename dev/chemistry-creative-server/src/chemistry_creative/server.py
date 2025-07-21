@@ -340,8 +340,9 @@ async def creative_discovery_pipeline(
     if results["most_stable_cifs"]:
         logger.info(f"Creating visualizations for {len(results['most_stable_cifs'])} compositions...")
         
-        # Get the working directory where the CLI was called from
-        working_dir = os.environ.get('PWD', os.getcwd())
+        # Use dedicated runtime output directory
+        project_root = Path(__file__).parent.parent.parent.parent
+        working_dir = str(project_root / "all-runtime-output")
         
         # Import visualization tools
         try:
@@ -445,9 +446,9 @@ def create_structure_visualization(
 ) -> str:
     """Create fast 3Dmol.js visualization for creative mode structures."""
     try:
-        # Use the directory where the CLI was called from, not the server directory
-        # This gets the actual working directory of the user
-        working_dir = os.environ.get('PWD', os.getcwd())
+        # Use dedicated runtime output directory
+        project_root = Path(__file__).parent.parent.parent.parent
+        working_dir = str(project_root / "all-runtime-output")
         
         # Import and use visualization tools
         from visualization_mcp.tools import create_creative_visualization

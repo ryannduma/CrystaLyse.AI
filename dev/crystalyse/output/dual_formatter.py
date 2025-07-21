@@ -31,13 +31,18 @@ class DualOutputFormatter:
       - report.md
     """
     
-    def __init__(self, base_output_dir: str = "query_results"):
+    def __init__(self, base_output_dir: str = None):
         """
         Initialise the dual output formatter.
         
         Args:
             base_output_dir: Base directory for all query results
         """
+        if base_output_dir is None:
+            # Use all-runtime-output directory in project root
+            current_file = Path(__file__)
+            project_root = current_file.parent.parent.parent.parent
+            base_output_dir = project_root / "all-runtime-output"
         self.base_output_dir = Path(base_output_dir)
         self.cif_visualizer = UniversalCIFVisualizer()
     

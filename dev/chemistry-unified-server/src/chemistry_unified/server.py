@@ -149,8 +149,9 @@ def create_structure_visualization(
 ) -> str:
     """Create comprehensive visualization for rigorous mode structures."""
     try:
-        # Use current working directory for output
-        output_dir = os.getcwd()
+        # Use dedicated runtime output directory
+        project_root = Path(__file__).parent.parent.parent.parent
+        output_dir = str(project_root / "all-runtime-output")
         
         # Import and use visualization tools
         from visualization_mcp.tools import create_rigorous_visualization
