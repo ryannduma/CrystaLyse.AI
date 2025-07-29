@@ -55,7 +55,7 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
     if checkpoint_path is None:
         # Use user-portable checkpoint directory
         from pathlib import Path
-        checkpoint_dir = Path.home() / ".crystalyse" / "checkpoints"
+        checkpoint_dir = Path("/home/ryan/mycrystalyse/CrystaLyse.AI/dev/ckpts")
         default_paths = {
             "csp": str(checkpoint_dir / "chemeleon_csp_alex_mp_20_v0.0.2.ckpt"),
             "dng": str(checkpoint_dir / "chemeleon_dng_alex_mp_20_v0.0.2.ckpt"),

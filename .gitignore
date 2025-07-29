@@ -183,3 +183,6 @@ CLAUDE.md
 
 # Runtime output directory
 all-runtime-output/
+
+# Chemeleon DNG directory
+chemeleon-dng/

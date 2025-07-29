@@ -79,7 +79,7 @@ def get_responsive_logo(terminal_width: int) -> str:
         return CRYSTALYSE_ULTRA_MINIMAL
     else:
         # For very small terminals, use text fallback
-        return "CrystaLyse.AI - Materials Design Platform"
+        return "CrystaLyse.AI - Materials Discovery Platform"
 
 
 def get_logo_with_subtitle(terminal_width: int, version: str = None) -> tuple[str, str]:
@@ -96,8 +96,8 @@ def get_logo_with_subtitle(terminal_width: int, version: str = None) -> tuple[st
     logo = get_responsive_logo(terminal_width)
 
     if version:
-        subtitle = f"Research Preview v{version} - AI-Powered Materials Design"
+        subtitle = f"v{version} - AI-Powered Materials Discovery"
     else:
-        subtitle = "AI-Powered Materials Design"
+        subtitle = "AI-Powered Materials Discovery"
 
     return logo, subtitle

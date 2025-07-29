@@ -39,11 +39,239 @@ except ImportError as e:
     logger.warning(f"SMACT tools not available: {e}")
     SMACT_AVAILABLE = False
 
-# Import Chemeleon tools
+# Import Chemeleon tools directly (bypassing MCP layer)
 try:
-    from chemeleon_mcp.tools import generate_crystal_csp
+    import json
+    import tempfile
+    import os
+    from typing import Union, List, Dict, Any, Optional
+    from pathlib import Path
+    
+    # Import Chemeleon modules directly
+    import torch
+    from chemeleon_dng.diffusion.diffusion_module import DiffusionModule
+    from chemeleon_dng.script_util import create_diffusion_module
+    from chemeleon_dng.download_util import get_checkpoint_path
+    import ase
+    from ase.io import write as ase_write
+    from pymatgen.core import Structure, Composition
+    from pymatgen.io.ase import AseAtomsAdaptor
+    
     CHEMELEON_AVAILABLE = True
     logger.info("Chemeleon tools loaded successfully")
+    
+    # Global model cache
+    _model_cache = {}
+    
+    def _get_device(prefer_gpu: bool = False):
+        """Get the computing device."""
+        if prefer_gpu:
+            if torch.cuda.is_available():
+                return "cuda"
+            elif torch.backends.mps.is_available():
+                return "mps"
+        return "cpu"
+    
+    def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer_gpu: bool = False):
+        """Load or retrieve cached Chemeleon model."""
+        cache_key = f"{task}_{checkpoint_path or 'default'}"
+        
+        if cache_key in _model_cache:
+            logger.info(f"Using cached model for {cache_key}")
+            return _model_cache[cache_key]
+        
+        logger.info(f"Loading new model for {cache_key}")
+        
+        # Download checkpoint if needed
+        if checkpoint_path is None:
+            # Use user-portable checkpoint directory
+            checkpoint_dir = Path.home() / ".crystalyse" / "checkpoints"
+            default_paths = {
+                "csp": str(checkpoint_dir / "chemeleon_csp_alex_mp_20_v0.0.2.ckpt"),
+                "dng": str(checkpoint_dir / "chemeleon_dng_alex_mp_20_v0.0.2.ckpt"),
+                "guide": "."
+            }
+            checkpoint_path = get_checkpoint_path(task=task, default_paths=default_paths)
+        
+        # Load model
+        device = _get_device(prefer_gpu=prefer_gpu)
+        logger.info(f"Loading model on device: {device}")
+        
+        # Handle version compatibility for DiffusionModule
+        try:
+            # First try standard checkpoint loading
+            diffusion_module = DiffusionModule.load_from_checkpoint(
+                checkpoint_path, 
+                map_location=device
+            )
+        except TypeError as e:
+            if "optimiser_configs" in str(e):
+                # Handle newer Chemeleon versions that require optimiser_configs
+                logger.info("Loading model with optimiser_configs compatibility mode")
+                
+                # Load checkpoint to extract hyperparameters
+                checkpoint = torch.load(checkpoint_path, map_location=device)
+                hparams = checkpoint.get('hyper_parameters', {})
+                
+                # Create a new DiffusionModule instance with required parameters
+                try:
+                    # Get task from hyperparameters and convert to string
+                    task_param = hparams.get('task', 'csp')
+                    if hasattr(task_param, 'name'):  # If it's an enum, get the name
+                        task_param = task_param.name.lower()
+                    elif not isinstance(task_param, str):
+                        task_param = str(task_param).lower()
+                    
+                    diffusion_module = create_diffusion_module(
+                        task=task_param,
+                        model_configs=hparams.get('model_configs', {}),
+                        optimiser_configs=hparams.get('optimiser_configs', {
+                            "optimiser": "adam",
+                            "lr": 1e-4,
+                            "weight_decay": 0.01,
+                            "scheduler": "plateau",
+                            "patience": 10,
+                            "early_stopping": 20,
+                            "warmup_steps": 0
+                        }),
+                        num_timesteps=hparams.get('num_timesteps', 1000),
+                        beta_schedule_ddpm=hparams.get('beta_schedule_ddpm', 'cosine'),
+                        beta_schedule_d3pm=hparams.get('beta_schedule_d3pm', 'cosine'),
+                        max_atoms=hparams.get('max_atoms', 100),
+                        d3pm_hybrid_coeff=hparams.get('d3pm_hybrid_coeff', 0.01),
+                        sigma_begin=hparams.get('sigma_begin', 10.0),
+                        sigma_end=hparams.get('sigma_end', 0.01)
+                    )
+                    
+                    # Load the state dict manually
+                    diffusion_module.load_state_dict(checkpoint['state_dict'], strict=False)
+                    diffusion_module.to(device)
+                    
+                except Exception as create_error:
+                    logger.error(f"Failed to create diffusion module: {create_error}")
+                    # Final fallback - try direct loading with strict=False
+                    diffusion_module = DiffusionModule.load_from_checkpoint(
+                        checkpoint_path,
+                        map_location=device,
+                        strict=False
+                    )
+            else:
+                raise e
+        diffusion_module.eval()
+        
+        # Cache the model
+        _model_cache[cache_key] = diffusion_module
+        
+        return diffusion_module
+    
+    def _atoms_to_dict(atoms: ase.Atoms) -> Dict[str, Any]:
+        """Convert ASE Atoms to a JSON-serializable dictionary."""
+        return {
+            "cell": atoms.cell.tolist(),
+            "positions": atoms.positions.tolist(),
+            "numbers": atoms.numbers.tolist(),
+            "symbols": atoms.get_chemical_symbols(),
+            "formula": atoms.get_chemical_formula(),
+            "volume": float(atoms.get_volume()),
+            "pbc": atoms.pbc.tolist()
+        }
+    
+    def _atoms_to_cif(atoms: ase.Atoms) -> str:
+        """Convert ASE Atoms to CIF string."""
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.cif', delete=False) as f:
+            ase_write(f.name, atoms, format='cif')
+            with open(f.name, 'r') as cif_file:
+                cif_content = cif_file.read()
+            os.unlink(f.name)
+        return cif_content
+    
+    def generate_crystal_csp(
+        formulas: Union[str, List[str]],
+        num_samples: int = 1,
+        batch_size: int = 16,
+        output_format: str = "cif",
+        checkpoint_path: Optional[str] = None,
+        prefer_gpu: bool = False
+    ) -> str:
+        """
+        Generate crystal structures from chemical formulas using Crystal Structure Prediction.
+        
+        Args:
+            formulas: Chemical formula(s) to generate structures for (e.g., "NaCl" or ["NaCl", "SiO2"])
+            num_samples: Number of structures to generate per formula
+            batch_size: Batch size for generation
+            output_format: Output format - "cif" (default), "dict", or "both"
+            checkpoint_path: Optional path to custom checkpoint
+            prefer_gpu: If True, use GPU if available. Otherwise use CPU (default)
+        
+        Returns:
+            JSON string with generated structures
+        """
+        try:
+            # Handle single formula
+            if isinstance(formulas, str):
+                formulas = [formulas]
+            
+            # Load model
+            model = _load_model(task="csp", checkpoint_path=checkpoint_path, prefer_gpu=prefer_gpu)
+            
+            # Generate structures
+            all_results = []
+            
+            for formula in formulas:
+                logger.info(f"Generating {num_samples} structures for {formula}")
+                
+                # Parse formula to get atom types and counts
+                comp = Composition(formula)
+                
+                # Create atom_types and num_atoms for all samples
+                batch_atom_types = []
+                batch_num_atoms = []
+                
+                for _ in range(num_samples):
+                    atomic_numbers = [el.Z for el, amt in comp.items() for _ in range(int(amt))]
+                    batch_atom_types.extend(atomic_numbers)
+                    batch_num_atoms.append(len(atomic_numbers))
+                
+                # Sample structures
+                samples = model.sample(
+                    task="csp",
+                    atom_types=batch_atom_types,
+                    num_atoms=batch_num_atoms
+                )
+                
+                # Convert to desired format
+                formula_results = []
+                for i, atoms in enumerate(samples):
+                    result = {
+                        "formula": formula,
+                        "sample_index": i
+                    }
+                    
+                    if output_format in ["dict", "both"]:
+                        result["structure"] = _atoms_to_dict(atoms)
+                    
+                    if output_format in ["cif", "both"]:
+                        result["cif"] = _atoms_to_cif(atoms)
+                    
+                    formula_results.append(result)
+                
+                all_results.extend(formula_results)
+            
+            return json.dumps({
+                "success": True,
+                "num_structures": len(all_results),
+                "structures": all_results
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error in generate_crystal_csp: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e),
+                "formulas": formulas
+            }, indent=2)
+    
 except ImportError as e:
     logger.warning(f"Chemeleon tools not available: {e}")
     CHEMELEON_AVAILABLE = False

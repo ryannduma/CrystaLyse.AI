@@ -24,75 +24,69 @@ def create_3dmol_visualization(
     color_scheme: str = "vesta"
 ) -> str:
     """
-    Create fast 3Dmol.js visualization for creative mode.
+    Save CIF file to user's working directory (3dmol.js disabled for v2.0-alpha).
     
     Args:
         cif_content: CIF file content as string
         formula: Chemical formula for naming
-        output_dir: Directory to save visualization
-        title: Title for the visualization
-        color_scheme: Color scheme for the visualization (e.g., 'vesta', 'cpk')
+        output_dir: Directory to save CIF file
+        title: Title for the structure
+        color_scheme: Color scheme (ignored, kept for compatibility)
     
     Returns:
-        JSON string with visualization details
+        JSON string with CIF file details
     """
     try:
-        # Check if visualization already exists
-        output_path = Path(output_dir) / f"{formula}_3dmol.html"
-        if output_path.exists():
+        # Save CIF file directly to user's working directory
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        
+        cif_output_path = output_dir_path / f"{formula}.cif"
+        
+        # Check if CIF already exists
+        if cif_output_path.exists():
             result = {
-                "type": "3dmol_visualization",
+                "type": "cif_file",
                 "status": "success",
-                "output_path": str(output_path),
+                "output_path": str(cif_output_path),
                 "formula": formula,
-                "visualization_type": "interactive_html",
-                "sharing": "easy",
-                "description": f"Fast 3Dmol.js visualization for {formula} (cached)",
-                "cached": True
+                "visualization_type": "cif_file",
+                "sharing": "standard",
+                "description": f"CIF file for {formula} saved to working directory (cached)",
+                "cached": True,
+                "note": "3dmol.js visualization disabled for v2.0-alpha - CIF file provided instead"
             }
-            logger.info(f"✅ 3Dmol.js visualization found (cached): {output_path}")
+            logger.info(f"✅ CIF file found (cached): {cif_output_path}")
             return json.dumps(result)
         
-        # Fix import path to avoid circular imports
-        current_dir = Path(__file__).parent
-        crystalyse_root = current_dir.parent.parent.parent / "crystalyse"
-        if str(crystalyse_root) not in sys.path:
-            sys.path.insert(0, str(crystalyse_root))
-        
-        # Import existing visualizer
-        from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
-        
-        visualizer = UniversalCIFVisualizer(color_scheme=color_scheme)
-        
-        # Create HTML visualization
-        cif_data = visualizer.parse_cif_data(cif_content)
-        html_content = visualizer.create_individual_html(cif_content, cif_data, title)
-        
-        with open(output_path, 'w') as f:
-            f.write(html_content)
+        # Write CIF content to file
+        with open(cif_output_path, 'w') as f:
+            f.write(cif_content)
         
         result = {
-            "type": "3dmol_visualization",
+            "type": "cif_file",
             "status": "success",
-            "output_path": str(output_path),
+            "output_path": str(cif_output_path),
             "formula": formula,
-            "visualization_type": "interactive_html",
-            "sharing": "easy",
-            "description": f"Fast 3Dmol.js visualization for {formula}",
-            "cached": False
+            "visualization_type": "cif_file",
+            "sharing": "standard",
+            "description": f"CIF file for {formula} saved to working directory",
+            "cached": False,
+            "note": "3dmol.js visualization disabled for v2.0-alpha - CIF file provided instead"
         }
         
-        logger.info(f"✅ 3Dmol.js visualization created: {output_path}")
+        logger.info(f"✅ CIF file saved: {cif_output_path}")
         return json.dumps(result)
         
     except Exception as e:
         error_result = {
-            "type": "3dmol_visualization",
+            "type": "cif_file",
             "status": "error",
             "error": str(e),
-            "formula": formula
+            "formula": formula,
+            "note": "Failed to save CIF file"
         }
-        logger.error(f"❌ 3Dmol.js visualization failed: {e}")
+        logger.error(f"❌ CIF file saving failed: {e}")
         return json.dumps(error_result)
 
 def create_pymatviz_analysis_suite(
@@ -395,7 +389,7 @@ def create_creative_visualization(
     color_scheme: str = "vesta"
 ) -> str:
     """
-    Create creative mode visualization (3Dmol.js only).
+    Create creative mode visualization (CIF file only - 3dmol.js disabled for v2.0-alpha).
     
     Args:
         cif_content: CIF file content as string
@@ -478,7 +472,7 @@ def create_mode_aligned_visualization(
         cif_content: CIF file content as string
         formula: Chemical formula for naming
         output_dir: Directory to save visualization
-        mode: Analysis mode ("creative" or "rigorous")
+        mode: Analysis mode ("creative", "rigorous", or "adaptive")
         title: Title for the visualization
         color_scheme: Color scheme for the visualization
     
@@ -487,5 +481,9 @@ def create_mode_aligned_visualization(
     """
     if mode == "rigorous":
         return create_rigorous_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
+    elif mode == "adaptive":
+        # Adaptive mode uses CIF-only output (like creative mode)
+        return create_creative_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
     else:
+        # Default to creative mode (CIF-only)
         return create_creative_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)

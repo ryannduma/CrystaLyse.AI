@@ -1,7 +1,7 @@
 [project]
 name = "crystalyse"
-version = "1.0.0"
-description = "CrystaLyse.AI v1.0 - Research Preview: World-class computational materials discovery agent with 89.8/100 capability score"
+version = "2.0.0-alpha"
+description = "CrystaLyse.AI v2.0-alpha - Research Preview: Next-generation autonomous materials discovery platform with multi-agent orchestration and advanced UX"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [

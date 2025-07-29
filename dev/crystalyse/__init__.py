@@ -14,37 +14,21 @@ Key Features:
     - Natural Language Tools: Simple tools that LLMs can easily use
 """
 
-__version__ = "0.2.0"
+__version__ = "2.0.0-alpha"
 
 # Import unified agent
-# Optional agent imports (may fail if dependencies not available)
 try:
-    from .agents.crystalyse_agent import (
-        CrystaLyse,
-        AgentConfig,
-        analyse_materials,
-        rigorous_analysis,
-        creative_analysis
-    )
+    from .agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 except ImportError as e:
     import warnings
     warnings.warn(f"Agent functionality not available: {e}")
-    # Provide placeholder classes/functions
-    CrystaLyse = None
-    AgentConfig = None
-    analyse_materials = None
-    rigorous_analysis = None
-    creative_analysis = None
+    EnhancedCrystaLyseAgent = None
 
 # Configuration
-from .config import config
+from .config import CrystaLyseConfig
 
 # Define exports
 __all__ = [
-    "CrystaLyse",
-    "AgentConfig",
-    "analyse_materials",
-    "rigorous_analysis", 
-    "creative_analysis",
-    "config"
+    "EnhancedCrystaLyseAgent",
+    "CrystaLyseConfig"
 ]

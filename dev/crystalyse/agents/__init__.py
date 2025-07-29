@@ -5,18 +5,8 @@ This module provides the unified materials discovery agent using OpenAI Agents S
 All legacy agent implementations have been consolidated into a single, efficient agent.
 """
 
-from .crystalyse_agent import (
-    CrystaLyse, 
-    AgentConfig,
-    analyse_materials,
-    rigorous_analysis, 
-    creative_analysis
-)
+from .openai_agents_bridge import EnhancedCrystaLyseAgent
 
 __all__ = [
-    "CrystaLyse",
-    "AgentConfig",
-    "analyse_materials",
-    "rigorous_analysis",
-    "creative_analysis"
+    "EnhancedCrystaLyseAgent"
 ]

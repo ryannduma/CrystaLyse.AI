@@ -2,18 +2,21 @@
 
 ![CrystaLyse.AI Interface](dev/docs/assets/images/CLI_Startup_Image.png)
 
-**Status**: Research Preview - Fully Functional Materials Design Platform
+**Status**: Research Preview v2.0.0-alpha - Next-Generation Materials Discovery Platform
 
-CrystaLyse.AI is a computational materials design platform that accelerates materials exploration through AI-powered analysis and validation. Built on the OpenAI Agents framework with Model Context Protocol (MCP) integration, it provides a dual-mode system for rapid materials design workflows.
+CrystaLyse.AI is an autonomous AI agent for accelerated inorganic materials design. CrystaLyse.AI lets materials scientists delegate substantial computational materials design tasks directly from their terminal. In early testing, CrystaLyse completed materials design workflows in minutes that would normally take a few days of manual computational work. With CrystaLyse.AI, our goal is to better understand how researchers approach materials design and to help build a tool that accelerates their workflows and focuses their energies towards the challenging materials design frontiers.
+
+Built on the OpenAI Agents SDK framework with Model Context Protocol (MCP) integration, it provides a modular system for rapid, intelligent and adaptable materials design workflows.
 
 > **💡 For AI Assistants & Copilots**: If you're using GitHub Copilot, Claude, ChatGPT, or other AI coding assistants, check out [`READMEFORLLMS.md`](READMEFORLLMS.md) - a comprehensive guide designed specifically for AI agents to quickly understand this project's capabilities, installation, and usage patterns. Simply copy-paste its contents into your AI assistant for instant project context!
 
 ## Key Features
 
-### ✅ Dual-Mode Analysis System
-- **Creative Mode**: Fast exploration (~50 seconds) using Chemeleon + MACE
+### ✅ Enhanced Agent System with Intelligent Tool Coordination
+- **Adaptive Mode**: Intelligent balance of speed and accuracy (default)
+- **Creative Mode**: Fast exploration (~50 seconds) using Chemeleon + MACE  
 - **Rigorous Mode**: Complete validation (2-5 minutes) with SMACT + Chemeleon + MACE + Analysis Suite
-- **Real-time mode switching** with unified interface
+- **Dynamic tool coordination** through single enhanced agent (`EnhancedCrystaLyseAgent`)
 
 ### ✅ Complete Materials Pipeline
 - **Composition Validation**: SMACT screening for chemically reasonable materials
@@ -22,11 +25,13 @@ CrystaLyse.AI is a computational materials design platform that accelerates mate
 - **Comprehensive Analysis**: XRD patterns, RDF analysis, coordination studies
 - **3D Visualisation**: Interactive molecular viewers and professional analysis plots
 
-### ✅ Advanced Interface Options
-- **Unified CLI**: Single command interface with `/mode` and `/agent` switching
-- **Session Management**: Persistent conversation history across multi-day projects
-- **Interactive Chat**: Research-grade session-based workflows
-- **Batch Processing**: High-throughput materials screening capabilities
+### ✅ Advanced Interface & User Experience
+
+- **Enhanced CLI**: Rich terminal interface with professional displays
+- **Natural Language Clarification**: LLM-powered adaptive question system
+- **Workspace Management**: Transparent file operations with preview/approval
+- **Session-Based Chat**: Persistent conversations with cross-session learning
+- **User Preference Memory**: Adaptive behavior based on expertise and usage patterns
 
 ## Architecture Overview
 
@@ -41,8 +46,8 @@ graph TB
     end
     
     subgraph "Agent Layer"
-        SESSION_AGENT[Session-Based Agent<br/>OpenAI Agents SDK]
-        LEGACY_AGENT[Legacy Agent<br/>Direct MCP Integration]
+        ENHANCED_AGENT[EnhancedCrystaLyseAgent<br/>OpenAI Agents SDK Integration]
+        TOOL_COORDINATOR[Tool Coordination<br/>MCP Server Management]
         VALIDATOR[Response Validator<br/>Anti-Hallucination]
     end
     
@@ -71,18 +76,18 @@ graph TB
         RESILIENT[Resilient Tool Caller<br/>Fault Tolerance]
     end
     
-    CLI --> SESSION_AGENT
-    UNIFIED --> SESSION_AGENT
-    LEGACY --> LEGACY_AGENT
+    CLI --> ENHANCED_AGENT
+    UNIFIED --> ENHANCED_AGENT
+    LEGACY --> ENHANCED_AGENT
     
-    SESSION_AGENT --> VALIDATOR
-    SESSION_AGENT <--> SESSION_MEM
-    SESSION_AGENT <--> USER_MEM
-    SESSION_AGENT <--> DISCOVERY
-    SESSION_AGENT <--> CROSS_SESSION
+    ENHANCED_AGENT --> TOOL_COORDINATOR
+    ENHANCED_AGENT --> VALIDATOR
+    ENHANCED_AGENT <--> SESSION_MEM
+    ENHANCED_AGENT <--> USER_MEM
+    ENHANCED_AGENT <--> DISCOVERY
+    ENHANCED_AGENT <--> CROSS_SESSION
     
-    SESSION_AGENT --> SESSION_MGR
-    LEGACY_AGENT --> POOL
+    TOOL_COORDINATOR --> SESSION_MGR
     SESSION_MGR --> POOL
     POOL --> RESILIENT
     
@@ -307,7 +312,7 @@ crystalyse
 
 **Creative Mode Results**:
 ```
-╭─────────────────────── Discovery Results ────────────────────────────╮
+╭─────────────────────── Design Results ────────────────────────────╮
 │ Generated 5 perovskite candidates with formation energies:            │
 │                                                                        │
 │ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)           │

@@ -1,7 +1,6 @@
 
 from typing import Dict, Any
 import re
-import io
 import tempfile
 import os
 from pymatgen.core import Structure
@@ -248,7 +247,6 @@ def _manual_cif_parse(cif_string: str):
         ASE Atoms object
     """
     from ase import Atoms
-    import numpy as np
     
     # Extract cell parameters
     cell_a = float(re.search(r'_cell_length_a\s+([\d.]+)', cif_string).group(1))

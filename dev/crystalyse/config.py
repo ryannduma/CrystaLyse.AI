@@ -2,8 +2,9 @@
 
 import os
 import shutil
+import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 class CrystaLyseConfig:
     """Central configuration management with environment variable support"""
@@ -12,47 +13,44 @@ class CrystaLyseConfig:
         self.base_dir = Path(__file__).parent.parent
         self.load_from_env()
     
+    @classmethod
+    def load(cls):
+        """Load configuration - class method for consistent interface"""
+        return cls()
+    
     def load_from_env(self):
         """Load configuration from environment variables with sensible defaults"""
         
         # MCP Server Configurations
         self.mcp_servers = {
             "chemistry_unified": {
-                "command": os.getenv("CHEMISTRY_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMISTRY_MCP_ARGS", "-m chemistry_unified.server").split(),
-                "cwd": os.getenv("CHEMISTRY_MCP_PATH", str(self.base_dir / "chemistry-unified-server" / "src"))
+                "command": os.getenv("CRYSTALYSE_PYTHON_PATH", sys.executable),
+                "args": ["-m", "chemistry_unified.server"],
+                "cwd": str(self.base_dir / "chemistry-unified-server" / "src")
             },
             "chemistry_creative": {
-                "command": os.getenv("CHEMISTRY_CREATIVE_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMISTRY_CREATIVE_MCP_ARGS", "-m chemistry_creative.server").split(),
-                "cwd": os.getenv("CHEMISTRY_CREATIVE_MCP_PATH", str(self.base_dir / "chemistry-creative-server" / "src"))
-            },
-            # Keep individual servers as fallback options
-            "smact": {
-                "command": os.getenv("SMACT_MCP_COMMAND", "python"),
-                "args": os.getenv("SMACT_MCP_ARGS", "-m smact_mcp.server").split(),
-                "cwd": os.getenv("SMACT_MCP_PATH", str(self.base_dir / "smact-mcp-server" / "src"))
-            },
-            "chemeleon": {
-                "command": os.getenv("CHEMELEON_MCP_COMMAND", "python"),
-                "args": os.getenv("CHEMELEON_MCP_ARGS", "-m chemeleon_mcp.server").split(),
-                "cwd": os.getenv("CHEMELEON_MCP_PATH", str(self.base_dir / "chemeleon-mcp-server" / "src"))
-            },
-            "mace": {
-                "command": os.getenv("MACE_MCP_COMMAND", "python"),
-                "args": os.getenv("MACE_MCP_ARGS", "-m mace_mcp.server").split(),
-                "cwd": os.getenv("MACE_MCP_PATH", str(self.base_dir / "mace-mcp-server" / "src"))
+                "command": sys.executable,
+                "args": ["-m", "chemistry_creative.server"],
+                "cwd": str(self.base_dir / "chemistry-creative-server" / "src")
             },
             "visualization": {
-                "command": os.getenv("VISUALIZATION_MCP_COMMAND", "python"),
-                "args": os.getenv("VISUALIZATION_MCP_ARGS", "-m visualization_mcp.server").split(),
-                "cwd": os.getenv("VISUALIZATION_MCP_PATH", str(self.base_dir / "visualization-mcp-server" / "src"))
+                "command": sys.executable,
+                "args": ["-m", "visualization_mcp.server"],
+                "cwd": str(self.base_dir / "visualization-mcp-server" / "src")
             }
         }
         
         # Agent Configuration
         self.default_model = os.getenv("CRYSTALYSE_MODEL", "o4-mini")
         self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        
+        # Mode-specific timeouts
+        self.mode_timeouts = {
+            "creative": 120,    # 2 minutes for fast exploration
+            "adaptive": 180,    # 3 minutes for balanced approach  
+            "rigorous": 300     # 5 minutes for comprehensive validation
+        }
         
         # Performance Configuration
         self.parallel_batch_size = int(os.getenv("CRYSTALYSE_BATCH_SIZE", "10"))
@@ -62,6 +60,13 @@ class CrystaLyseConfig:
         # Development Configuration
         self.enable_metrics = os.getenv("CRYSTALYSE_METRICS", "true").lower() == "true"
         self.debug_mode = os.getenv("CRYSTALYSE_DEBUG", "false").lower() == "true"
+        
+        # Visualization preferences - Default to CIF-only for simplicity
+        self.visualization = {
+            "enable_html": os.getenv("CRYSTALYSE_ENABLE_HTML_VIZ", "false").lower() == "true",
+            "cif_only": os.getenv("CRYSTALYSE_CIF_ONLY", "true").lower() == "true",
+            "default_color_scheme": os.getenv("CRYSTALYSE_COLOR_SCHEME", "vesta")
+        }
         
     def get_server_config(self, server_name: str) -> Dict[str, Any]:
         """Get MCP server configuration with validation"""
@@ -75,10 +80,28 @@ class CrystaLyseConfig:
         if not cwd_path.exists():
             raise FileNotFoundError(f"MCP server directory not found: {cwd_path}")
             
+        # Validate Python executable exists
+        python_cmd = config["command"]
+        if not shutil.which(python_cmd):
+            raise FileNotFoundError(f"Python executable not found: {python_cmd}. Set CRYSTALYSE_PYTHON_PATH environment variable if using a specific conda environment.")
+            
         # Add environment variables
         config["env"] = os.environ.copy()
+        
+        # Construct the PYTHONPATH
+        python_path = [str(self.base_dir)]
+        chemeleon_dng_path = "/home/ryan/mycrystalyse/CrystaLyse.AI/chemeleon-dng"
+        if chemeleon_dng_path not in python_path:
+            python_path.append(chemeleon_dng_path)
+        
+        existing_python_path = config["env"].get("PYTHONPATH")
+        if existing_python_path:
+            python_path.append(existing_python_path)
+            
+        config["env"]["PYTHONPATH"] = os.pathsep.join(python_path)
+
         if self.debug_mode:
-            config["env"]["PYTHONPATH"] = str(self.base_dir)
+            config["env"]["CRYSTALYSE_DEBUG"] = "true"
             
         return config
         
@@ -87,10 +110,9 @@ class CrystaLyseConfig:
         if not shutil.which("python"):
             raise RuntimeError("Python interpreter not found in system PATH. CrystaLyse.AI requires Python.")
         
-        try:
-            import mcp
-        except ImportError:
-            raise RuntimeError("MCP package not found. Please install it with: pip install mcp")
+        import importlib.util
+        if importlib.util.find_spec("agents") is None:
+            raise RuntimeError("OpenAI Agents package not found. Please install it with: pip install openai-agents")
 
     def validate_environment(self) -> Dict[str, Any]:
         """Validate that all required components are available"""
@@ -116,20 +138,26 @@ class CrystaLyseConfig:
                 "available": False
             }
             
-            # TODO: Could add actual connectivity test here
+            # Validate Python executable exists
+            python_cmd = server_config["command"]
+            if not shutil.which(python_cmd):
+                status["servers"][server_name]["available"] = False
+                if status["overall"] == "healthy":
+                    status["overall"] = "degraded"
+            else:
+                status["servers"][server_name]["available"] = True
             
         # Check Python dependencies
-        try:
-            import agents
+        import importlib.util
+        if importlib.util.find_spec("agents") is not None:
             status["dependencies"]["openai_agents"] = True
-        except ImportError:
+        else:
             status["dependencies"]["openai_agents"] = False
             status["overall"] = "degraded"
             
-        try:
-            import mcp
+        if importlib.util.find_spec("mcp") is not None:
             status["dependencies"]["mcp"] = True
-        except ImportError:
+        else:
             status["dependencies"]["mcp"] = False
             status["overall"] = "degraded"
             
@@ -137,6 +165,10 @@ class CrystaLyseConfig:
 
 # Global configuration instance
 config = CrystaLyseConfig()
+
+# Alias for clean import
+Config = CrystaLyseConfig
+
 # Optional dependency validation (may fail in some environments)
 try:
     config.validate_dependencies()

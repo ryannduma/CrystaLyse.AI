@@ -1,22 +1,51 @@
-# Analysis Modes
+# Analysis Modes - CrystaLyse.AI v2.0-alpha
 
-CrystaLyse.AI provides two complementary analysis modes that map to different MCP server configurations, allowing you to balance speed and thoroughness based on your research needs.
+CrystaLyse.AI 2.0 provides three intelligent analysis modes powered by multi-agent orchestration and enhanced UX, allowing you to balance speed, accuracy, and user experience based on your research needs.
 
 ## Overview
 
-| Mode | Speed | Tools Used | Use Case |
-|------|-------|------------|----------|
-| **Creative** | ~50 seconds | Chemeleon + MACE + Visualisation | Fast exploration, idea generation, initial screening |
-| **Rigorous** | 2-5 minutes | SMACT + Chemeleon + MACE + Visualisation + Analysis Suite | Complete validation, publication-ready results, detailed analysis |
+| Mode | Speed | Tools Used | Use Case | v2.0-alpha Features |
+|------|-------|------------|----------|---------------------|
+| **Adaptive** (Default) | Variable | Context-aware selection | General research, learning preferences | Enhanced clarification, workspace management |
+| **Creative** | ~50 seconds | Chemeleon + MACE + Basic Viz | Fast exploration, initial screening | Multi-agent coordination, transparent operations |
+| **Rigorous** | 2-5 minutes | SMACT + Chemeleon + MACE + Advanced Viz + Analysis | Complete validation, publication-ready | Specialized agent validation, anti-hallucination |
+
+## Adaptive Mode (Default) - NEW in v2.0-alpha
+
+### Purpose
+Intelligent balance of speed and accuracy with enhanced user experience. Features:
+- **Enhanced Clarification**: LLM-powered adaptive questioning based on expertise level
+- **Context-Aware Tool Selection**: Automatically chooses optimal tools for each query
+- **Learning Preferences**: Adapts behavior based on user patterns and feedback
+- **Workspace Management**: Transparent file operations with preview/approval
+- **Intelligent Tool Coordination**: Single agent manages specialized tools seamlessly
+
+### Enhanced Agent Capabilities
+Adaptive mode leverages the full feature set of EnhancedCrystaLyseAgent:
+- **Intelligent Tool Selection**: Automatically chooses optimal MCP servers and tools
+- **Context-Aware Processing**: Adapts responses based on query complexity and user expertise
+- **Workspace Coordination**: Manages file operations with transparent preview/approval
+- **Memory Integration**: Utilizes session history and discovery cache for informed decisions
+- **Anti-Hallucination Validation**: Ensures all numerical results have computational basis
+
+### Enhanced UX Features
+```bash
+# Adaptive clarification examples:
+User: "Find battery materials"
+System: "What type of battery application? (Li-ion cathode, Na-ion anode, solid electrolyte, etc.)"
+
+User: "Perovskites for solar cells"  
+System: "For single-junction or tandem cells? Any specific efficiency targets?"
+```
 
 ## Creative Mode
 
 ### Purpose
-Fast materials exploration and structure generation without extensive validation. Ideal for:
-- Initial concept exploration
-- Rapid prototyping of materials ideas
-- Interactive sessions with quick feedback
-- Educational demonstrations
+Fast materials exploration with multi-agent coordination. Enhanced in v2.0-alpha for:
+- Initial concept exploration with transparent operations
+- Rapid prototyping with workspace management
+- Interactive sessions with real-time progress visualization
+- Educational demonstrations with adaptive explanations
 
 ### MCP Server Mapping
 Creative mode uses the **Chemistry Creative Server** (`chemistry-creative-server`):
@@ -63,11 +92,11 @@ Creative Mode Results:
 ## Rigorous Mode
 
 ### Purpose
-Complete materials validation with comprehensive analysis. Ideal for:
-- Publication-quality research
-- Detailed materials characterisation
-- Validation of creative mode results
-- Professional materials design projects
+Complete materials validation with specialized agent validation. Enhanced in v2.0-alpha for:
+- Publication-quality research with anti-hallucination safeguards
+- Detailed materials characterisation with multi-agent cross-validation
+- Validation of creative/adaptive mode results with specialized agents
+- Professional materials design projects with comprehensive documentation
 
 ### MCP Server Mapping
 Rigorous mode uses the **Chemistry Unified Server** (`chemistry-unified-server`):
@@ -153,19 +182,26 @@ crystalyse analyse "query" --mode rigorous
 
 ## Choosing the Right Mode
 
+### Use Adaptive Mode When: (Recommended Default)
+- **General research**: Most research scenarios benefit from intelligent tool selection
+- **Learning systems**: System adapts to your expertise level and preferences  
+- **Mixed workflows**: Combining exploration with validation in one session
+- **First-time users**: Enhanced clarification helps guide effective queries
+- **Project organization**: Workspace management keeps research organized
+
 ### Use Creative Mode When:
-- **Exploring ideas**: Initial brainstorming and concept validation
-- **Time-sensitive**: Need quick results for decisions or presentations
-- **Interactive sessions**: Real-time exploration with immediate feedback
-- **Educational**: Teaching materials concepts with visual feedback
-- **Screening**: Rapid evaluation of multiple concepts
+- **Rapid exploration**: Need many quick results for initial screening
+- **Time-sensitive**: Presentations or decision-making with tight deadlines
+- **Brainstorming**: Generating ideas and concepts rapidly
+- **Educational demos**: Quick visual feedback for teaching
+- **Iterative design**: Fast cycles of concept → evaluation → refinement
 
 ### Use Rigorous Mode When:
-- **Research publications**: Need comprehensive validation and analysis
-- **Professional projects**: Client work requiring complete characterisation
-- **Validation**: Confirming creative mode results with full analysis
-- **Detailed studies**: Understanding materials properties in depth
-- **Regulatory submissions**: Need complete documentation and traceability
+- **Research publications**: Need comprehensive validation with cross-checking
+- **Professional projects**: Client work requiring complete documentation
+- **Critical validation**: High-stakes decisions requiring maximum confidence
+- **Regulatory submissions**: Complete traceability and anti-hallucination safeguards
+- **Deep analysis**: Understanding complex materials properties in detail
 
 ## Performance Characteristics
 

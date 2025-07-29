@@ -57,7 +57,7 @@ crystalyse
 $ crystalyse
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │                 CrystaLyse.AI - Materials Discovery Platform                 │
-│                 Research Preview v1.0.0 - AI-Powered Materials Design        │
+│                 Research Preview v2.0.0-alpha - AI-Powered Materials Design        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭─────────────────────────────────────────────────────────────────────────╮
@@ -111,7 +111,7 @@ $ crystalyse analyse "Find perovskite solar cell materials" --mode creative
 
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │                 CrystaLyse.AI - Materials Discovery Platform                 │
-│                 Research Preview v1.0.0 - AI-Powered Materials Design        │
+│                 Research Preview v2.0.0-alpha - AI-Powered Materials Design        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭───────────────────────────────╮

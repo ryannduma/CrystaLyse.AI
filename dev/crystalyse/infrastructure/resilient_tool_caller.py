@@ -6,10 +6,36 @@ import asyncio
 import logging
 import random
 import time
-from typing import Any, Callable, Dict, Optional, Union
-from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, Optional
+
 
 logger = logging.getLogger(__name__)
+
+
+# Custom exception classes for better error handling
+class ToolError(Exception):
+    """Base exception for tool-related errors"""
+    pass
+
+
+class ToolTimeoutError(ToolError):
+    """Raised when a tool call times out"""
+    pass
+
+
+class ToolValidationError(ToolError):
+    """Raised when tool arguments are invalid"""
+    pass
+
+
+class ToolServerError(ToolError):
+    """Raised when MCP server is unavailable or returns server error"""
+    pass
+
+
+class ToolDegradedError(ToolError):
+    """Raised when tool is available but in degraded state"""
+    pass
 
 class ResilientToolCaller:
     """
@@ -18,7 +44,8 @@ class ResilientToolCaller:
     Designed specifically for CrystaLyse's computational tools (SMACT, Chemeleon, MACE).
     """
     
-    def __init__(self):
+    def __init__(self, config=None):
+        self.config = config
         self.call_statistics = {}
         self.timeout_config = ToolTimeoutConfig()
         
@@ -52,7 +79,7 @@ class ResilientToolCaller:
             Exception: If all retry attempts fail
         """
         # Determine appropriate timeout
-        timeout = timeout_override or self.timeout_config.get_timeout(tool_name, operation_type, context)
+        timeout = timeout_override or self.get_timeout(tool_name, operation_type, context)
         
         # Track call statistics
         call_key = f"{tool_name}_{operation_type}"
@@ -100,10 +127,10 @@ class ResilientToolCaller:
                 logger.info(f"✅ {tool_name} call succeeded in {duration:.1f}s (attempt {attempt + 1})")
                 return result
                 
-            except asyncio.TimeoutError as e:
+            except asyncio.TimeoutError:
                 duration = time.time() - start_time
                 stats['timeout_failures'] += 1
-                last_error = e
+                last_error = ToolTimeoutError(f"{tool_name} timed out after {timeout}s")
                 
                 logger.warning(f"⏰ {tool_name} timed out after {timeout}s (attempt {attempt + 1})")
                 
@@ -114,15 +141,21 @@ class ResilientToolCaller:
                     
             except ConnectionError as e:
                 stats['connection_failures'] += 1
-                last_error = e
+                last_error = ToolServerError(f"{tool_name} connection failed: {e}")
                 
                 logger.warning(f"🔌 {tool_name} connection failed: {e} (attempt {attempt + 1})")
                 
                 # Connection errors are worth retrying
                 continue
                 
+            except ValueError as e:
+                # Validation errors shouldn't be retried
+                last_error = ToolValidationError(f"{tool_name} validation error: {e}")
+                logger.error(f"❌ {tool_name} validation failed: {e}")
+                break
+                
             except Exception as e:
-                last_error = e
+                last_error = ToolError(f"{tool_name} failed: {e}")
                 logger.warning(f"⚠️ {tool_name} call failed: {e} (attempt {attempt + 1})")
                 
                 # For other errors, only retry if it might be transient
@@ -137,13 +170,10 @@ class ResilientToolCaller:
         stats['failed_calls'] += 1
         
         logger.error(f"❌ {tool_name} failed after {max_retries} attempts in {total_duration:.1f}s")
+        logger.error(f"📊 Stats: {stats['successful_calls']}/{stats['total_calls']} success rate, avg duration: {stats['avg_duration']:.1f}s")
         
-        # Provide detailed error information
-        error_msg = f"Tool call failed: {tool_name} ({operation_type})\n"
-        error_msg += f"Attempts: {max_retries}, Duration: {total_duration:.1f}s\n"
-        error_msg += f"Last error: {last_error}"
-        
-        raise Exception(error_msg) from last_error
+        # Raise the specific error type
+        raise last_error
     
     async def call_with_fallback(
         self,
@@ -151,25 +181,64 @@ class ResilientToolCaller:
         fallback_func: Optional[Callable] = None,
         *args,
         tool_name: str = "unknown",
+        operation_type: str = "default",
         **kwargs
     ) -> Any:
         """
-        Call a tool with a fallback option if the primary fails.
+        Call a tool with fallback functionality for graceful degradation.
         
-        Useful for creative mode where we can fall back to cached results or simpler operations.
+        Args:
+            primary_func: Primary tool function to call
+            fallback_func: Optional fallback function if primary fails
+            *args: Arguments to pass to the tool functions
+            tool_name: Name of the tool for logging
+            operation_type: Type of operation for logging
+            **kwargs: Keyword arguments to pass to the tool functions
+            
+        Returns:
+            Result from primary or fallback function
+            
+        Raises:
+            ToolDegradedError: If fallback was used (contains both result and error info)
+            ToolError: If both primary and fallback fail
         """
         try:
-            return await self.call_with_retry(primary_func, *args, tool_name=tool_name, **kwargs)
-        except Exception as e:
-            if fallback_func is not None:
-                logger.warning(f"🔄 {tool_name} primary call failed, trying fallback: {e}")
-                try:
-                    return await fallback_func(*args, **kwargs)
-                except Exception as fallback_error:
-                    logger.error(f"❌ {tool_name} fallback also failed: {fallback_error}")
-                    raise e  # Raise original error
-            else:
+            return await self.call_with_retry(
+                primary_func, *args, 
+                tool_name=tool_name, 
+                operation_type=operation_type,
+                **kwargs
+            )
+        except ToolError as e:
+            if fallback_func is None:
                 raise e
+            
+            logger.warning(f"🔄 {tool_name} primary failed, trying fallback: {e}")
+            
+            try:
+                result = await self.call_with_retry(
+                    fallback_func, *args,
+                    tool_name=f"{tool_name}_fallback",
+                    operation_type=operation_type,
+                    max_retries=1,  # Fewer retries for fallback
+                    **kwargs
+                )
+                
+                # Successful fallback, but signal degraded state
+                degraded_error = ToolDegradedError(
+                    f"{tool_name} succeeded with fallback. Primary failure: {e}"
+                )
+                degraded_error.result = result  # Attach result to the exception
+                degraded_error.primary_error = e
+                raise degraded_error
+                
+            except ToolDegradedError:
+                # Re-raise ToolDegradedError from fallback (this is the successful case)
+                raise
+            except ToolError as fallback_error:
+                logger.error(f"❌ {tool_name} fallback also failed: {fallback_error}")
+                # Return the original error, not the fallback error
+                raise e from fallback_error
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get call statistics for monitoring and debugging."""
@@ -194,6 +263,46 @@ class ResilientToolCaller:
             'success_rate': (successful_calls / total_calls) * 100,
             'failure_rate': (failed_calls / total_calls) * 100
         }
+    
+    def get_timeout(self, tool_name: str, operation_type: str, context: Optional[dict] = None) -> int:
+        """
+        Get appropriate timeout for a tool operation.
+        
+        Args:
+            tool_name: Name of the tool
+            operation_type: Type of operation
+            context: Optional context for timeout scaling
+            
+        Returns:
+            Timeout in seconds
+        """
+        base_timeouts = {
+            "smact": 30,
+            "chemeleon": 300,  # 5 minutes for structure generation
+            "mace": 600,       # 10 minutes for energy calculations
+            "validation": 30,
+            "structure": 300,
+            "energy": 600,
+            "default": 120
+        }
+        
+        # Get base timeout
+        timeout = base_timeouts.get(tool_name, base_timeouts.get(operation_type, base_timeouts["default"]))
+        
+        # Scale based on context if provided
+        if context:
+            material_count = context.get("material_count", 1)
+            complexity = context.get("complexity", "medium")
+            
+            # Scale for multiple materials
+            if material_count > 1:
+                timeout = int(timeout * min(2.0, 1 + (material_count - 1) * 0.3))
+            
+            # Scale for complexity
+            complexity_multipliers = {"simple": 0.5, "medium": 1.0, "complex": 2.0}
+            timeout = int(timeout * complexity_multipliers.get(complexity, 1.0))
+        
+        return min(timeout, 3600)  # Max 1 hour
 
 class ToolTimeoutConfig:
     """Configuration for tool timeouts based on operation complexity."""
@@ -220,17 +329,12 @@ class ToolTimeoutConfig:
             'mace_optimization': 600,
             'mace_formation_energy': 900,  # 15 minutes for formation energy calculations
             
-            # Battery-specific operations (complex transformations)
-            'battery_analysis': 1200,  # 20 minutes for battery material analysis
-            'battery_transformation': 900,  # 15 minutes for Li/delithiation analysis
-            
-            # Combined operations - increased for complex workflows
-            'discovery_workflow': 600,  # 10 minutes for standard discovery
-            'battery_workflow': 1200,  # 20 minutes for battery discovery workflows
+            # Combined operations - context-aware base timeouts
+            'discovery_workflow': 600,  # 10 minutes base (scales with context)
             'validation_workflow': 180,
             
-            # Agent-level operations
-            'crystalyse_agent_discovery': 1200,  # 20 minutes for agent discovery workflows
+            # Agent-level operations  
+            'crystalyse_agent_discovery': 600,  # 10 minutes base (scales with context)
         }
     
     def get_timeout(self, tool_name: str, operation_type: str, context: dict = None) -> int:
@@ -256,7 +360,7 @@ class ToolTimeoutConfig:
         """Scale timeout based on computational complexity context."""
         timeout = base_timeout
         
-        # Scale by number of materials being analysed
+        # Scale by number of materials being analyzed
         num_materials = context.get('num_materials', 1)
         if num_materials > 5:
             timeout *= 2.0  # Double for 6+ materials
@@ -273,7 +377,7 @@ class ToolTimeoutConfig:
         # Scale by calculation type
         calc_type = context.get('calculation_type', 'standard')
         type_multipliers = {
-            'formation_energy': 1.0,      # Baseline (optimised with unit cells)
+            'formation_energy': 1.0,      # Baseline (optimized with unit cells)
             'electronic_properties': 2.0, # Need supercells, longer calculations
             'phonon_dynamics': 3.0,       # Very expensive
             'defect_chemistry': 2.5,      # Need large supercells

@@ -5,16 +5,17 @@ This document provides explicit, step-by-step instructions for AI coding agents,
 ## Project Overview
 
 **Project Name**: CrystaLyse.AI  
-**Version**: Research Preview v1.0.0  
-**Purpose**: Autonomous AI agents for accelerated inorganic materials design through natural language interfaces  
+**Version**: Research Preview v2.0.0-alpha  
+**Purpose**: Autonomous AI agent for accelerated inorganic materials design that lets materials scientists delegate substantial computational tasks directly from their terminal  
 **Repository**: https://github.com/ryannduma/CrystaLyse.AI  
-**PyPI Package**: `crystalyse-ai`  
+**PyPI Package**: `crystalyse-ai` (PyPI version: v1.0.14, Dev version: v2.0.0-alpha)  
 **License**: MIT  
 
-### What CrystaLyse.AI Does
-- **Materials Design**: Predicts crystal structures and formation energies for inorganic materials
-- **Dual-Mode Analysis**: Creative mode (~50s) for rapid exploration, Rigorous mode (2-5min) for publication-quality validation
-- **Natural Language Interface**: Accepts queries like "Find stable perovskite solar cell materials"
+### What CrystaLyse.AI 2.0 Does
+- **Enhanced Tool Coordination**: Single sophisticated agent (`EnhancedCrystaLyseAgent`) coordinates specialized chemistry tools intelligently
+- **Adaptive Analysis**: Intelligent mode selection (adaptive/creative/rigorous) based on context and user expertise
+- **Natural Language Clarification**: LLM-powered adaptive questioning system that learns user preferences
+- **Enhanced UX**: Rich terminal interface with real-time progress visualization and transparent operations
 - **Complete Pipeline**: SMACT composition validation → Chemeleon structure prediction → MACE energy calculation → 3D visualization
 - **Scientific Integrity**: 100% computational honesty with anti-hallucination safeguards
 
@@ -31,9 +32,9 @@ graph TB
         UNIFIED[Unified Interface<br/>Single entry point]
     end
     
-    subgraph "Core Agents"
-        SESSION[Session-Based Agent<br/>OpenAI SDK + Memory]
-        LEGACY[Legacy Agent<br/>Fallback mode]
+    subgraph "Core Agent"
+        ENHANCED[EnhancedCrystaLyseAgent<br/>OpenAI SDK + Enhanced Features]
+        COORDINATOR[Tool Coordinator<br/>MCP Server Management]
     end
     
     subgraph "MCP Servers"
@@ -48,11 +49,12 @@ graph TB
         MACE[MACE<br/>Energy Calculation]
     end
     
-    CLI --> SESSION
-    UNIFIED --> SESSION
-    SESSION --> CREATIVE
-    SESSION --> RIGOROUS
-    SESSION --> VIZ
+    CLI --> ENHANCED
+    UNIFIED --> ENHANCED
+    ENHANCED --> COORDINATOR
+    COORDINATOR --> CREATIVE
+    COORDINATOR --> RIGOROUS
+    COORDINATOR --> VIZ
     RIGOROUS --> SMACT
     RIGOROUS --> CHEMELEON
     RIGOROUS --> MACE

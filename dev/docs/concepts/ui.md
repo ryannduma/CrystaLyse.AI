@@ -38,7 +38,7 @@ The primary interface for materials design analysis:
 $ crystalyse interactive
 
 ═══════════════════════════════════════════════════════════
-                    CRYSTALYSE.AI v1.0.0
+                    CRYSTALYSE.AI v2.0.0-alpha
                   Materials Design Platform
 ═══════════════════════════════════════════════════════════
 

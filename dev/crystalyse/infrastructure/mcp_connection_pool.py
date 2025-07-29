@@ -28,7 +28,7 @@ try:
     if os.path.exists(openai_agents_path) and openai_agents_path not in sys.path:
         sys.path.insert(0, openai_agents_path)
     
-    from agents.mcp import MCPServerStdio
+    from agents.mcp.server import MCPServerStdio
     
     # Restore original sys.path
     sys.path = original_paths

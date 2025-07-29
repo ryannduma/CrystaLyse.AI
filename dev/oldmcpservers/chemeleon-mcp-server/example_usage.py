@@ -20,7 +20,7 @@ async def main():
         "args": ["-m", "chemeleon_mcp"],
         "env": {
             "PYTHONPATH": str(Path(__file__).parent / "src") + ":" + 
-                         str(Path(__file__).parent.parent / "chemeleon-dng")
+                         "/home/ryan/mycrystalyse/CrystaLyse.AI/chemeleon-dng"
         }
     }
     

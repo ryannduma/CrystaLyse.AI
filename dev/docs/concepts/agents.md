@@ -1,48 +1,65 @@
-# CrystaLyse.AI Agents
+# CrystaLyse.AI 2.0 Agents
 
 ## Overview
 
-CrystaLyse.AI agents are specialised AI entities designed for inorganic materials design and analysis. Built on OpenAI's agents framework, they combine large language models with advanced materials science tools to provide expert-level crystal structure prediction, formation energy calculation, and materials validation.
+CrystaLyse.AI 2.0 features an enhanced agent system built on the OpenAI Agents SDK. The system uses a single sophisticated agent (`EnhancedCrystaLyseAgent`) that coordinates with specialized tools and MCP servers to provide advanced materials discovery capabilities with enhanced UX features.
 
 ## Agent Architecture
 
-### Core Components
+### Current Implementation
 
 ```
-┌─────────────────────────────────────┐
-│        CrystaLyse Agent             │
-├─────────────────────────────────────┤
-│  ┌─────────────┐  ┌──────────────┐ │
-│  │   LLM Core  │  │Chemistry Tools│ │
-│  └─────────────┘  └──────────────┘ │
-│  ┌─────────────┐  ┌──────────────┐ │
-│  │   Memory    │  │   Session    │ │
-│  └─────────────┘  └──────────────┘ │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                 Enhanced Agent System                         │
+├──────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │           EnhancedCrystaLyseAgent                       │ │
+│  │  - OpenAI Agents SDK Integration                       │ │
+│  │  - Enhanced Clarification System                       │ │
+│  │  - Workspace Management                                │ │
+│  │  - Multi-Mode Operation (adaptive/creative/rigorous)   │ │
+│  │  - Session-Based Memory                                │ │
+│  └─────────────────────────────────────────────────────────┘ │
+├──────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────┐ │
+│  │ MCP Server      │  │ Workspace        │  │ Memory      │ │
+│  │ Coordination    │  │ Tools            │  │ System      │ │
+│  │ (Chemistry      │  │ (File Ops +      │  │ (Session +  │ │
+│  │ Tools)          │  │ Clarification)   │  │ Discovery)  │ │
+│  └─────────────────┘  └──────────────────┘  └─────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Agent Types
+## Core Agent: EnhancedCrystaLyseAgent
 
-#### 1. CrystaLyse Agent
-The primary agent for materials design and analysis:
-- Crystal structure prediction using Chemeleon
-- Formation energy calculation using MACE
-- Materials composition validation using SMACT
-- 3D visualisation and analysis plots
+The main agent class provides all materials discovery functionality through intelligent tool coordination:
 
-#### 2. Session-Based Agent
-Maintains context across multiple interactions:
-- Persistent memory for multi-day materials research
-- Discovery tracking across sessions
-- Collaborative materials analysis
-- Long-term research project support
+### Key Features
+- **OpenAI Agents SDK Integration**: Production-ready agent framework with proper session management
+- **Enhanced Clarification System**: LLM-powered adaptive questioning based on user expertise
+- **Workspace Management**: Transparent file operations with preview/approval workflows
+- **Multi-Mode Operation**: Adaptive, creative, and rigorous analysis modes
+- **Anti-Hallucination**: Response validation to ensure computational honesty
+- **Session Persistence**: SQLite-based conversation and discovery memory
 
-#### 3. Mode-Specific Capabilities
-Dual-mode analysis system:
-- Creative Mode: Fast exploration (~50 seconds)
-- Rigorous Mode: Complete validation (2-5 minutes)
-- Real-time mode switching
-- Tool orchestration based on analysis requirements
+### Tool Integration Architecture
+
+The agent coordinates with various tools and services:
+
+#### MCP Server Integration
+- **Chemistry Creative Server**: Fast exploration tools (Chemeleon + MACE + Visualization)
+- **Chemistry Unified Server**: Complete validation tools (SMACT + Chemeleon + MACE + Analysis)
+- **Visualization Server**: Advanced 3D rendering and analysis plots
+
+#### Workspace Tools
+- **File Operations**: Read, write, and list files with user preview/approval
+- **Clarification System**: Adaptive questioning based on user expertise and context
+- **Session Management**: Persistent conversation storage and retrieval
+
+#### Memory Systems
+- **Session Memory**: SQLite-based conversation persistence
+- **Discovery Cache**: Computational results caching to avoid redundancy
+- **User Preferences**: Learning system that adapts to user patterns
 
 ## How Agents Work
 
@@ -121,42 +138,33 @@ Agents understand materials design queries in plain English:
 ### Basic Agent Configuration
 
 ```python
-from crystalyse import CrystaLyseAgent
+from crystalyse.agents import EnhancedCrystaLyseAgent
+from crystalyse.config import Config
 
-agent = CrystaLyseAgent(
-    model="o4-mini",
-    mode="creative",  # or "rigorous"
-    tools=["chemeleon_mcp", "mace_mcp", "visualisation_server"],
-    memory_enabled=True
+# Basic configuration
+config = Config.load()
+agent = EnhancedCrystaLyseAgent(
+    config=config,
+    project_name="my_research",
+    mode="adaptive",  # "creative", "rigorous", or "adaptive" (default)
+    model="o4-mini"   # or "o3" for rigorous mode
 )
 ```
 
-### Advanced Configuration
+### Advanced Usage
 
 ```python
-agent = CrystaLyseAgent(
-    model="o3",  # For rigorous mode
-    config={
-        "max_tokens": 4000,
-        "mode": "rigorous",
-        "tools": {
-            "smact_mcp": {"timeout": 60},
-            "chemeleon_mcp": {"num_structures": 5},
-            "mace_mcp": {"uncertainty_quantification": True},
-            "visualisation_server": {"generate_analysis": True}
-        },
-        "memory": {
-            "type": "persistent",
-            "storage": "file",
-            "cache_results": True
-        },
-        "output": {
-            "format": "detailed",
-            "include_uncertainty": True,
-            "generate_visualisation": True
-        }
-    }
-)
+# Using the agent for discovery
+async def run_discovery():
+    result = await agent.discover(
+        query="Find stable perovskite materials for solar cells",
+        history=None,  # Optional conversation history
+        trace_handler=None  # Optional event handler for UI
+    )
+    
+    print(result["status"])     # "completed" or "failed"
+    print(result["response"])   # Agent's response
+    return result
 ```
 
 ## Working with Agents

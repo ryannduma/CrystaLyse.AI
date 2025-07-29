@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 # Add the chemeleon-dng library to the path
-CHEMELEON_PATH = Path(__file__).parent.parent.parent.parent / "chemeleon-dng"
+CHEMELEON_PATH = Path("/home/ryan/mycrystalyse/CrystaLyse.AI/chemeleon-dng")
 sys.path.insert(0, str(CHEMELEON_PATH))
 
 from mcp.server.fastmcp import FastMCP
