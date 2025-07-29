@@ -184,5 +184,6 @@ CLAUDE.md
 # Runtime output directory
 all-runtime-output/
 
-# Chemeleon DNG directory
+# Local development directories
 chemeleon-dng/
+openai-agents-python/

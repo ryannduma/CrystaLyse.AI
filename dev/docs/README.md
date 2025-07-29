@@ -1,24 +1,48 @@
 # CrystaLyse.AI Documentation
 
-Welcome to the comprehensive documentation for CrystaLyse.AI v1.2 Research Preview.
+Welcome to the comprehensive documentation for CrystaLyse.AI v2.0-alpha Research Preview.
 
 ## 📚 Documentation Structure
 
 ### 🏗️ Architecture
 - **[System Overview](architecture/overview.md)**: Complete system architecture and design
 
+### 🧠 Core Concepts
+- **[CLI Architecture](concepts/cli_architecture.md)**: Command-line interface design and entry points
+- **[Analysis Modes](concepts/analysis_modes.md)**: Adaptive, creative, and rigorous analysis modes
+- **[Autonomous Mode Switching](concepts/autonomous_mode_switching.md)**: Dynamic mode adaptation system
+- **[Clarification System](concepts/clarification_system.md)**: Expertise-aware adaptive questioning
+- **[Agents](concepts/agents.md)**: Enhanced agent system and coordination
+- **[Memory](concepts/memory.md)**: Memory architecture and persistence
+- **[Sessions](concepts/sessions.md)**: Session-based research workflows
+- **[Tools](concepts/tools.md)**: Computational chemistry tool integration
+- **[UI](concepts/ui.md)**: User interface components and experience
+
 ### ✨ Features  
 - **[Session Management](features/session-management.md)**: Persistent research workflows
 - **[Memory System](features/memory-system.md)**: 4-layer caching and learning architecture
 
 ### 📖 Guides
+- **[Installation](guides/installation.md)**: Complete installation instructions
 - **[Quick Start](guides/quick-start.md)**: Get up and running quickly
+- **[CLI Usage](guides/cli_usage.md)**: Comprehensive command-line usage guide
+- **[Session-Based Usage](guides/session_based_usage.md)**: Multi-day research workflows
+
+### 🔧 Tools Documentation
+- **[SMACT](tools/smact.md)**: Composition validation and screening
+- **[Chemeleon](tools/chemeleon.md)**: AI-powered crystal structure prediction
+- **[MACE](tools/mace.md)**: Machine learning force fields for energy calculations
+- **[Visualisation](tools/visualisation.md)**: 3D structures and analysis plots
 
 ### 🔧 API Reference
 - **[CLI Reference](api/cli-reference.md)**: Complete command documentation
+- **[CLI Commands](reference/cli/index.md)**: Detailed command reference
+- **[Configuration](reference/config/index.md)**: Configuration options and settings
+- **[Error Handling](reference/errors/index.md)**: Error codes and troubleshooting
 
-### 🔬 Research
-- **Research applications and case studies** (coming soon)
+### 📋 Quick References
+- **[Index](index.md)**: Complete documentation index
+- **[Quickstart](quickstart.md)**: Rapid getting started guide
 
 ## 🚀 Getting Started
 
@@ -30,20 +54,26 @@ For new users, we recommend starting with the [Quick Start Guide](guides/quick-s
 
 ## 🎯 Key Concepts
 
-### Session-Based Research
-CrystaLyse.AI v1.2 introduces persistent research sessions that enable multi-day materials discovery projects. Sessions maintain full conversation context and integrate with the memory system for intelligent caching and learning.
+### Enhanced Agent Architecture
+CrystaLyse.AI v2.0-alpha features a single sophisticated `EnhancedCrystaLyseAgent` that provides multi-agent-like behavior through intelligent tool coordination, dynamic mode switching, and adaptive clarification.
 
-### Memory System
-The 4-layer memory architecture provides:
+### Three-Mode Analysis System
+- **Adaptive Mode** (Default): Enhanced clarification with context-aware tool selection
+- **Creative Mode**: Fast exploration (~50 seconds) with transparent operations
+- **Rigorous Mode**: Complete validation (2-5 minutes) with comprehensive analysis
+
+### Autonomous Mode Switching
+The system intelligently switches between analysis modes based on user feedback, performance monitoring, and query context analysis, creating a truly responsive research experience.
+
+### Adaptive Clarification System
+Expertise-aware questioning that automatically detects user knowledge level and adapts clarification strategies accordingly, learning from interaction patterns.
+
+### Memory & Session Management
+The 4-layer memory architecture with persistent SQLite-based sessions provides:
 1. **Session Memory**: Current conversation context
 2. **Discovery Cache**: Computational result caching
 3. **User Memory**: Personal preferences and notes  
 4. **Cross-Session Context**: Research insights and patterns
-
-### Dual-Mode Analysis
-- **Creative Mode**: Fast exploration (~50 seconds)
-- **Rigorous Mode**: Complete validation (2-5 minutes)
-- **Adaptive Mode**: Intelligent selection based on complexity
 
 ## 🔬 Scientific Integrity
 
