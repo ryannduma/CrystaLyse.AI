@@ -2,8 +2,7 @@
 
 ![CrystaLyse.AI Interface](dev/docs/assets/images/CLI_Startup_Image.png)
 
-**Status**: Research Preview v2.0.0-alpha - Next-Generation Materials Discovery Platform
-
+**Status**: Research Preview v2.0.0-alpha 
 CrystaLyse.AI is an autonomous AI agent for accelerated inorganic materials design. CrystaLyse.AI lets materials scientists delegate substantial computational materials design tasks directly from their terminal. In early testing, CrystaLyse completed materials design workflows in minutes that would normally take a few days of manual computational work. With CrystaLyse.AI, our goal is to better understand how researchers approach materials design and to help build a tool that accelerates their workflows and focuses their energies towards the challenging materials design frontiers.
 
 Built on the OpenAI Agents SDK framework with Model Context Protocol (MCP) integration, it provides a modular system for rapid, intelligent and adaptable materials design workflows.
