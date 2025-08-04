@@ -530,7 +530,7 @@ def relax_structure_monitored(
             model_type=model_type, 
             size=size, 
             device=device,
-            default_dtype="float64"  # Higher precision for optimisation
+            default_dtype="float32"  # Consistent with input data
         )
         atoms.calc = calc
         
@@ -710,7 +710,7 @@ def relax_structure(
             model_type=model_type, 
             size=size, 
             device=device,
-            default_dtype="float64"  # Higher precision for optimisation
+            default_dtype="float32"  # Consistent with input data
         )
         atoms.calc = calc
         

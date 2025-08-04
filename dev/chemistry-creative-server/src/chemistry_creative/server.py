@@ -409,9 +409,189 @@ async def creative_discovery_pipeline(
 # Expose Chemeleon tools directly
 if CHEMELEON_AVAILABLE:
     @mcp.tool()
-    def generate_structures(composition: str, num_samples: int = 3) -> str:
-        """Generate crystal structures for a composition using Chemeleon."""
-        return generate_crystal_csp(composition, num_samples=num_samples)
+    def generate_structures(
+        composition: str, 
+        num_samples: int = 3,
+        min_atoms: int = 20,
+        max_formula_units: int = 4
+    ) -> str:
+        """
+        Generate crystal structures for a composition using Chemeleon.
+        
+        Args:
+            composition: Chemical formula (e.g., "NaCl", "Li2O")
+            num_samples: Number of structures to generate per formula unit
+            min_atoms: Minimum number of atoms in the unit cell (will create supercell if needed)
+            max_formula_units: Maximum formula units to explore (e.g., 3 means try M₁X₁, M₂X₂, M₃X₃)
+            
+        Returns:
+            JSON string with generated structures at various stoichiometries
+        """
+        try:
+            # Import supercell function if available
+            from converters import create_supercell_cif
+            supercell_available = True
+        except ImportError:
+            logger.warning("Supercell converter not available")
+            supercell_available = False
+            
+        try:
+            from pymatgen.core import Composition
+            
+            # Parse base composition to get element ratio
+            base_comp = Composition(composition)
+            reduced_comp = base_comp.reduced_composition
+            
+            # Get the base elements and their ratios
+            elements = list(reduced_comp.keys())
+            base_amounts = [reduced_comp[el] for el in elements]
+            
+            all_structures = []
+            formulas_generated = []
+            
+            # Generate structures for different formula units
+            for n_units in range(1, max_formula_units + 1):
+                # Create formula with n formula units
+                amounts = [int(amt * n_units) for amt in base_amounts]
+                
+                # Create the scaled formula string
+                scaled_formula = ""
+                for el, amt in zip(elements, amounts):
+                    if amt == 1:
+                        scaled_formula += str(el)
+                    else:
+                        scaled_formula += f"{el}{amt}"
+                
+                logger.info(f"Generating {num_samples} structures for {scaled_formula} ({n_units} formula units)")
+                
+                try:
+                    # Generate structures for this stoichiometry
+                    result_json = generate_crystal_csp(scaled_formula, num_samples=num_samples, output_format="both")
+                    result = json.loads(result_json)
+                    
+                    if result.get("success", False):
+                        structures = result.get("structures", [])
+                        
+                        # Add metadata about formula units
+                        for struct in structures:
+                            struct["formula_units"] = n_units
+                            struct["base_formula"] = composition
+                            struct["scaled_formula"] = scaled_formula
+                        
+                        all_structures.extend(structures)
+                        formulas_generated.append(scaled_formula)
+                    else:
+                        logger.warning(f"Failed to generate structures for {scaled_formula}: {result.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    logger.error(f"Error generating structures for {scaled_formula}: {e}")
+                    continue
+            
+            # Process all structures and apply intelligent supercell generation only when necessary
+            enhanced_structures = []
+            
+            for structure in all_structures:
+                # Use atom_count from filtering if available, otherwise fallback to structure parsing
+                num_atoms = structure.get("atom_count", len(structure.get("structure", {}).get("atom_types", [])))
+                structure["original_atoms"] = num_atoms
+                structure["supercell_created"] = False
+                
+                # Smart supercell decision: only for genuinely undersized structures
+                if num_atoms < min_atoms and num_atoms >= 1 and supercell_available:  # Avoid degenerate cases
+                    # Calculate reasonable supercell dimensions with caps
+                    max_final_atoms = min_atoms * 2  # Smaller cap for creative mode (faster)
+                    multiplier = max(1, int((min_atoms / num_atoms) ** (1/3)))
+                    
+                    # Safety checks before creating supercell
+                    predicted_atoms = multiplier**3 * num_atoms
+                    if predicted_atoms > max_final_atoms:
+                        # Recalculate with linear scaling instead
+                        multiplier = min(max_final_atoms // num_atoms, 2)  # Cap at 2x for creative mode
+                        predicted_atoms = multiplier**3 * num_atoms
+                    
+                    # Only create supercell if it's actually beneficial and reasonable
+                    if multiplier > 1 and predicted_atoms <= max_final_atoms:
+                        supercell_matrix = [[multiplier, 0, 0], [0, multiplier, 0], [0, 0, multiplier]]
+                        
+                        logger.info(f"FALLBACK: Creating {multiplier}x{multiplier}x{multiplier} supercell for {structure['scaled_formula']} "
+                                  f"(original: {num_atoms} atoms → target: {predicted_atoms} atoms)")
+                        
+                        # Create supercell if CIF is available
+                        if "cif" in structure:
+                            try:
+                                supercell_result = create_supercell_cif(structure["cif"], supercell_matrix)
+                                
+                                if supercell_result.get("success", False):
+                                    # Validate the supercell result
+                                    final_atoms = supercell_result.get("supercell_atoms", predicted_atoms)
+                                    
+                                    # Additional sanity checks
+                                    if final_atoms >= min_atoms and final_atoms <= max_final_atoms:
+                                        structure["supercell_created"] = True
+                                        structure["supercell_matrix"] = supercell_matrix
+                                        structure["cif"] = supercell_result["cif_string"]
+                                        structure["supercell_atoms"] = final_atoms
+                                        
+                                        # Convert supercell CIF to dict format
+                                        from pymatgen.core import Structure
+                                        try:
+                                            supercell_struct = Structure.from_str(supercell_result["cif_string"], fmt="cif")
+                                            structure["structure"] = {
+                                                "atom_types": [site.specie.Z for site in supercell_struct],
+                                                "cart_coords": supercell_struct.cart_coords.tolist(),
+                                                "frac_coords": supercell_struct.frac_coords.tolist(),
+                                                "lattice": supercell_struct.lattice.matrix.tolist(),
+                                                "num_atoms": len(supercell_struct)
+                                            }
+                                            logger.info(f"✅ Successfully created and validated supercell: {final_atoms} atoms")
+                                        except Exception as e:
+                                            logger.warning(f"Could not convert supercell to dict format: {e}")
+                                            structure["supercell_created"] = False  # Revert on failure
+                                    else:
+                                        logger.warning(f"Supercell validation failed: {final_atoms} atoms not in range [{min_atoms}, {max_final_atoms}]")
+                                else:
+                                    logger.warning(f"Supercell creation failed for {structure['scaled_formula']}: {supercell_result.get('error', 'Unknown error')}")
+                            except Exception as e:
+                                logger.error(f"Supercell generation error: {e}")
+                    else:
+                        logger.info(f"Skipping supercell for {structure['scaled_formula']}: multiplier={multiplier}, predicted_atoms={predicted_atoms} (not beneficial)")
+                elif num_atoms >= min_atoms:
+                    logger.info(f"✅ Structure {structure['scaled_formula']} has sufficient atoms ({num_atoms} >= {min_atoms}), no supercell needed")
+                else:
+                    logger.warning(f"⚠️ Degenerate structure {structure['scaled_formula']} with {num_atoms} atoms, skipping supercell")
+                
+                enhanced_structures.append(structure)
+            
+            # Group structures by formula units for better organization
+            structures_by_units = {}
+            for struct in enhanced_structures:
+                n_units = struct["formula_units"]
+                if n_units not in structures_by_units:
+                    structures_by_units[n_units] = []
+                structures_by_units[n_units].append(struct)
+            
+            return json.dumps({
+                "success": True,
+                "base_composition": composition,
+                "formulas_generated": formulas_generated,
+                "total_structures": len(enhanced_structures),
+                "structures": enhanced_structures,
+                "structures_by_formula_units": structures_by_units,
+                "generation_summary": {
+                    f"{n}_formula_units": len(structs) 
+                    for n, structs in structures_by_units.items()
+                },
+                "min_atoms_requested": min_atoms,
+                "max_formula_units": max_formula_units
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced structure generation: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e),
+                "composition": composition
+            }, indent=2)
     
     @mcp.tool()
     def analyse_crystal_structure(structure: Dict[str, Any]) -> str:

@@ -1,7 +1,9 @@
 """SMACT tools for MCP server."""
 
 import json
-from typing import List, Optional, Dict, Any
+import warnings
+import numpy as np
+from typing import List, Optional, Dict, Any, Union
 
 # Import SMACT modules
 import smact
@@ -13,6 +15,202 @@ try:
     METALLICITY_AVAILABLE = True
 except ImportError:
     METALLICITY_AVAILABLE = False
+
+# Enhanced electronegativity handling
+def get_robust_electronegativity(
+    element_symbol: str, 
+    method: str = "pauling", 
+    fallback_noble_gas: bool = True
+) -> float:
+    """
+    Get electronegativity with robust fallback methods for noble gases.
+    
+    Args:
+        element_symbol: Chemical symbol (e.g., "He", "Ne", "Ar")
+        method: Electronegativity scale ("pauling", "mulliken", "allred_rochow")
+        fallback_noble_gas: Use reasonable estimates for noble gases
+    
+    Returns:
+        Electronegativity value or NaN if not available
+    """
+    try:
+        elem = Element(element_symbol)
+        
+        # Try requested method first
+        if method == "pauling" and elem.pauling_eneg is not None:
+            return float(elem.pauling_eneg)
+        elif method == "mulliken" and hasattr(elem, 'mulliken_eneg') and elem.mulliken_eneg is not None:
+            return float(elem.mulliken_eneg)
+        elif method == "allred_rochow" and hasattr(elem, 'allred_rochow_eneg') and elem.allred_rochow_eneg is not None:
+            return float(elem.allred_rochow_eneg)
+        
+        # Fallback to other available methods
+        if elem.pauling_eneg is not None:
+            return float(elem.pauling_eneg)
+        if hasattr(elem, 'eig') and elem.eig is not None:
+            return float(elem.eig)  # Allen scale
+        
+        # Noble gas fallbacks (reasonable estimates based on ionization potential)
+        if fallback_noble_gas:
+            noble_gas_eneg = {
+                "He": 4.16,  # Very high - reluctant to form bonds
+                "Ne": 4.79,  # Highest of all elements
+                "Ar": 3.24,  # Moderate
+                "Kr": 2.97,  # Slightly lower
+                "Xe": 2.58,  # Can form some compounds
+                "Rn": 2.2    # Lowest, most reactive noble gas
+            }
+            if element_symbol in noble_gas_eneg:
+                return noble_gas_eneg[element_symbol]
+        
+        # If all else fails
+        return np.nan
+        
+    except Exception:
+        return np.nan
+
+def analyze_composition_stability(
+    composition: str,
+    check_electronegativity: bool = True,
+    electronegativity_threshold: float = 0.5
+) -> Dict[str, Any]:
+    """
+    Comprehensive stability analysis using enhanced SMACT methods.
+    
+    Args:
+        composition: Chemical formula
+        check_electronegativity: Whether to check electronegativity differences
+        electronegativity_threshold: Minimum difference for ionic bonding
+    
+    Returns:
+        Dictionary with stability analysis results
+    """
+    try:
+        from pymatgen.core import Composition
+        comp = Composition(composition)
+        
+        # Basic SMACT validity
+        is_valid = smact_validity_check(comp, use_pauling_test=True, include_alloys=True)
+        
+        # Electronegativity analysis with robust handling
+        eneg_analysis = {}
+        if check_electronegativity:
+            elements = list(comp.as_dict().keys())
+            electronegativities = []
+            
+            for elem in elements:
+                eneg = get_robust_electronegativity(elem, method="pauling")
+                electronegativities.append(eneg)
+            
+            # Filter out NaN values for analysis
+            valid_enegs = [(elem, eneg) for elem, eneg in zip(elements, electronegativities) if not np.isnan(eneg)]
+            
+            if len(valid_enegs) >= 2:
+                max_diff = max(eneg for _, eneg in valid_enegs) - min(eneg for _, eneg in valid_enegs)
+                
+                eneg_analysis = {
+                    "electronegativity_difference": max_diff,
+                    "bonding_character": "ionic" if max_diff > electronegativity_threshold else "covalent",
+                    "elements_with_eneg": {elem: eneg for elem, eneg in valid_enegs},
+                    "missing_eneg_elements": [elem for elem, eneg in zip(elements, electronegativities) if np.isnan(eneg)]
+                }
+        
+        # Metallicity check if available
+        metallicity_info = {}
+        if METALLICITY_AVAILABLE:
+            try:
+                met_score = metallicity_score(comp)
+                metallicity_info = {
+                    "metallicity_score": met_score,
+                    "character": "metallic" if met_score > 0.7 else "non-metallic"
+                }
+            except Exception as e:
+                metallicity_info = {"error": str(e)}
+        
+        return {
+            "composition": composition,
+            "smact_valid": is_valid,
+            "electronegativity_analysis": eneg_analysis,
+            "metallicity_analysis": metallicity_info,
+            "stability_prediction": "stable" if is_valid else "potentially unstable"
+        }
+        
+    except Exception as e:
+        return {
+            "composition": composition,
+            "error": str(e),
+            "smact_valid": False,
+            "stability_prediction": "analysis_failed"
+        }
+
+def predict_band_gap_harrison(composition: str) -> Dict[str, Any]:
+    """
+    Predict band gap using Harrison's approach with robust electronegativity.
+    
+    Args:
+        composition: Chemical formula
+    
+    Returns:
+        Dictionary with band gap prediction
+    """
+    try:
+        from pymatgen.core import Composition
+        comp = Composition(composition)
+        
+        elements = list(comp.as_dict().keys())
+        
+        # Get electronegativities robustly
+        electronegativities = []
+        for elem in elements:
+            eneg = get_robust_electronegativity(elem, method="pauling")
+            if not np.isnan(eneg):
+                electronegativities.append(eneg)
+        
+        if len(electronegativities) < 2:
+            return {
+                "composition": composition,
+                "error": "Insufficient electronegativity data for band gap prediction",
+                "band_gap_estimate": None
+            }
+        
+        # Simple Harrison-based estimate (very approximate)
+        eneg_diff = max(electronegativities) - min(electronegativities)
+        
+        # Empirical relationship (very rough approximation)
+        # Large electronegativity differences tend to correlate with larger band gaps
+        if eneg_diff > 2.0:
+            gap_estimate = "large (>3 eV) - likely insulator"
+        elif eneg_diff > 1.0:
+            gap_estimate = "moderate (1-3 eV) - likely semiconductor"
+        else:
+            gap_estimate = "small (<1 eV) - likely metal or small gap semiconductor"
+        
+        return {
+            "composition": composition,
+            "electronegativity_difference": eneg_diff,
+            "band_gap_estimate": gap_estimate,
+            "elements_analyzed": elements,
+            "method": "Harrison-inspired electronegativity difference",
+            "note": "This is a very rough estimate. Accurate band gap requires DFT calculations."
+        }
+        
+    except Exception as e:
+        return {
+            "composition": composition,
+            "error": str(e),
+            "band_gap_estimate": None
+        }
+
+def fix_electronegativity_warnings():
+    """
+    Suppress specific PyMatgen electronegativity warnings.
+    """
+    warnings.filterwarnings("ignore", message=".*Pauling electronegativity.*Setting to NaN.*")
+    warnings.filterwarnings("ignore", message=".*No Pauling electronegativity.*")
+    warnings.filterwarnings("ignore", category=UserWarning, module="pymatgen")
+
+# Apply warning filters on import
+fix_electronegativity_warnings()
 
 from .server import mcp
 
@@ -478,4 +676,125 @@ def quick_validity_check(composition: str) -> str:
             "is_valid": False,
             "error": str(e),
             "explanation": f"Could not validate {composition}: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool(
+    description="Get robust electronegativity for any element including noble gases"
+)
+def get_element_electronegativity(
+    element_symbol: str,
+    method: str = "pauling",
+    fallback_noble_gas: bool = True
+) -> str:
+    """
+    Get electronegativity with robust fallback methods, especially for noble gases.
+    
+    Args:
+        element_symbol: Chemical symbol (e.g., "He", "Ne", "Ar", "Fe")
+        method: Electronegativity scale ("pauling", "mulliken", "allred_rochow")
+        fallback_noble_gas: Use reasonable estimates for noble gases
+    
+    Returns:
+        JSON string with electronegativity data and method used
+    """
+    try:
+        eneg = get_robust_electronegativity(element_symbol, method, fallback_noble_gas)
+        
+        # Determine which method was actually used
+        elem = Element(element_symbol)
+        method_used = "unknown"
+        
+        if not np.isnan(eneg):
+            if method == "pauling" and elem.pauling_eneg is not None and abs(eneg - elem.pauling_eneg) < 0.001:
+                method_used = "pauling_direct"
+            elif hasattr(elem, 'eig') and elem.eig is not None and abs(eneg - elem.eig) < 0.001:
+                method_used = "allen_scale"
+            elif element_symbol in ["He", "Ne", "Ar", "Kr", "Xe", "Rn"] and fallback_noble_gas:
+                method_used = "noble_gas_estimate"
+            else:
+                method_used = "fallback_method"
+        
+        result = {
+            "element": element_symbol,
+            "electronegativity": eneg if not np.isnan(eneg) else None,
+            "method_requested": method,
+            "method_used": method_used,
+            "is_noble_gas": element_symbol in ["He", "Ne", "Ar", "Kr", "Xe", "Rn"],
+            "fallback_used": fallback_noble_gas and element_symbol in ["He", "Ne", "Ar", "Kr", "Xe", "Rn"],
+            "available": not np.isnan(eneg)
+        }
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({
+            "element": element_symbol,
+            "error": str(e),
+            "electronegativity": None,
+            "available": False
+        }, indent=2)
+
+
+@mcp.tool(
+    description="Comprehensive stability analysis using enhanced SMACT methods"
+)
+def comprehensive_stability_analysis(
+    composition: str,
+    check_electronegativity: bool = True,
+    electronegativity_threshold: float = 0.5,
+    include_band_gap_estimate: bool = True
+) -> str:
+    """
+    Comprehensive stability analysis with robust electronegativity handling.
+    
+    Args:
+        composition: Chemical formula (e.g., "LiFePO4", "CaTiO3")
+        check_electronegativity: Whether to analyze electronegativity differences
+        electronegativity_threshold: Minimum difference for ionic character
+        include_band_gap_estimate: Whether to estimate band gap
+    
+    Returns:
+        JSON string with comprehensive analysis results
+    """
+    try:
+        # Run stability analysis
+        stability_result = analyze_composition_stability(
+            composition, check_electronegativity, electronegativity_threshold
+        )
+        
+        # Add band gap prediction if requested
+        if include_band_gap_estimate:
+            band_gap_result = predict_band_gap_harrison(composition)
+            stability_result["band_gap_prediction"] = band_gap_result
+        
+        # Add summary assessment
+        summary_points = []
+        
+        if stability_result.get("smact_valid"):
+            summary_points.append("✅ Passes SMACT validity tests (charge neutrality + electronegativity)")
+        else:
+            summary_points.append("❌ Fails SMACT validity tests")
+        
+        if "electronegativity_analysis" in stability_result:
+            eneg_analysis = stability_result["electronegativity_analysis"]
+            if "electronegativity_difference" in eneg_analysis:
+                diff = eneg_analysis["electronegativity_difference"]
+                bonding = eneg_analysis.get("bonding_character", "unknown")
+                summary_points.append(f"🔗 Bonding character: {bonding} (ΔEN = {diff:.2f})")
+        
+        if "metallicity_analysis" in stability_result and "metallicity_score" in stability_result["metallicity_analysis"]:
+            met_score = stability_result["metallicity_analysis"]["metallicity_score"]
+            met_char = stability_result["metallicity_analysis"].get("character", "unknown")
+            summary_points.append(f"⚙️ Character: {met_char} (metallicity = {met_score:.2f})")
+        
+        stability_result["summary"] = summary_points
+        
+        return json.dumps(stability_result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({
+            "composition": composition,
+            "error": str(e),
+            "analysis_failed": True
         }, indent=2)

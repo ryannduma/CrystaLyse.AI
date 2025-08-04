@@ -301,8 +301,9 @@ def create_pymatviz_analysis_suite(
                 save_results = batch_save_figures(figures_to_save)
                 
                 # Update results based on save outcomes
-                for viz_path, result in save_results.items():
-                    viz_name = Path(viz_path).stem.split('_', 1)[0].lower()
+                for viz_path_str, result in save_results.items():
+                    from pathlib import Path as PathLib
+                    viz_name = PathLib(viz_path_str).stem.split('_', 1)[0].lower()
                     
                     if viz_name == '3d':
                         visualization_results["3d_structure"] = "success" if result == "success" else result
@@ -314,7 +315,7 @@ def create_pymatviz_analysis_suite(
                         visualization_results["coordination_analysis"] = "success" if result == "success" else result
                     
                     if result == "success":
-                        analysis_files.append(viz_path)
+                        analysis_files.append(viz_path_str)
                         
                 logger.info(f"✅ Batch save completed with single browser session")
                 
@@ -327,7 +328,7 @@ def create_pymatviz_analysis_suite(
                         pmv.save_fig(figure, viz_path)
                         analysis_files.append(viz_path)
                         
-                        viz_name = Path(viz_path).stem.split('_', 1)[0].lower()
+                        viz_name = viz_path.stem.split('_', 1)[0].lower()
                         if viz_name == '3d':
                             visualization_results["3d_structure"] = "success"
                         elif viz_name == 'xrd':
@@ -389,7 +390,7 @@ def create_creative_visualization(
     color_scheme: str = "vesta"
 ) -> str:
     """
-    Create creative mode visualization (CIF file only - 3dmol.js disabled for v2.0-alpha).
+    Create creative mode visualization (CIF file only - no 3D visualization).
     
     Args:
         cif_content: CIF file content as string
@@ -401,7 +402,7 @@ def create_creative_visualization(
     Returns:
         JSON string with visualization details
     """
-    return create_3dmol_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
+    return save_cif_file(cif_content, formula, output_dir, title)
 
 def create_rigorous_visualization(
     cif_content: str,
@@ -411,7 +412,7 @@ def create_rigorous_visualization(
     color_scheme: str = "vesta"
 ) -> str:
     """
-    Create rigorous mode visualization (3Dmol.js + pymatviz analysis suite).
+    Create rigorous mode visualization (CIF file + pymatviz analysis suite - no 3D visualization).
     
     Args:
         cif_content: CIF file content as string
@@ -424,9 +425,9 @@ def create_rigorous_visualization(
         JSON string with visualization details
     """
     try:
-        # Create 3Dmol.js structure visualization
-        structure_result = create_3dmol_visualization(cif_content, formula, output_dir, title, color_scheme=color_scheme)
-        structure_data = json.loads(structure_result)
+        # Save CIF file
+        cif_result = save_cif_file(cif_content, formula, output_dir, title)
+        cif_data = json.loads(cif_result)
         
         # Create pymatviz analysis suite
         analysis_result = create_pymatviz_analysis_suite(cif_content, formula, output_dir, title, color_scheme=color_scheme)
@@ -436,15 +437,15 @@ def create_rigorous_visualization(
         combined_result = {
             "type": "rigorous_visualization",
             "status": "success",
-            "structure_visualization": structure_data,
+            "cif_file": cif_data,
             "analysis_suite": analysis_data,
             "formula": formula,
-            "visualization_type": "comprehensive",
-            "sharing": "professional_and_interactive",
-            "description": f"Complete visualization suite for {formula}: interactive structure view + comprehensive analysis"
+            "visualization_type": "comprehensive_analysis",
+            "sharing": "professional_analysis_suite",
+            "description": f"Complete analysis suite for {formula}: CIF file + comprehensive pymatviz plots"
         }
         
-        logger.info(f"✅ Rigorous visualization suite created for {formula}")
+        logger.info(f"✅ Rigorous analysis suite created for {formula}")
         return json.dumps(combined_result)
         
     except Exception as e:

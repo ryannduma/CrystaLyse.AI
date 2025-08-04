@@ -1,0 +1,20 @@
+[project]
+name = "pymatgen-mcp-server"
+version = "0.1.0"
+description = "PyMatgen MCP Server for crystallographic analysis and phase stability"
+dependencies = [
+    "python-mcp>=1.0.0",
+    "pymatgen>=2023.1.0",
+    "numpy",
+    "typing-extensions",
+]
+
+[project.scripts]
+pymatgen-mcp-server = "pymatgen_mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

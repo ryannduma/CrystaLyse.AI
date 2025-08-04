@@ -43,7 +43,7 @@ class CrystaLyseConfig:
         # Agent Configuration
         self.default_model = os.getenv("CRYSTALYSE_MODEL", "o4-mini")
         self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY")
         
         # Mode-specific timeouts
         self.mode_timeouts = {
