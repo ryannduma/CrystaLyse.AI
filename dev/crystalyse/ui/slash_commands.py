@@ -312,8 +312,10 @@ class SlashCommandHandler:
             if self.chat_experience:
                 old_mode = self.chat_experience.mode
                 self.chat_experience.mode = new_mode
+                # Recreate the agent with the new mode
+                self.chat_experience.refresh_agent()
                 self.console.print(f"[green]✓ Mode changed from '{old_mode}' to '{new_mode}'[/green]")
-                self.console.print("[dim]Note: Model will be auto-selected based on mode. Use /model to override.[/dim]")
+                self.console.print("[dim]Note: Agent recreated with new mode. Model will be auto-selected based on mode. Use /model to override.[/dim]")
             else:
                 self.console.print("[red]Cannot change mode: No active chat session[/red]")
         else:
@@ -358,8 +360,10 @@ class SlashCommandHandler:
             if self.chat_experience:
                 old_model = self.chat_experience.model or "auto"
                 self.chat_experience.model = new_model
+                # Recreate the agent with the new model
+                self.chat_experience.refresh_agent()
                 self.console.print(f"[green]✓ Model changed from '{old_model}' to '{new_model}'[/green]")
-                self.console.print("[dim]Note: This overrides the mode's default model selection.[/dim]")
+                self.console.print("[dim]Note: Agent recreated with new model. This overrides the mode's default model selection.[/dim]")
             else:
                 self.console.print("[red]Cannot change model: No active chat session[/red]")
         else:

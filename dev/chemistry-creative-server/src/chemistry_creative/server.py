@@ -11,6 +11,7 @@ from pathlib import Path
 from ase.io import write as ase_write
 from ase import Atoms
 import numpy as np
+from datetime import datetime
 
 # Add parent directories to path for importing existing tools
 current_dir = Path(__file__).parent
@@ -30,6 +31,115 @@ try:
 except ImportError as e:
     logger.warning(f"CIF to MACE converter not available: {e}")
     CONVERTER_AVAILABLE = False
+
+# --- Session Management Functions (from unified server) ---
+def _create_session_directory(composition: str, mode: str) -> Path:
+    """Create session-based directory structure for organizing output files."""
+    try:
+        # Create session timestamp
+        session_id = datetime.now().strftime("session_%Y%m%d_%H%M%S")
+        
+        # Create session directory
+        project_root_path = Path(__file__).parent.parent.parent.parent.parent
+        output_dir = project_root_path / "all-runtime-output" / session_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Created session directory: {output_dir}")
+        return output_dir
+        
+    except Exception as e:
+        logger.error(f"Failed to create session directory: {e}")
+        # Fallback to old structure
+        project_root_path = Path(__file__).parent.parent.parent.parent.parent
+        output_dir = project_root_path / "all-runtime-output"
+        output_dir.mkdir(exist_ok=True)
+        return output_dir
+
+def _update_session_metadata(session_dir: Path, composition: str, mode: str, files_generated: list):
+    """Update session metadata file with analysis information."""
+    try:
+        metadata_file = session_dir / "session_info.json"
+        
+        # Load existing metadata or create new
+        if metadata_file.exists():
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+        else:
+            metadata = {
+                "session_id": session_dir.name,
+                "start_time": datetime.now().isoformat(),
+                "mode_history": [],
+                "compounds_analyzed": [],
+                "files_generated": []
+            }
+        
+        # Update metadata
+        if mode not in metadata["mode_history"]:
+            metadata["mode_history"].append(mode)
+        
+        if composition not in metadata["compounds_analyzed"]:
+            metadata["compounds_analyzed"].append(composition)
+        
+        # Add new files
+        for file_info in files_generated:
+            if file_info not in metadata["files_generated"]:
+                metadata["files_generated"].append(file_info)
+        
+        # Save updated metadata
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        logger.info(f"Updated session metadata: {metadata_file}")
+        
+    except Exception as e:
+        logger.error(f"Failed to update session metadata: {e}")
+
+def save_cif_file(cif_content: str, filename: str, session_dir: Path) -> Path:
+    """Save CIF content to a file in the session directory."""
+    try:
+        cif_path = session_dir / filename
+        with open(cif_path, 'w') as f:
+            f.write(cif_content)
+        logger.info(f"Saved CIF file: {cif_path}")
+        return cif_path
+    except Exception as e:
+        logger.error(f"Failed to save CIF file {filename}: {e}")
+        raise
+
+# --- JSON Serialization Helper ---
+def make_json_serializable(obj):
+    """Convert objects to JSON-serializable format."""
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    else:
+        try:
+            return str(obj)
+        except:
+            return f"<non-serializable: {type(obj).__name__}>"
+
+def safe_json_dumps(data, **kwargs) -> str:
+    """Safe JSON dumps that automatically handles problematic types."""
+    try:
+        return json.dumps(data, **kwargs)
+    except TypeError as e:
+        if "not JSON serializable" in str(e):
+            logger.debug("Applying JSON serialization fixes...")
+            fixed_data = make_json_serializable(data)
+            return json.dumps(fixed_data, **kwargs)
+        else:
+            raise
 
 # Initialise creative server
 mcp = FastMCP("chemistry-creative")
@@ -136,6 +246,73 @@ def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
         logger.error(f"Error converting structure to CIF: {e}")
         logger.error(f"Structure dict content: {structure_dict}")
         return ""
+
+# ===== COMPREHENSIVE MATERIALS ANALYSIS (Creative Mode) =====
+
+@mcp.tool()
+async def comprehensive_materials_analysis(
+    compositions: list[str],
+    mode: str = "creative",
+    structures_per_composition: int = 3,
+    calculate_energies_flag: bool = True,
+    temperature_range: str = "ambient",
+    applications: str = "general"
+) -> dict[str, Any]:
+    """
+    Comprehensive materials analysis for creative mode - fast exploration without SMACT validation.
+    
+    This is the main entry point that matches the unified server interface but uses the
+    creative discovery pipeline internally (no SMACT validation, no hull calculations).
+    
+    Args:
+        compositions: List of chemical formulas to analyze
+        mode: Analysis mode (should be "creative" for this server)
+        structures_per_composition: Number of structures to generate per composition
+        calculate_energies_flag: Whether to calculate formation energies with MACE
+        temperature_range: Temperature considerations (informational only)
+        applications: Target applications (informational only)
+        
+    Returns:
+        Comprehensive analysis results with structure generation and energy calculations
+    """
+    logger.info(f"comprehensive_materials_analysis called with mode='{mode}' for {len(compositions)} compositions")
+    
+    # Validate mode parameter
+    if mode != "creative":
+        logger.warning(f"Mode '{mode}' passed to creative server - should be 'creative'")
+    
+    # Call the creative discovery pipeline with the same parameters
+    results = await creative_discovery_pipeline(
+        compositions=compositions,
+        structures_per_composition=structures_per_composition,
+        calculate_energies_flag=calculate_energies_flag
+    )
+    
+    # Add mode and analysis metadata to match unified server format
+    if isinstance(results, dict):
+        results["analysis_mode"] = "creative"
+        results["server_type"] = "chemistry-creative"
+        results["temperature_range"] = temperature_range
+        results["target_applications"] = applications
+        
+        # Update summary to include creative-specific info
+        if "summary" in results:
+            results["summary"]["analysis_mode"] = "creative"
+            results["summary"]["validation_tools"] = {
+                "smact": False,  # Never used in creative mode
+                "hull_calculations": False,  # Not available in creative mode
+                "pymatgen_analysis": True,  # Used for structure processing
+                "mace_energies": calculate_energies_flag and MACE_AVAILABLE
+            }
+            results["summary"]["speed_optimizations"] = [
+                "No SMACT composition validation",
+                "No energy above hull calculations", 
+                "Fast structure generation with Chemeleon",
+                "Automatic visualization generation"
+            ]
+    
+    logger.info(f"Creative comprehensive analysis complete: {len(results.get('most_stable_cifs', {}))} structures analyzed")
+    return results
 
 # ===== CREATIVE DISCOVERY PIPELINE =====
 
@@ -336,52 +513,33 @@ async def creative_discovery_pipeline(
                         "note": "CIF generated without energy ranking"
                     }
     
-    # AUTOMATICALLY CREATE VISUALIZATIONS FOR ALL GENERATED CIF FILES
+    # AUTOMATICALLY SAVE CIF FILES FOR ALL GENERATED STRUCTURES
     if results["most_stable_cifs"]:
-        logger.info(f"Creating visualizations for {len(results['most_stable_cifs'])} compositions...")
+        logger.info(f"Saving CIF files for {len(results['most_stable_cifs'])} compositions...")
         
-        # Use dedicated runtime output directory
-        project_root = Path(__file__).parent.parent.parent.parent.parent
-        working_dir = str(project_root / "all-runtime-output")
-        
-        # Import visualization tools
-        try:
-            from visualization_mcp.tools import create_creative_visualization
+        for comp, cif_data in results["most_stable_cifs"].items():
+            cif_content = cif_data["cif"]
             
-            for comp, cif_data in results["most_stable_cifs"].items():
-                cif_content = cif_data["cif"]
-                energy_per_atom = cif_data.get("energy_per_atom")
+            try:
+                # Create session directory for organized output
+                session_dir = _create_session_directory(comp, "creative")
                 
-                # Create descriptive title
-                if energy_per_atom is not None:
-                    title = f"{comp} (E = {energy_per_atom:.3f} eV/atom)"
-                else:
-                    title = f"{comp} Crystal Structure"
+                # Save CIF file
+                cif_filename = f"{comp.replace(' ', '_')}_creative.cif"
+                cif_path = save_cif_file(cif_content, cif_filename, session_dir)
+                cif_data["cif_file_path"] = str(cif_path)
                 
-                try:
-                    # Create visualization in working directory
-                    viz_result = create_creative_visualization(cif_content, comp, working_dir, title)
-                    viz_data = json.loads(viz_result)
-                    
-                    if viz_data.get("status") == "success":
-                        logger.info(f"✅ Created visualization for {comp}: {viz_data['output_path']}")
-                        
-                        # Store visualization info in results
-                        cif_data["visualization_path"] = viz_data["output_path"]
-                        cif_data["visualization_status"] = "success"
-                    else:
-                        logger.warning(f"⚠️ Visualization failed for {comp}: {viz_data.get('error', 'Unknown error')}")
-                        cif_data["visualization_status"] = "failed"
-                        cif_data["visualization_error"] = viz_data.get("error", "Unknown error")
-                        
-                except Exception as e:
-                    logger.error(f"❌ Visualization creation failed for {comp}: {e}")
-                    cif_data["visualization_status"] = "failed"
-                    cif_data["visualization_error"] = str(e)
-                    
-        except ImportError as e:
-            logger.error(f"❌ Could not import visualization tools: {e}")
-            logger.info("Visualizations will not be created automatically")
+                logger.info(f"✅ Saved CIF file for {comp}: {cif_path}")
+                
+                # Update session metadata with CIF file only
+                files_generated = [
+                    {"type": "cif", "path": str(cif_path), "composition": comp}
+                ]
+                _update_session_metadata(session_dir, comp, "creative", files_generated)
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to save CIF file for {comp}: {e}")
+                cif_data["cif_file_error"] = str(e)
     
     # Generate summary
     total_structures = sum(len(comp_data["structures"]) for comp_data in results["generated_structures"])
@@ -392,7 +550,7 @@ async def creative_discovery_pipeline(
         "structures_generated": total_structures,
         "energies_calculated": successful_energies,
         "most_stable_found": len(results["most_stable_cifs"]),
-        "visualizations_created": len([cif for cif in results["most_stable_cifs"].values() if cif.get("visualization_status") == "success"]),
+        "cif_files_saved": len([cif for cif in results["most_stable_cifs"].values() if "cif_file_path" in cif]),
         "pipeline_mode": "creative (fast exploration)",
         "tools_used": {
             "chemeleon": CHEMELEON_AVAILABLE,
@@ -402,7 +560,11 @@ async def creative_discovery_pipeline(
     }
     
     logger.info(f"Creative pipeline complete: {len(results['most_stable_cifs'])} stable structures found")
-    return results
+    
+    # Convert results to JSON-serializable format
+    serializable_results = make_json_serializable(results)
+    
+    return serializable_results
 
 # ===== DIRECT TOOL ACCESS =====
 

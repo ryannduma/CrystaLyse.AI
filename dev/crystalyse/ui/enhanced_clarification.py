@@ -63,10 +63,11 @@ class IntegratedClarificationSystem:
     - Integrated mode selection based on user interaction
     """
     
-    def __init__(self, console: Console, openai_client: Optional[AsyncOpenAI] = None, user_id: str = "default"):
+    def __init__(self, console: Console, openai_client: Optional[AsyncOpenAI] = None, user_id: str = "default", current_mode: Optional[str] = None):
         self.console = console
         self.openai_client = openai_client or AsyncOpenAI()
         self.user_id = user_id
+        self.current_mode = current_mode  # Store the explicitly set mode
         
         # Initialize learning and adaptation systems
         self.preference_memory = UserPreferenceMemory()
@@ -81,7 +82,7 @@ class IntegratedClarificationSystem:
             "focused_questions": self._focused_questions,
         }
 
-    async def analyze_and_clarify(self, query: str, request: ClarificationRequest) -> Dict[str, Any]:
+    async def analyze_and_clarify(self, query: str, request: ClarificationRequest, current_mode: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyzes the query, determines the best clarification strategy, and executes it.
         Includes confidence-based skipping for high-confidence expert queries.
@@ -117,7 +118,7 @@ class IntegratedClarificationSystem:
         # 3. Check if we can skip clarification (considering personalization)
         if (await self._should_skip_clarification(analysis, request) or 
             personalized_strategy.get("skip_clarification", False)):
-            return await self._handle_high_confidence_skip(query, request, analysis, personalized_strategy)
+            return await self._handle_high_confidence_skip(query, request, analysis, personalized_strategy, current_mode)
         
         # 4. Select the best clarification strategy (considering personalization)
         strategy_name = personalized_strategy.get("clarification_method", 
@@ -137,12 +138,16 @@ class IntegratedClarificationSystem:
         
         # 6. Determine mode from the full clarification response (considering personalization)
         if "_mode" not in clarified_answers:
-            # Use personalized initial mode or determine from responses
-            preferred_mode = personalized_strategy.get("initial_mode")
-            if preferred_mode:
-                clarified_answers["_mode"] = preferred_mode
+            # Respect explicitly set mode first
+            if current_mode:
+                clarified_answers["_mode"] = current_mode
             else:
-                clarified_answers["_mode"] = await self._determine_mode_from_responses(clarified_answers, analysis)
+                # Use personalized initial mode or determine from responses
+                preferred_mode = personalized_strategy.get("initial_mode")
+                if preferred_mode:
+                    clarified_answers["_mode"] = preferred_mode
+                else:
+                    clarified_answers["_mode"] = await self._determine_mode_from_responses(clarified_answers, analysis)
         
         # 7. Record the interaction for learning
         interaction_time = (datetime.now() - start_time).total_seconds()
@@ -401,19 +406,25 @@ class IntegratedClarificationSystem:
 Analyze user queries to determine expertise level, specificity, and whether clarification is needed.
 
 Expert Level Indicators:
-- "expert": Precise technical terminology like "quaternary crystal", "gravimetric capacity", "ZT value", "crystal anisotropy"
-- "intermediate": Some technical language like "battery cathode", "thermal conductivity" 
-- "novice": General requests like "battery materials", vague descriptions
+- "expert": Query contains 3+ of the following: specific temperature ranges (e.g. "500-800 K"), 
+  performance metrics (e.g. "high ZT values"), material properties (e.g. "isotropy", "crystal anisotropy"), 
+  processing methods (e.g. "bulk polycrystalline processing", "hot pressing", "dense sintering"), 
+  material classes (e.g. "Zintl phases", "oxide thermoelectrics"), specific constraints (e.g. "earth-abundant", 
+  "avoid lead and tellurium"), stability requirements (e.g. "stable in air"), or comparative analysis (e.g. "better than SnSe")
+- "intermediate": Query contains 1-2 technical terms like "battery cathode", "thermal conductivity", 
+  "semiconductor", or mentions specific applications without detailed constraints
+- "novice": General requests like "battery materials", "find materials", vague descriptions without technical terminology
 
 Specificity Guidelines:
-- High (0.7-1.0): Multiple constraints, chemical formulas, quantitative targets
-- Medium (0.4-0.6): Some constraints, application specified
-- Low (0.0-0.3): Vague requests, no specific constraints
+- High (0.7-1.0): Multiple quantitative constraints, specific material comparisons, detailed performance requirements,
+  multiple property specifications, clear processing constraints
+- Medium (0.4-0.6): Some constraints mentioned, application specified but lacks quantitative targets
+- Low (0.0-0.3): Vague requests, no specific constraints or targets
 
 Domain Confidence:
-- High (0.7-1.0): Clear materials science terminology
-- Medium (0.4-0.6): Some materials context
-- Low (0.0-0.3): General or unclear domain"""
+- High (0.7-1.0): Deep materials science terminology, proper use of technical concepts, clear understanding of trade-offs
+- Medium (0.4-0.6): Some materials context, basic technical terms used correctly
+- Low (0.0-0.3): General or unclear domain, misuse of technical terms"""
 
         user_prompt = f'Analyze this materials science query: "{query}"'
 
@@ -726,7 +737,8 @@ Domain Confidence:
                                           query: str,
                                           request: ClarificationRequest, 
                                           analysis: Optional[QueryAnalysisResponse],
-                                          personalized_strategy: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                                          personalized_strategy: Optional[Dict[str, Any]] = None,
+                                          current_mode: Optional[str] = None) -> Dict[str, Any]:
         """
         Handle high-confidence queries that skip the clarification process.
         
@@ -735,8 +747,10 @@ Domain Confidence:
         # Generate assumptions without asking
         assumptions = await self._generate_smart_assumptions(request.questions, analysis)
         
-        # Use personalized mode if available
-        if personalized_strategy and personalized_strategy.get("initial_mode"):
+        # Respect explicitly set mode first
+        if current_mode:
+            suggested_mode = current_mode
+        elif personalized_strategy and personalized_strategy.get("initial_mode"):
             suggested_mode = personalized_strategy["initial_mode"]
         else:
             suggested_mode = self._suggest_initial_mode(analysis)

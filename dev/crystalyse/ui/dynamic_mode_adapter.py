@@ -11,6 +11,25 @@ from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from dataclasses import dataclass
 
+# Import the global mode manager to check if mode is locked
+try:
+    from ..agents.mode_injector import GlobalModeManager, DynamicModeSuppressor
+except ImportError:
+    # Fallback if mode injector is not available
+    class GlobalModeManager:
+        @classmethod
+        def is_locked(cls):
+            return False
+    
+    class DynamicModeSuppressor:
+        @staticmethod
+        def should_suppress_dynamic_switching():
+            return False
+        
+        @staticmethod
+        def log_suppressed_switch(attempted_mode, reason):
+            pass
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,20 +103,37 @@ class DynamicModeAdapter:
         Returns:
             None if no switch needed, or dict with new mode configuration
         """
+        # FIRST CHECK: If mode is locked (explicitly set by user), suppress all dynamic switching
+        if DynamicModeSuppressor.should_suppress_dynamic_switching():
+            logger.info(f"Dynamic mode switching suppressed - mode is locked to '{current_mode}'")
+            return None
+        
         # Check automatic switching conditions first
         auto_switch = self._check_automatic_conditions(current_mode, execution_context)
         if auto_switch:
+            DynamicModeSuppressor.log_suppressed_switch(
+                auto_switch["new_mode"], 
+                auto_switch["reason"]
+            )
             return auto_switch
         
         # If user provided feedback, analyse it
         if user_feedback:
             feedback_switch = self._analyze_user_feedback(user_feedback, current_mode)
             if feedback_switch:
+                DynamicModeSuppressor.log_suppressed_switch(
+                    feedback_switch["new_mode"], 
+                    "user_feedback"
+                )
                 return feedback_switch
         
         # Check execution performance metrics
         performance_switch = self._check_performance_metrics(current_mode, execution_context)
         if performance_switch:
+            DynamicModeSuppressor.log_suppressed_switch(
+                performance_switch["new_mode"], 
+                "performance_metrics"
+            )
             return performance_switch
         
         return None
