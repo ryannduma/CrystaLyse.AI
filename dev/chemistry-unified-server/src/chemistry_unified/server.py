@@ -805,11 +805,11 @@ if MACE_AVAILABLE:
                 
                 if energy_result.get("status") == "completed":
                     formation_energy_per_atom = energy_result["formation_energy_per_atom"]
-                    total_energy = energy_result.get("total_energy", 0.0)
+                    compound_total_energy = energy_result.get("compound_total_energy", 0.0)
                     
                     results["energies"] = {
                         "formation_energy_per_atom": formation_energy_per_atom,
-                        "total_energy": total_energy,
+                        "compound_total_energy": compound_total_energy,
                         "calculation_model": energy_result.get("model", "mace_mp"),
                         "num_atoms": energy_result.get("num_atoms", len(final_structure.get("numbers", [])))
                     }
@@ -834,8 +834,8 @@ if MACE_AVAILABLE:
                     
                     hull_result = calculate_energy_above_hull(
                         composition=composition,
-                        energy=formation_energy_per_atom,
-                        per_atom=True
+                        energy=compound_total_energy,
+                        per_atom=False  # compound_total_energy is already total energy, not per atom
                     )
                     
                     if hull_result.get("success", False):

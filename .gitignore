@@ -188,3 +188,11 @@ all-runtime-output/
 chemeleon-dng/
 openai-agents-python/
 *.pkl.gz
+
+# Project-specific ignores
+/experiments/
+/modes/
+/CANVAS.md
+/EXPERIMENTAL_PLAN.md
+/friday5th/
+/experiments/acceptance_gate.py

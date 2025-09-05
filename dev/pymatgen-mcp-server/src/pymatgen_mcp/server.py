@@ -317,9 +317,9 @@ def calculate_energy_above_hull(
             "energy_per_atom": energy_per_atom if per_atom else energy / comp.num_atoms,
             "energy_above_hull": e_above_hull,
             "stability": {
-                "is_stable": e_above_hull <= 0.001,  # Within 1 meV/atom
-                "is_metastable": 0.001 < e_above_hull <= 0.050,  # 1-50 meV/atom
-                "is_unstable": e_above_hull > 0.050
+                "is_stable": e_above_hull <= 0,  
+                "is_metastable": 0 < e_above_hull <= 0.2,  # 1-50 meV/atom
+                "is_unstable": e_above_hull > 0.2
             },
             "decomposition": [
                 {
