@@ -180,6 +180,7 @@ cython_debug/
 # Claude-specific files
 CLAUDE.md
 .claude/
+AGENTS.md
 
 # Runtime output directory
 all-runtime-output/
@@ -196,3 +197,16 @@ openai-agents-python/
 /EXPERIMENTAL_PLAN.md
 /friday5th/
 /experiments/acceptance_gate.py
+/final_expts/
+/new_expt_framework/
+/test_provenance_v2/
+/test_provenance_batch/
+CANVAS.md
+EXPERIMENTAL_PLAN.md
+PROVENANCE_ANALYSIS.md
+PROVENANCE_TEST_RESULTS.md
+/weave/
+test_provenance_v2.py
+test_task1_all_modes.py
+/provenance_system/
+

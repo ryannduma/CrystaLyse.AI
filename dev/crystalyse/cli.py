@@ -178,9 +178,10 @@ def discover(
             model=state['model'],
         )
         
+        # Note: The discover method doesn't accept a progress parameter
+        # We can potentially use a trace_handler instead for progress tracking
         results = None
-        with PhaseAwareProgress(console) as progress:
-            results = await agent.discover(query, progress=progress)
+        results = await agent.discover(query)
 
         if results:
             display_results(results)
