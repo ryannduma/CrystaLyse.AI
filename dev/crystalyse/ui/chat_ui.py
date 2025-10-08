@@ -12,6 +12,7 @@ from rich.prompt import Prompt
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.ui.trace_handler import ToolTraceHandler
+from crystalyse.ui.provenance_bridge import CrystaLyseProvenanceHandler, PROVENANCE_AVAILABLE
 from crystalyse.ui.ascii_art import get_responsive_logo
 from crystalyse.ui.slash_commands import SlashCommandHandler
 from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
@@ -33,6 +34,8 @@ class ChatExperience:
         self.clarification_system = IntegratedClarificationSystem(self.console, user_id=user_id)
         self.current_query: str = ""
         self.agent = None  # Will be created in run_loop
+        self.config = Config.load()  # Load config for provenance settings
+        self.provenance_handler = None  # Will be created per query
 
     def _create_agent(self):
         """Create or recreate the agent with current mode and model settings."""
@@ -85,6 +88,37 @@ class ChatExperience:
         else: # assistant
             panel = Panel(content, title="[bold cyan]CrystaLyse[/bold cyan]", border_style="cyan")
         self.console.print(panel)
+
+    def _display_provenance_summary(self, summary: Dict[str, Any]):
+        """Display provenance summary in a compact format."""
+        from rich.table import Table
+
+        # Create summary table
+        table = Table(title="Provenance Summary", show_header=True, header_style="bold cyan")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="yellow")
+
+        # Add key metrics (using actual keys from summary)
+        table.add_row("Session ID", summary.get("session_id", "N/A"))
+        table.add_row("Materials Found", str(summary.get("materials_found", 0)))
+
+        # Use mcp_operations (actual key) instead of mcp_tools_detected
+        mcp_ops = summary.get("mcp_operations", 0)
+        table.add_row("MCP Tool Calls", str(mcp_ops))
+
+        # Show tool call breakdown
+        tool_calls = summary.get("tool_calls_total", 0)
+        table.add_row("Total Tool Calls", str(tool_calls))
+
+        # Add file location (check both possible locations)
+        session_info = summary.get("session_info", {})
+        output_dir = session_info.get("output_dir") or summary.get("output_dir")
+        if output_dir:
+            table.add_row("Output Directory", str(output_dir))
+
+        self.console.print("\n")
+        self.console.print(table)
+        self.console.print(f"[dim]Analyse with: crystalyse analyse-provenance --session {summary.get('session_id', 'N/A')}[/dim]\n")
 
     async def _handle_clarification_request(self, request: workspace_tools.ClarificationRequest) -> Dict[str, Any]:
         """Handles the UI for asking the user clarifying questions with the integrated, adaptive system."""
@@ -246,9 +280,18 @@ class ChatExperience:
 
                 # NEW ARCHITECTURE: Pre-process query through clarification system
                 enriched_query = await self._preprocess_query_with_clarification(query)
-                
-                trace_handler = ToolTraceHandler(self.console)
-                
+
+                # Create provenance handler for this query (always-on provenance capture)
+                if PROVENANCE_AVAILABLE:
+                    trace_handler = CrystaLyseProvenanceHandler(
+                        console=self.console,
+                        config=self.config,
+                        mode=self.mode
+                    )
+                    self.provenance_handler = trace_handler
+                else:
+                    trace_handler = ToolTraceHandler(self.console)
+
                 results = await self.agent.discover(
                     enriched_query,
                     history=self.history,
@@ -259,7 +302,16 @@ class ChatExperience:
                     response = results.get("response", "I don't have a response for that.")
                     self._display_message("assistant", response)
                     self.history.append({"role": "assistant", "content": response})
-                    
+
+                    # Finalize and display provenance summary if available
+                    if PROVENANCE_AVAILABLE and self.provenance_handler:
+                        try:
+                            summary = self.provenance_handler.finalize()
+                            if summary and self.config.provenance.get('show_summary', True):
+                                self._display_provenance_summary(summary)
+                        except Exception as e:
+                            self.console.print(f"[dim yellow]Provenance summary unavailable: {e}[/dim yellow]")
+
                     # Optionally collect user feedback for learning
                     await self._collect_feedback_if_appropriate()
                     

@@ -177,16 +177,21 @@ class EnhancedCrystaLyseAgent:
                     from agents import RunConfig
                     from agents.models.openai_provider import OpenAIProvider
                     import os
-                    
+                    import time
+
+                    # Use integer timestamp to avoid dots in trace_id (SDK requirement)
+                    trace_timestamp = int(time.time())
+                    trace_id = f"crystalyse_{self.session_id}_{trace_timestamp}"
+
                     mdg_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
                     if mdg_api_key:
                         model_provider = OpenAIProvider(api_key=mdg_api_key)
                         run_config = RunConfig(
-                            trace_id=f"crystalyse_{self.session_id}_{asyncio.get_event_loop().time()}",
+                            trace_id=trace_id,
                             model_provider=model_provider
                         )
                     else:
-                        run_config = RunConfig(trace_id=f"crystalyse_{self.session_id}_{asyncio.get_event_loop().time()}")
+                        run_config = RunConfig(trace_id=trace_id)
                 except (ImportError, TypeError) as e:
                     # SDK compatibility fallback
                     run_config = None

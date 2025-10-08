@@ -10,6 +10,14 @@ from typing import Optional
 from enum import Enum
 from pathlib import Path
 
+# Add provenance_system to path for installed package
+# This ensures provenance works when using 'crystalyse' command
+# Need to add parent directory of provenance_system to sys.path
+crystalyse_root = Path(__file__).parent.parent.parent
+provenance_system_path = crystalyse_root / "provenance_system"
+if provenance_system_path.exists() and str(crystalyse_root) not in sys.path:
+    sys.path.insert(0, str(crystalyse_root))
+
 import typer
 from rich.console import Console
 from rich.panel import Panel

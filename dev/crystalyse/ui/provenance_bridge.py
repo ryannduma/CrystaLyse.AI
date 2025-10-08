@@ -21,16 +21,18 @@ from datetime import datetime
 from rich.console import Console
 
 # Add provenance_system to Python path
-provenance_system_path = Path(__file__).parent.parent.parent.parent / "provenance_system"
-if str(provenance_system_path) not in sys.path:
-    sys.path.insert(0, str(provenance_system_path))
+# Need to add parent directory of provenance_system to sys.path
+crystalyse_root = Path(__file__).parent.parent.parent.parent
+provenance_system_path = crystalyse_root / "provenance_system"
+if provenance_system_path.exists() and str(crystalyse_root) not in sys.path:
+    sys.path.insert(0, str(crystalyse_root))
 
 try:
-    from provenance_system import ProvenanceTraceHandler
+    from provenance_system.handlers import ProvenanceTraceHandler
     PROVENANCE_AVAILABLE = True
 except ImportError as e:
     PROVENANCE_AVAILABLE = False
-    logging.warning(f"Provenance system not available: {e}")
+    logging.warning(f"Provenance system handlers not available: {e}")
     # Fallback to base trace handler if provenance unavailable
     from .trace_handler import ToolTraceHandler
     ProvenanceTraceHandler = ToolTraceHandler
@@ -183,6 +185,9 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
             if summary:
                 summary['mode'] = self.mode
                 summary['session_info'] = self.get_session_info()
+                # Add output_dir at top level for easier access
+                if hasattr(self, 'output_dir') and self.output_dir:
+                    summary['output_dir'] = str(self.output_dir)
 
             logger.info(f"Provenance finalised: {self.session_id}")
             return summary
