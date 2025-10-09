@@ -189,6 +189,7 @@ all-runtime-output/
 chemeleon-dng/
 openai-agents-python/
 *.pkl.gz
+icsd-scripts/
 
 # Project-specific ignores
 /experiments/
