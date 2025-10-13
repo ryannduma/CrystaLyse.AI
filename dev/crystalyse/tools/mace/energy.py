@@ -2,7 +2,12 @@
 from typing import Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
 import logging
+import warnings
 import numpy as np
+
+# Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
+warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
+                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
 
 logger = logging.getLogger(__name__)
 

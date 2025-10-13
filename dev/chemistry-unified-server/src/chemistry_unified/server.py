@@ -19,6 +19,11 @@ from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from datetime import datetime
 
+# Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
+# This warning appears when MACE loads e3nn components
+warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
+                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
+
 # CLEAN IMPORTS - No sys.path manipulation!
 from crystalyse.tools.smact import (
     SMACTValidator,

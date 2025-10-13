@@ -6,9 +6,15 @@ CrystaLyse.AI 2.0 - Enhanced Materials Discovery
 import asyncio
 import logging
 import sys
+import warnings
 from typing import Optional
 from enum import Enum
 from pathlib import Path
+
+# Suppress specific e3nn warning about weights_only parameter
+# This is a known issue with e3nn not explicitly passing weights_only to torch.load()
+warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
+                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
 
 # Add provenance_system to path for installed package
 # This ensures provenance works when using 'crystalyse' command

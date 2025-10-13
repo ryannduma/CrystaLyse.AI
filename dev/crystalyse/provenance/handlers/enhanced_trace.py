@@ -146,11 +146,16 @@ class ProvenanceTraceHandler(ToolTraceHandler):
         # Visual display if enabled
         if self.enable_visual:
             super().on_event(event)
-        
+
         # Provenance capture
         if not self.enable_provenance or not self.event_logger:
             return
-        
+
+        # DEBUG: Log all event types
+        logger.debug(f"Event received: type={event.type}, has_item={hasattr(event, 'item')}")
+        if hasattr(event, 'item'):
+            logger.debug(f"  Item type: {event.item.type if hasattr(event.item, 'type') else 'no type'}")
+
         try:
             if event.type == "run_item_stream_event":
                 self._process_stream_event(event.item)
