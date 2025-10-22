@@ -2,8 +2,12 @@
 """
 Manages the interactive chat user experience for CrystaLyse.AI.
 """
+import json
+import logging
+import os
 from typing import List, Dict, Any, Optional
 
+from openai import AsyncOpenAI
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -17,6 +21,8 @@ from crystalyse.ui.ascii_art import get_responsive_logo
 from crystalyse.ui.slash_commands import SlashCommandHandler
 from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
 from crystalyse.workspace import workspace_tools
+
+logger = logging.getLogger(__name__)
 
 class ChatExperience:
     """
@@ -332,59 +338,131 @@ class ChatExperience:
     async def _preprocess_query_with_clarification(self, raw_query: str) -> str:
         """
         NEW ARCHITECTURE: Pre-process the query through the clarification system.
-        This replaces the old dual-responsibility model where both agent and clarification
-        system tried to handle questions.
-        
-        Flow: Raw Query -> Analysis -> [Questions if needed] -> Enriched Query -> Agent
+        Uses LLM-based question generation for surgical, context-aware clarification.
+
+        Flow: Raw Query -> Analysis -> LLM Question Generation -> [Questions if needed] -> Enriched Query -> Agent
         """
         try:
             # Step 1: Analyze the query for completeness and expertise
             analysis = await self.clarification_system._analyze_query_with_llm(raw_query)
-            
+
             if analysis is None:
                 self.console.print("[yellow]Warning: Query analysis failed, proceeding with original query.[/yellow]")
                 return self._create_enriched_query(raw_query, {}, analysis)
-            
+
             self.console.print(f"[dim]Query Analysis: {analysis.expertise_level} level, {analysis.specificity_score:.1%} specificity[/dim]")
-            
-            # Step 2: Intelligent clarification decision
-            potential_questions = self._generate_questions_for_query(raw_query, analysis)
-            
-            # For expert queries with high specificity, skip clarification if no questions needed
-            if analysis.expertise_level == "expert" and analysis.specificity_score > 0.8:
-                needs_clarification = len(potential_questions) > 0  # Only ask if we have unanswered questions
+
+            # Step 2: Use LLM to generate surgical questions (or skip entirely)
+            question_result = await self._generate_llm_questions(raw_query, analysis)
+
+            if question_result["should_skip"] or len(question_result["questions"]) == 0:
+                # No clarification needed - show extracted info and proceed
+                if question_result["extracted_info"]:
+                    self._show_smart_auto_configuration(question_result["extracted_info"], analysis)
+                return self._create_enriched_query(raw_query, question_result["extracted_info"], analysis)
+
+            # Step 3: Ask the generated questions
+            potential_questions = [
+                workspace_tools.Question(
+                    id=q["id"],
+                    text=q["text"],
+                    options=q.get("options")
+                ) for q in question_result["questions"]
+            ]
+
+            if analysis.expertise_level == "novice" and analysis.specificity_score < 0.4:
+                # Educational approach for novice users
+                clarification_answers = await self._handle_novice_clarification(raw_query, potential_questions)
             else:
-                needs_clarification = len(potential_questions) > 0 and not analysis.should_skip_clarification
-            
-            if needs_clarification:
-                # Step 3a: Use adaptive clarification based on expertise
-                if analysis.expertise_level == "novice" and analysis.specificity_score < 0.4:
-                    # Educational approach for novice users
-                    clarification_answers = await self._handle_novice_clarification(raw_query, potential_questions)
-                else:
-                    # Direct questions for intermediate/expert users
-                    self.console.print("\n[cyan]🔍 I need a few details to provide the best analysis:[/cyan]")
-                    clarification_answers = await self._ask_clarification_questions_directly(potential_questions)
-                
-                # Create enriched query with clarification context
-                return self._create_enriched_query(raw_query, clarification_answers, analysis)
-            
-            else:
-                # Step 3b: Use smart auto-configuration for expert queries
-                # Generate template questions for context, but extract answers from the query itself
-                template_questions = self._generate_template_questions_for_context(raw_query, analysis)
-                smart_assumptions = self._extract_info_from_expert_query(raw_query, template_questions)
-                
-                # Show auto-configuration
-                self._show_smart_auto_configuration(smart_assumptions, analysis)
-                
-                # Create enriched query with assumptions
-                return self._create_enriched_query(raw_query, smart_assumptions, analysis)
-                
+                # Direct questions for intermediate/expert users
+                self.console.print("\n[cyan]🔍 I need a few details to provide the best analysis:[/cyan]")
+                clarification_answers = await self._ask_clarification_questions_directly(potential_questions)
+
+            # Merge extracted info with clarification answers
+            merged_answers = {**question_result["extracted_info"], **clarification_answers}
+
+            # Create enriched query with complete context
+            return self._create_enriched_query(raw_query, merged_answers, analysis)
+
         except Exception as e:
             self.console.print(f"[red]Error in query preprocessing: {e}[/red]")
+            logger.exception("Query preprocessing failed")
             return raw_query  # Fallback to original query
-    
+
+    async def _generate_llm_questions(self, query: str, analysis) -> Dict[str, Any]:
+        """
+        Use LLM to generate surgical, context-aware clarification questions.
+        Returns dict with: {"questions": [...], "extracted_info": {...}, "should_skip": bool}
+        """
+        try:
+            # Get OpenAI client (prefer MDG API key for reasoning)
+            mdg_api_key = os.getenv('OPENAI_MDG_API_KEY')
+            if mdg_api_key:
+                client = AsyncOpenAI(api_key=mdg_api_key)
+            else:
+                client = AsyncOpenAI()
+
+            # Load clarification prompt
+            prompt_path = Config.REPO_ROOT / "dev" / "crystalyse" / "src" / "crystalyse" / "prompts" / "clarification_llm_prompt.md"
+            with open(prompt_path, 'r') as f:
+                clarification_prompt = f.read()
+
+            # Prepare context for LLM
+            analysis_context = f"""
+Query Analysis Results:
+- Expertise Level: {analysis.expertise_level}
+- Specificity Score: {analysis.specificity_score:.2f}
+- Domain Confidence: {analysis.domain_confidence:.2f}
+- Technical Terms: {', '.join(analysis.technical_terms) if analysis.technical_terms else 'None'}
+- Should Skip Clarification (initial): {analysis.should_skip_clarification}
+- Suggested Mode: {analysis.suggested_mode}
+"""
+
+            # Call LLM for question generation
+            response = await client.chat.completions.create(
+                model="o4-mini",  # Use reasoning model for intelligent question generation
+                messages=[
+                    {"role": "system", "content": clarification_prompt},
+                    {"role": "user", "content": f"""Task: generate_questions
+
+{analysis_context}
+
+User Query: "{query}"
+
+Generate minimal, surgical clarifying questions for truly critical missing information only. Return JSON with:
+- "questions": list of questions (can be empty if all info provided)
+- "extracted_info": dict of information already in the query
+- "should_skip": true if no clarification needed
+
+Remember: Default to ZERO questions. Only ask if missing information would fundamentally change the computational approach."""}
+                ],
+                temperature=0.3,  # Lower temperature for consistent analysis
+                max_completion_tokens=1000
+            )
+
+            response_text = response.choices[0].message.content.strip()
+
+            # Extract JSON from response
+            if '```json' in response_text:
+                json_start = response_text.find('```json') + 7
+                json_end = response_text.find('```', json_start)
+                response_text = response_text[json_start:json_end].strip()
+
+            result = json.loads(response_text)
+
+            logger.info(f"LLM question generation: {len(result.get('questions', []))} questions, should_skip={result.get('should_skip', False)}")
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"LLM question generation failed: {e}, falling back to empty questions")
+            # Fallback: skip clarification on errors
+            return {
+                "questions": [],
+                "extracted_info": {},
+                "should_skip": True
+            }
+
     def _generate_questions_for_query(self, query: str, analysis) -> List[workspace_tools.Question]:
         """Generate appropriate clarification questions based on query analysis, but only for missing information."""
         questions = []
