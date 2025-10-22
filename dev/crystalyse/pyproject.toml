@@ -1,0 +1,72 @@
+[project]
+name = "crystalyse"
+version = "1.0.0"
+description = "Crystalyse - AI-Powered Materials Design"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ryan Nduma", email = "ryannduma@gmail.com"}
+]
+
+dependencies = [
+    # Core dependencies
+    "openai>=1.0.0",
+    "openai-agents>=0.0.16",
+
+    # Materials science
+    "pymatgen>=2024.1.0",
+    "ase>=3.22.0",
+    "smact>=3.2.0",
+
+    # Data handling
+    "numpy>=1.24.0,<2.0.0",
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
+
+    # CLI & UI
+    "rich>=13.0.0",
+    "click>=8.1.0",
+    "prompt-toolkit>=3.0.0",
+    "typer>=0.12.0",
+
+    # Utilities
+    "typing-extensions>=4.5.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+visualization = [
+    "plotly>=5.18.0",
+    "py3Dmol>=2.0.4",
+    "kaleido>=0.2.1",
+    "pymatviz>=0.8.5",
+]
+
+ml = [
+    "torch>=2.0.0",
+    "mace-torch>=0.3.0",
+]
+
+all = [
+    "crystalyse[visualization,ml]",
+]
+
+[project.scripts]
+crystalyse = "crystalyse.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/crystalyse"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true

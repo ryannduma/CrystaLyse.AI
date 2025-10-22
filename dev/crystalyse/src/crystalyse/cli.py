@@ -1,6 +1,6 @@
 
 """
-CrystaLyse.AI 2.0 - Enhanced Materials Discovery
+Crystalyse v1.0 - AI-Powered Materials Design
 """
 
 import asyncio
@@ -40,7 +40,7 @@ from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
 # --- Setup ---
 app = typer.Typer(
     name="crystalyse",
-    help="CrystaLyse.AI 2.0 - Enhanced Materials Discovery",
+    help="Crystalyse v1.0 - AI-Powered Materials Design",
     add_completion=False,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -485,7 +485,7 @@ def user_stats(user: str = typer.Option("default", "--user", "-u", help="User ID
         return
     
     console.print(Panel(
-        f"""[bold cyan]CrystaLyse Learning Profile[/bold cyan]
+        f"""[bold cyan]Crystalyse Learning Profile[/bold cyan]
 
 """
         f"User ID: {stats['user_id']}\n"
@@ -510,11 +510,11 @@ def main_callback(
     project: str = typer.Option("crystalyse_session", "-p", "--project", help="Project name for workspace."),
     mode: AgentMode = typer.Option(AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False),
     model: Optional[str] = typer.Option(None, "--model", help="Language model to use."),
-    version: Optional[bool] = typer.Option(None, "--version", help="Show version and exit.", callback=lambda v: (console.print("CrystaLyse.AI 2.0"), exit(0)) if v else None, is_eager=True),
+    version: Optional[bool] = typer.Option(None, "--version", help="Show version and exit.", callback=lambda v: (console.print("Crystalyse v1.0.0"), exit(0)) if v else None, is_eager=True),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """
-    CrystaLyse.AI 2.0: Enhanced Materials Discovery
+    Crystalyse v1.0: AI-Powered Materials Design
     """
     state["project"] = project
     state["mode"] = mode
@@ -549,7 +549,7 @@ def run():
     try:
         app()
     except KeyboardInterrupt:
-        console.print(f"\n[cyan]CrystaLyse.AI session ended.[/cyan]")
+        console.print(f"\n[cyan]Crystalyse session ended.[/cyan]")
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         console.print(f"\n[red]❌ An unexpected error occurred: {e}[/red]")

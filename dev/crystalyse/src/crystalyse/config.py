@@ -1,4 +1,4 @@
-"""Central configuration management for CrystaLyse.AI"""
+"""Central configuration management for Crystalyse"""
 
 import os
 import shutil
@@ -22,21 +22,23 @@ class CrystaLyseConfig:
         """Load configuration from environment variables with sensible defaults"""
         
         # MCP Server Configurations
+        # base_dir is crystalyse/src, so base_dir.parent.parent gets us to /dev
+        dev_dir = self.base_dir.parent.parent
         self.mcp_servers = {
             "chemistry_unified": {
                 "command": os.getenv("CRYSTALYSE_PYTHON_PATH", sys.executable),
                 "args": ["-m", "chemistry_unified.server"],
-                "cwd": str(self.base_dir / "chemistry-unified-server" / "src")
+                "cwd": str(dev_dir / "servers" / "chemistry-unified" / "src")
             },
             "chemistry_creative": {
                 "command": sys.executable,
                 "args": ["-m", "chemistry_creative.server"],
-                "cwd": str(self.base_dir / "chemistry-creative-server" / "src")
+                "cwd": str(dev_dir / "servers" / "chemistry-creative" / "src")
             },
             "visualization": {
                 "command": sys.executable,
                 "args": ["-m", "visualization_mcp.server"],
-                "cwd": str(self.base_dir / "visualization-mcp-server" / "src")
+                "cwd": str(dev_dir / "servers" / "visualization" / "src")
             }
         }
         
@@ -128,7 +130,7 @@ class CrystaLyseConfig:
     def validate_dependencies(self):
         """Perform validation of critical system dependencies."""
         if not shutil.which("python"):
-            raise RuntimeError("Python interpreter not found in system PATH. CrystaLyse.AI requires Python.")
+            raise RuntimeError("Python interpreter not found in system PATH. Crystalyse requires Python.")
         
         import importlib.util
         if importlib.util.find_spec("agents") is None:

@@ -1,62 +1,43 @@
 [project]
-name = "crystalyse"
-version = "2.0.0-alpha"
-description = "CrystaLyse.AI v2.0-alpha - Research Preview: Next-generation autonomous materials discovery platform with multi-agent orchestration and advanced UX"
-readme = "README.md"
-requires-python = ">=3.9"
-dependencies = [
-    "openai>=1.0.0",
-    "openai-agents>=0.0.16",
-    
-    "pymatgen>=2024.1.0",
-    "ase>=3.22.0",
-    "numpy>=1.24.0",
-    "pandas>=2.0.0",
-    "typing-extensions>=4.5.0",
-    "pydantic>=2.0.0",
-    "asyncio>=3.4.3",
-    "rich>=13.0.0",
-    "click>=8.1.0",
-    "prompt-toolkit>=3.0.0",
-	"typer>=0.12.0",
+name = "crystalyse-workspace"
+version = "1.0.0"
+description = "Crystalyse Development Workspace - AI-Powered Materials Design"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ryan Nduma", email = "ryannduma@gmail.com"}
+]
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "crystalyse",
+    "servers/*",
 ]
 
-[project.optional-dependencies]
+[tool.uv]
+default-groups = ["dev", "test", "docs"]
+required-version = ">=0.7.2"
+
+[dependency-groups]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "black>=23.0.0",
 ]
 
-visualization = [
-    "plotly>=5.18.0",
-    "py3Dmol>=2.0.4",
-    "kaleido>=0.2.1",
-    "pymatviz>=0.8.5",
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
 ]
 
-all = [
-    "crystalyse[visualization]",
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
 ]
-
-[project.scripts]
-crystalyse = "crystalyse.cli:main"
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["crystalyse*"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true

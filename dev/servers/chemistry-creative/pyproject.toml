@@ -1,0 +1,30 @@
+[project]
+name = "chemistry-creative-server"
+version = "1.0.0"
+description = "Creative Chemistry MCP Server for Crystalyse (Chemeleon and MACE - fast exploration mode)"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ryan Nduma", email = "ryannduma@gmail.com"}
+]
+
+dependencies = [
+    "crystalyse",
+    "mcp>=1.0.0",
+    "fastmcp>=0.5.0",
+    "ase>=3.22.0",
+    "numpy>=1.21.0",
+]
+
+[tool.uv.sources]
+crystalyse = { workspace = true }
+
+[project.scripts]
+chemistry-creative-server = "chemistry_creative.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chemistry_creative"]

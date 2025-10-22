@@ -1,0 +1,33 @@
+[project]
+name = "visualization-mcp-server"
+version = "1.0.0"
+description = "Visualization MCP Server for Crystalyse (3D structure rendering and analysis)"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ryan Nduma", email = "ryannduma@gmail.com"}
+]
+
+dependencies = [
+    "crystalyse",
+    "mcp>=1.0.0",
+    "fastmcp>=0.5.0",
+    "pymatgen>=2024.1.0",
+    "pymatviz>=0.8.5",
+    "plotly>=5.18.0",
+    "kaleido>=0.2.1",
+    "py3Dmol>=2.0.4",
+]
+
+[tool.uv.sources]
+crystalyse = { workspace = true }
+
+[project.scripts]
+visualization-server = "visualization.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/visualization_mcp"]

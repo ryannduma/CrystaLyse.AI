@@ -1,20 +1,20 @@
 """
-CrystaLyse.AI - Unified Materials Discovery with OpenAI Agents SDK
+Crystalyse - AI-Powered Materials Design
 
-CrystaLyse.AI enables researchers to discover and design materials using a unified 
-agent architecture powered by OpenAI o4-mini model with true agentic behaviour.
+Crystalyse enables researchers to discover and design materials using a unified
+agent architecture powered by OpenAI Agents SDK with true agentic behaviour.
 
 Key Features:
-    - Unified Agent Architecture: Single agent replaces 5+ redundant implementations
+    - Unified Agent Architecture: Single agent with intelligent tool coordination
     - OpenAI Agents SDK: True agentic behaviour with LLM-controlled workflows
-    - SMACT Integration: Proper chemistry validation using established libraries
+    - SMACT Integration: Chemistry validation using established libraries
     - Chemeleon CSP: Crystal structure prediction with up to 10 polymorphs
     - MACE Integration: Formation energy calculations for stability ranking
-    - 90% Code Reduction: Streamlined, maintainable codebase
-    - Natural Language Tools: Simple tools that LLMs can easily use
+    - Complete Provenance: Always-on audit trails for reproducibility
+    - UV Workspace: Fast, reproducible dependency management
 """
 
-__version__ = "2.0.0-alpha"
+__version__ = "1.0.0"
 
 # Import unified agent
 try:
