@@ -65,7 +65,21 @@ class EnhancedCrystaLyseAgent:
         self.mode = mode
         self.model = model
         self.session_id = f"{project_name}_{mode}"
-        
+
+        # Create persistent session for conversation memory (interactive chat mode)
+        # For non-interactive discover mode, this will be created once per agent instance
+        # For interactive chat mode, this persists across multiple discover() calls
+        if SQLiteSession:
+            from pathlib import Path
+            session_dir = Path.home() / ".crystalyse" / "sessions"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            session_db = session_dir / f"{self.session_id}.db"
+            self.session = SQLiteSession(self.session_id, str(session_db))
+            logger.info(f"Session memory enabled: {session_db}")
+        else:
+            self.session = None
+            logger.warning("SQLiteSession not available - conversation memory disabled")
+
         # Set global mode for automatic injection
         GlobalModeManager.set_mode(mode, lock_mode=True)
         logger.info(f"Agent initialized with mode='{mode}' - Mode injection active")
@@ -148,8 +162,9 @@ class EnhancedCrystaLyseAgent:
 
         async with self._managed_mcp_servers() as mcp_servers:
             try:
-                # Create session if SQLiteSession is available, otherwise use None
-                session = SQLiteSession(self.session_id) if SQLiteSession else None
+                # Use persistent session created in __init__
+                # This ensures conversation continuity across multiple discover() calls (interactive chat)
+                session = self.session
                 selected_model = self.model or self._select_model_for_mode(self.mode)
                 
                 # Create mode-aware instructions
@@ -209,7 +224,7 @@ class EnhancedCrystaLyseAgent:
                         stream_args = {
                             "starting_agent": sdk_agent,
                             "input": query,
-                            "context": session,  # Fixed: was "session", should be "context"
+                            "session": session,  # Session memory for conversation continuity
                             "max_turns": 1000
                         }
                         if run_config:
