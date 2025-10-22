@@ -70,12 +70,20 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
             "CHEMELEON_CHECKPOINT_DIR",
             "/home/ryan/mycrystalyse/CrystaLyse.AI/dev/ckpts"
         )
+
+        # Ensure checkpoints are downloaded to the correct directory
+        from chemeleon_dng.download_util import ensure_checkpoints_downloaded
+        ensure_checkpoints_downloaded(ckpt_dir=checkpoint_dir)
+
         default_paths = {
             "csp": str(os.path.join(checkpoint_dir, "chemeleon_csp_alex_mp_20_v0.0.2.ckpt")),
             "dng": str(os.path.join(checkpoint_dir, "chemeleon_dng_alex_mp_20_v0.0.2.ckpt")),
             "guide": "."
         }
-        checkpoint_path = get_checkpoint_path(task=task, default_paths=default_paths)
+        checkpoint_path = default_paths.get(task)
+
+        if not checkpoint_path or not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint not found for task '{task}' at {checkpoint_path}")
 
     # Load model
     device = _get_device(prefer_gpu=prefer_gpu)

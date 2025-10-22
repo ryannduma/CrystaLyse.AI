@@ -307,25 +307,42 @@ def analyze_space_group(
     return result
 
 
-@mcp.tool(description="Calculate energy above hull for thermodynamic stability")
+@mcp.tool(description="Calculate energy above hull for thermodynamic stability - REQUIRES total_energy from MACE calculation")
 def calculate_energy_above_hull(
     composition: str,
-    energy_per_atom: Optional[float] = None
+    total_energy: float
 ) -> EnergyAboveHullResult:
     """
     Calculate energy above hull using Materials Project phase diagram.
 
+    **CRITICAL**: This tool requires the TOTAL energy (not formation energy, not energy per atom!)
+    from a DFT or MACE calculation. The total energy should be NEGATIVE for stable compounds.
+
+    Correct workflow:
+        1. generate_crystal_csp() → get structure
+        2. relax_structure() → optimize geometry
+        3. calculate_formation_energy() → get energy (returns both energy_per_atom and total_energy)
+        4. calculate_energy_above_hull(total_energy=result.total_energy) → use total_energy field!
+
     Args:
         composition: Chemical formula (e.g., "LiFePO4")
-        energy_per_atom: Optional calculated energy per atom (eV/atom)
+        total_energy: Total energy of the compound in eV (NEGATIVE for stable materials, e.g., -50.3 eV)
 
     Returns:
         Structured energy above hull result with stability assessment
+
+    Example:
+        energy_result = calculate_formation_energy(structure)
+        hull_result = calculate_energy_above_hull(
+            composition="LiFePO4",
+            total_energy=energy_result.total_energy  # Use total_energy, NOT formation_energy!
+        )
     """
-    logger.info(f"Calculating energy above hull for: {composition}")
+    logger.info(f"Calculating energy above hull for: {composition} with total_energy={total_energy} eV")
     result = phase_diagram_analyzer.calculate_energy_above_hull(
         composition=composition,
-        energy_per_atom=energy_per_atom
+        energy=total_energy,
+        per_atom=False  # total_energy is total, not per atom
     )
     return result
 

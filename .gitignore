@@ -228,6 +228,7 @@ test_task1_all_modes.py
 /modelcontextprotocol/
 /python-sdk/
 /uv/
+/dev/provenance_output/
 
 # Backup files
 *.backup

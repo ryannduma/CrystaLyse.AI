@@ -328,9 +328,9 @@ class EnhancedCrystaLyseAgent:
             base_instructions = "You are CrystaLyse, an advanced autonomous materials discovery agent."
         
         mode_enhancements = {
-            "creative": f"\n## Creative Mode: Focus on rapid exploration and novel ideas.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"creative\" - the tool will FAIL without it!",
-            "rigorous": f"\n## Rigorous Mode: Focus on comprehensive validation and accuracy.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"rigorous\" - the tool will FAIL without it!",
-            "adaptive": f"\n## Adaptive Mode: Balance exploration and validation based on context.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"adaptive\" - the tool will FAIL without it!"
+            "creative": f"\n## Creative Mode: Focus on rapid exploration and novel ideas using Chemeleon CSP for fast structure generation.",
+            "rigorous": f"\n## Rigorous Mode: Focus on comprehensive validation with SMACT validation → Chemeleon CSP → MACE energy calculations.",
+            "adaptive": f"\n## Adaptive Mode: Balance exploration and validation - use SMACT for validation, Chemeleon for structures, MACE for energies."
         }
         
         if history:
