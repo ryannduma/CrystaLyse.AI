@@ -397,6 +397,172 @@ class ChatExperience:
             logger.exception("Query preprocessing failed")
             return raw_query  # Fallback to original query
 
+    def _create_enriched_query(self, original_query: str, context: Dict[str, Any], analysis) -> str:
+        """Create an enriched query with full context for the agent."""
+
+        # Build context section
+        context_lines = []
+        for key, value in context.items():
+            if not key.startswith('_') and value:
+                context_lines.append(f"- {key.replace('_', ' ').title()}: {value}")
+
+        context_section = "\n".join(context_lines) if context_lines else "No additional context provided."
+
+        # Create enriched query with clear structure
+        enriched_query = f"""ORIGINAL USER REQUEST:
+{original_query}
+
+CONTEXT AND CONSTRAINTS:
+{context_section}
+
+ANALYSIS MODE: {self.mode}
+EXPERTISE LEVEL: {analysis.expertise_level if analysis else 'unknown'}
+
+INSTRUCTIONS: This request has been pre-processed and clarified. You can proceed directly with analysis using the comprehensive_materials_analysis tool. All necessary context has been provided above."""
+
+        return enriched_query
+
+    async def _ask_clarification_questions_directly(self, questions: List[workspace_tools.Question]) -> Dict[str, Any]:
+        """Ask clarification questions with intelligent, flexible response handling."""
+        answers = {"_mode": self.mode}
+
+        for question in questions:
+            if question.options:
+                # Show options but accept flexible responses
+                options_text = "/".join(question.options)
+                self.console.print(f"[bold]{question.text}[/bold] [{options_text}]")
+
+                raw_answer = self.console.input("Your choice: ")
+
+                # Smart response matching
+                matched_answer = self._smart_match_response(raw_answer, question.options, question.id)
+
+                if matched_answer:
+                    answers[question.id] = matched_answer
+                elif self._is_exit_signal(raw_answer):
+                    self.console.print("[yellow]Understood - let's proceed with what you've provided.[/yellow]")
+                    break
+                else:
+                    # Accept the custom response and continue
+                    self.console.print(f"[green]Got it: {raw_answer}[/green]")
+                    answers[question.id] = raw_answer
+                    answers[f"{question.id}_custom"] = True
+            else:
+                answer = Prompt.ask(f"[bold]{question.text}[/bold]")
+                if self._is_exit_signal(answer):
+                    break
+                answers[question.id] = answer
+
+        return answers
+
+    def _smart_match_response(self, response: str, options: List[str], question_id: str) -> Optional[str]:
+        """Intelligent response matching with flexibility and context awareness."""
+        if not response or not response.strip():
+            return options[0]  # Default to first option for empty response
+
+        response_clean = response.strip().lower()
+
+        # Direct case-insensitive match
+        for option in options:
+            if response_clean == option.lower():
+                return option
+
+        # Handle common variants and spelling
+        variants = {
+            "maximise": "maximize", "minimise": "minimize",
+            "centre": "center", "colour": "color",
+            "grey": "gray", "sulphur": "sulfur",
+            "aluminium": "aluminum", "defence": "defense",
+            # Temperature variants
+            "mid": "mid-range", "middle": "mid-range", "medium": "mid-range",
+            "low": "room temperature", "ambient": "room temperature",
+            "high": "high temperature", "elevated": "high temperature",
+            # Common abbreviations
+            "rm temp": "room temperature", "rt": "room temperature",
+            "pb free": "no toxic elements", "lead free": "no toxic elements",
+            "te free": "no toxic elements", "tellurium free": "no toxic elements",
+        }
+
+        # Try variant matching
+        normalized_response = variants.get(response_clean, response_clean)
+        for option in options:
+            if normalized_response == option.lower():
+                return option
+
+        # Partial matching (smart abbreviations and contains)
+        for option in options:
+            option_lower = option.lower()
+            # Check if response is contained in option or vice versa (minimum 3 chars)
+            if ((response_clean in option_lower and len(response_clean) >= 3) or
+                (option_lower in response_clean and len(option_lower) >= 3)):
+                return option
+
+        # Context-aware fuzzy matching
+        fuzzy_matches = {
+            "temperature_range": {
+                "500": "Mid-range (400-700K)",
+                "600": "Mid-range (400-700K)",
+                "700": "Mid-range (400-700K)",
+                "800": "High temperature (>700K)",
+                "400": "Mid-range (400-700K)",
+                "300": "Room temperature (<400K)",
+            },
+            "target_zt": {
+                "high": "ZT ≥ 1.5 (high performance)",
+                "good": "ZT ≥ 1.0 (competitive)",
+                "decent": "ZT ≥ 0.5 (practical)",
+                "best": "ZT ≥ 2.0 (cutting edge)",
+                "1": "ZT ≥ 1.0 (competitive)",
+                "2": "ZT ≥ 2.0 (cutting edge)",
+            },
+            "material_constraints": {
+                "toxic": "No toxic elements (Pb, Te-free)",
+                "safe": "No toxic elements (Pb, Te-free)",
+                "abundant": "Earth-abundant only",
+                "common": "Earth-abundant only",
+                "stable": "Air-stable required",
+                "pb": "No toxic elements (Pb, Te-free)",
+                "te": "No toxic elements (Pb, Te-free)",
+                "lead": "No toxic elements (Pb, Te-free)",
+                "tellurium": "No toxic elements (Pb, Te-free)",
+            }
+        }
+
+        if question_id in fuzzy_matches:
+            for keyword, mapped_option in fuzzy_matches[question_id].items():
+                if keyword in response_clean:
+                    return mapped_option
+
+        # If no match found, return None (will be handled as custom response)
+        return None
+
+    def _is_exit_signal(self, response: str) -> bool:
+        """Check if user wants to exit/skip clarification."""
+        exit_signals = [
+            "quit", "exit", "stop", "cancel", "nevermind", "forget it",
+            "skip", "pass", "none", "n/a", "not applicable", "done"
+        ]
+
+        response_lower = response.strip().lower()
+        return any(signal in response_lower for signal in exit_signals)
+
+    def _show_smart_auto_configuration(self, assumptions: Dict[str, Any], analysis):
+        """Show the smart auto-configuration panel."""
+        assumption_lines = "\n".join(
+            f"• {key.replace('_', ' ').title()}: {value}"
+            for key, value in assumptions.items()
+            if not key.startswith('_')
+        )
+
+        self.console.print(Panel(
+            f"[bold green]🚀 Smart Auto-Configuration[/bold green]\n\n"
+            f"Based on your {analysis.expertise_level}-level query, I'm proceeding with:\n{assumption_lines}\n\n"
+            f"→ Using [bold]{self.mode}[/bold] mode for analysis.\n\n"
+            f"[dim]If these assumptions are incorrect, you can provide more details in your next message.[/dim]",
+            title="[bold cyan]⚡ High-Confidence Analysis[/bold cyan]",
+            border_style="cyan"
+        ))
+
     async def _generate_llm_questions(self, query: str, analysis) -> Dict[str, Any]:
         """
         Use GPT-5 with Structured Outputs to generate surgical, context-aware clarification questions.
@@ -486,486 +652,3 @@ Remember the expertise-aware strategy:
                 "extracted_info": {}  # Always include extracted_info
             }
 
-    def _generate_questions_for_query(self, query: str, analysis) -> List[workspace_tools.Question]:
-        """Generate appropriate clarification questions based on query analysis, but only for missing information."""
-        questions = []
-        query_lower = query.lower()
-        
-        # SMART FILTERING: Only ask questions if information is NOT already provided
-        
-        # Thermoelectric-specific questions
-        if "thermoelectric" in query_lower or "zt" in query_lower:
-            # Temperature range - only ask if not specified
-            if not self._has_temperature_info(query):
-                questions.append(workspace_tools.Question(
-                    id="temperature_range",
-                    text="What temperature range is most important for your application?",
-                    options=["Room temperature (<400K)", "Mid-range (400-700K)", "High temperature (>700K)", "Full range (300-1000K)"]
-                ))
-            
-            # ZT target - only ask if not mentioned
-            if not self._has_zt_target(query):
-                questions.append(workspace_tools.Question(
-                    id="target_zt",
-                    text="What minimum ZT value are you targeting?",
-                    options=["ZT ≥ 0.5 (practical)", "ZT ≥ 1.0 (competitive)", "ZT ≥ 1.5 (high performance)", "ZT ≥ 2.0 (cutting edge)"]
-                ))
-            
-            # Material constraints - only ask if not specified
-            if not self._has_material_constraints(query):
-                questions.append(workspace_tools.Question(
-                    id="material_constraints",
-                    text="Are there specific material constraints?",
-                    options=["No toxic elements (Pb, Te-free)", "Earth-abundant only", "Air-stable required", "No specific constraints"]
-                ))
-            
-            # Processing method - only ask if not mentioned
-            if not self._has_processing_info(query):
-                questions.append(workspace_tools.Question(
-                    id="processing_method",
-                    text="What fabrication method will you use?",
-                    options=["Bulk polycrystalline", "Thin film", "Single crystal", "Nanostructured"]
-                ))
-        
-        # Battery-specific questions  
-        elif "battery" in query_lower or "cathode" in query_lower or "anode" in query_lower:
-            questions.extend([
-                workspace_tools.Question(
-                    id="battery_type",
-                    text="What type of battery system?",
-                    options=["Li-ion", "Na-ion", "Mg-ion", "Solid-state", "Other"]
-                ),
-                workspace_tools.Question(
-                    id="key_property",
-                    text="What's the most important property?",
-                    options=["High capacity", "Long cycle life", "Fast charging", "Safety", "Low cost"]
-                )
-            ])
-        
-        # General materials questions
-        else:
-            questions.extend([
-                workspace_tools.Question(
-                    id="application_area",
-                    text="What's the primary application area?",
-                    options=["Energy storage", "Thermoelectrics", "Catalysis", "Electronics", "Structural", "Other"]
-                ),
-                workspace_tools.Question(
-                    id="performance_priority",
-                    text="What's most important for this application?",
-                    options=["Highest performance", "Cost effectiveness", "Stability/durability", "Ease of synthesis"]
-                )
-            ])
-        
-        return questions
-    
-    def _has_temperature_info(self, query: str) -> bool:
-        """Check if temperature information is already provided in the query."""
-        temp_indicators = [
-            r"\d+\s*[–-]\s*\d+\s*k",  # "500–800 K"
-            r"\d+\s*to\s*\d+\s*k",     # "500 to 800 K"
-            r"mid.?temperature",        # "mid-temperature"
-            r"high.?temperature",       # "high-temperature"
-            r"room.?temperature",       # "room temperature"
-            r"\d+\s*k",                # "600K"
-            r"\d+\s*°c",               # "300°C"
-        ]
-        
-        import re
-        query_lower = query.lower()
-        return any(re.search(pattern, query_lower) for pattern in temp_indicators)
-    
-    def _has_zt_target(self, query: str) -> bool:
-        """Check if ZT target information is provided."""
-        zt_indicators = [
-            r"zt\s*[>≥]\s*\d",         # "ZT > 1"
-            r"high\s+zt",              # "high ZT"
-            r"zt\s+value",             # "ZT value"
-            r"figure\s+of\s+merit",    # "figure of merit"
-        ]
-        
-        import re
-        query_lower = query.lower()
-        return any(re.search(pattern, query_lower) for pattern in zt_indicators)
-    
-    def _has_material_constraints(self, query: str) -> bool:
-        """Check if material constraints are mentioned."""
-        constraint_indicators = [
-            r"avoid.*lead",             # "avoid lead"
-            r"avoid.*tellurium",        # "avoid tellurium"
-            r"pb.*free",               # "Pb-free"
-            r"te.*free",               # "Te-free"
-            r"earth.?abundant",        # "earth-abundant"
-            r"toxic",                  # "toxic"
-            r"supply\s+concern",       # "supply concerns"
-            r"stable\s+in\s+air",     # "stable in air"
-        ]
-        
-        import re
-        query_lower = query.lower()
-        return any(re.search(pattern, query_lower) for pattern in constraint_indicators)
-    
-    def _has_processing_info(self, query: str) -> bool:
-        """Check if processing/fabrication information is provided."""
-        processing_indicators = [
-            r"bulk\s+polycrystalline", # "bulk polycrystalline"
-            r"sintering",              # "sintering"
-            r"hot\s+pressing",         # "hot pressing"
-            r"fabrication",            # "fabrication"
-            r"processing",             # "processing"
-            r"thin\s+film",           # "thin film"
-            r"single\s+crystal",      # "single crystal"
-        ]
-        
-        import re
-        query_lower = query.lower()
-        return any(re.search(pattern, query_lower) for pattern in processing_indicators)
-    
-    def _generate_template_questions_for_context(self, query: str, analysis) -> List[workspace_tools.Question]:
-        """Generate template questions for context, regardless of whether they're answered in the query."""
-        questions = []
-        query_lower = query.lower()
-        
-        # Always generate thermoelectric template questions for context
-        if "thermoelectric" in query_lower or "zt" in query_lower:
-            questions.extend([
-                workspace_tools.Question(
-                    id="temperature_range",
-                    text="Temperature range",
-                    options=["Room temperature (<400K)", "Mid-range (400-700K)", "High temperature (>700K)", "Full range (300-1000K)"]
-                ),
-                workspace_tools.Question(
-                    id="target_zt",
-                    text="Target ZT value",
-                    options=["ZT ≥ 0.5 (practical)", "ZT ≥ 1.0 (competitive)", "ZT ≥ 1.5 (high performance)", "ZT ≥ 2.0 (cutting edge)"]
-                ),
-                workspace_tools.Question(
-                    id="material_constraints",
-                    text="Material constraints",
-                    options=["No toxic elements (Pb, Te-free)", "Earth-abundant only", "Air-stable required", "No specific constraints"]
-                ),
-                workspace_tools.Question(
-                    id="processing_method",
-                    text="Processing method",
-                    options=["Bulk polycrystalline", "Thin film", "Single crystal", "Nanostructured"]
-                )
-            ])
-        
-        return questions
-    
-    def _extract_info_from_expert_query(self, query: str, template_questions: List[workspace_tools.Question]) -> Dict[str, Any]:
-        """Extract information directly from expert query text."""
-        import re
-        query_lower = query.lower()
-        extracted_info = {}
-        
-        # Temperature range extraction
-        if "500" in query and "800" in query:
-            extracted_info["temperature_range"] = "Mid-range (500-800K) - explicitly specified"
-        elif "mid-temperature" in query_lower or "mid temperature" in query_lower:
-            extracted_info["temperature_range"] = "Mid-range (400-700K)"
-        
-        # ZT target extraction
-        if "high zt" in query_lower:
-            extracted_info["target_zt"] = "High ZT values - explicitly requested"
-        
-        # Material constraints extraction
-        constraints = []
-        if "avoid" in query_lower and ("lead" in query_lower or "pb" in query_lower):
-            constraints.append("Lead-free")
-        if "avoid" in query_lower and ("tellurium" in query_lower or "te" in query_lower):
-            constraints.append("Tellurium-free")
-        if "earth-abundant" in query_lower or "earth abundant" in query_lower:
-            constraints.append("Earth-abundant")
-        if "stable in air" in query_lower:
-            constraints.append("Air-stable")
-        
-        if constraints:
-            extracted_info["material_constraints"] = ", ".join(constraints) + " - explicitly specified"
-        
-        # Processing method extraction
-        if "bulk polycrystalline" in query_lower:
-            extracted_info["processing_method"] = "Bulk polycrystalline - explicitly specified"
-        elif "sintering" in query_lower or "hot pressing" in query_lower:
-            extracted_info["processing_method"] = "Bulk polycrystalline (sintering/hot pressing)"
-        
-        # Material class preferences
-        material_classes = []
-        if "zintl" in query_lower:
-            material_classes.append("Zintl phases")
-        if "oxide thermoelectric" in query_lower:
-            material_classes.append("Oxide thermoelectrics")
-        
-        if material_classes:
-            extracted_info["material_classes"] = ", ".join(material_classes) + " - explicitly mentioned"
-        
-        # Add isotropy/processability requirements
-        if "isotropy" in query_lower or "isotropic" in query_lower:
-            extracted_info["structural_requirements"] = "Structurally isotropic - explicitly required"
-        
-        return extracted_info
-    
-    async def _ask_clarification_questions_directly(self, questions: List[workspace_tools.Question]) -> Dict[str, Any]:
-        """Ask clarification questions with intelligent, flexible response handling."""
-        answers = {"_mode": self.mode}
-        
-        for question in questions:
-            if question.options:
-                # Show options but accept flexible responses
-                options_text = "/".join(question.options)
-                self.console.print(f"[bold]{question.text}[/bold] [{options_text}]")
-                
-                raw_answer = self.console.input("Your choice: ")
-                
-                # Smart response matching
-                matched_answer = self._smart_match_response(raw_answer, question.options, question.id)
-                
-                if matched_answer:
-                    answers[question.id] = matched_answer
-                elif self._is_exit_signal(raw_answer):
-                    self.console.print("[yellow]Understood - let's proceed with what you've provided.[/yellow]")
-                    break
-                else:
-                    # Accept the custom response and continue
-                    self.console.print(f"[green]Got it: {raw_answer}[/green]")
-                    answers[question.id] = raw_answer
-                    answers[f"{question.id}_custom"] = True
-            else:
-                answer = Prompt.ask(f"[bold]{question.text}[/bold]")
-                if self._is_exit_signal(answer):
-                    break
-                answers[question.id] = answer
-        
-        return answers
-    
-    def _smart_match_response(self, response: str, options: List[str], question_id: str) -> Optional[str]:
-        """Intelligent response matching with flexibility and context awareness."""
-        if not response or not response.strip():
-            return options[0]  # Default to first option for empty response
-            
-        response_clean = response.strip().lower()
-        
-        # Direct case-insensitive match
-        for option in options:
-            if response_clean == option.lower():
-                return option
-        
-        # Handle common variants and spelling
-        variants = {
-            "maximise": "maximize", "minimise": "minimize", 
-            "centre": "center", "colour": "color",
-            "grey": "gray", "sulphur": "sulfur",
-            "aluminium": "aluminum", "defence": "defense",
-            # Temperature variants
-            "mid": "mid-range", "middle": "mid-range", "medium": "mid-range",
-            "low": "room temperature", "ambient": "room temperature",
-            "high": "high temperature", "elevated": "high temperature",
-            # Common abbreviations
-            "rm temp": "room temperature", "rt": "room temperature",
-            "pb free": "no toxic elements", "lead free": "no toxic elements",
-            "te free": "no toxic elements", "tellurium free": "no toxic elements",
-        }
-        
-        # Try variant matching
-        normalized_response = variants.get(response_clean, response_clean)
-        for option in options:
-            if normalized_response == option.lower():
-                return option
-        
-        # Partial matching (smart abbreviations and contains)
-        for option in options:
-            option_lower = option.lower()
-            # Check if response is contained in option or vice versa (minimum 3 chars)
-            if ((response_clean in option_lower and len(response_clean) >= 3) or 
-                (option_lower in response_clean and len(option_lower) >= 3)):
-                return option
-        
-        # Context-aware fuzzy matching
-        fuzzy_matches = {
-            "temperature_range": {
-                "500": "Mid-range (400-700K)",
-                "600": "Mid-range (400-700K)", 
-                "700": "Mid-range (400-700K)",
-                "800": "High temperature (>700K)",
-                "400": "Mid-range (400-700K)",
-                "300": "Room temperature (<400K)",
-            },
-            "target_zt": {
-                "high": "ZT ≥ 1.5 (high performance)",
-                "good": "ZT ≥ 1.0 (competitive)",
-                "decent": "ZT ≥ 0.5 (practical)",
-                "best": "ZT ≥ 2.0 (cutting edge)",
-                "1": "ZT ≥ 1.0 (competitive)",
-                "2": "ZT ≥ 2.0 (cutting edge)",
-            },
-            "material_constraints": {
-                "toxic": "No toxic elements (Pb, Te-free)",
-                "safe": "No toxic elements (Pb, Te-free)",
-                "abundant": "Earth-abundant only",
-                "common": "Earth-abundant only",
-                "stable": "Air-stable required",
-                "pb": "No toxic elements (Pb, Te-free)",
-                "te": "No toxic elements (Pb, Te-free)",
-                "lead": "No toxic elements (Pb, Te-free)",
-                "tellurium": "No toxic elements (Pb, Te-free)",
-            }
-        }
-        
-        if question_id in fuzzy_matches:
-            for keyword, mapped_option in fuzzy_matches[question_id].items():
-                if keyword in response_clean:
-                    return mapped_option
-        
-        # If no match found, return None (will be handled as custom response)
-        return None
-    
-    def _is_exit_signal(self, response: str) -> bool:
-        """Check if user wants to exit/skip clarification."""
-        exit_signals = [
-            "quit", "exit", "stop", "cancel", "nevermind", "forget it", 
-            "skip", "pass", "none", "n/a", "not applicable", "done"
-        ]
-        
-        response_lower = response.strip().lower()
-        return any(signal in response_lower for signal in exit_signals)
-    
-    def _show_smart_auto_configuration(self, assumptions: Dict[str, Any], analysis):
-        """Show the smart auto-configuration panel."""
-        assumption_lines = "\n".join(
-            f"• {key.replace('_', ' ').title()}: {value}" 
-            for key, value in assumptions.items() 
-            if not key.startswith('_')
-        )
-        
-        self.console.print(Panel(
-            f"[bold green]🚀 Smart Auto-Configuration[/bold green]\n\n"
-            f"Based on your {analysis.expertise_level}-level query, I'm proceeding with:\n{assumption_lines}\n\n"
-            f"→ Using [bold]{self.mode}[/bold] mode for analysis.\n\n"
-            f"[dim]If these assumptions are incorrect, you can provide more details in your next message.[/dim]",
-            title="[bold cyan]⚡ High-Confidence Analysis[/bold cyan]",
-            border_style="cyan"
-        ))
-    
-    def _create_enriched_query(self, original_query: str, context: Dict[str, Any], analysis) -> str:
-        """Create an enriched query with full context for the agent."""
-        
-        # Build context section
-        context_lines = []
-        for key, value in context.items():
-            if not key.startswith('_') and value:
-                context_lines.append(f"- {key.replace('_', ' ').title()}: {value}")
-        
-        context_section = "\n".join(context_lines) if context_lines else "No additional context provided."
-        
-        # Create enriched query with clear structure
-        enriched_query = f"""ORIGINAL USER REQUEST:
-{original_query}
-
-CONTEXT AND CONSTRAINTS:
-{context_section}
-
-ANALYSIS MODE: {self.mode}
-EXPERTISE LEVEL: {analysis.expertise_level if analysis else 'unknown'}
-
-INSTRUCTIONS: This request has been pre-processed and clarified. You can proceed directly with analysis using the comprehensive_materials_analysis tool. All necessary context has been provided above."""
-        
-        return enriched_query
-    
-    async def _novice_battery_exploration(self) -> Dict[str, Any]:
-        """Friendly battery materials exploration for novices."""
-        self.console.print("\n[bold]Battery materials are fascinating! Let me help you explore.[/bold]\n")
-        
-        self.console.print("🔋 What interests you most about batteries?")
-        self.console.print("[dim]A) How they store energy (🔋 energy storage)[/dim]")
-        self.console.print("[dim]B) Making them last longer (🔄 cycle life)[/dim]")
-        self.console.print("[dim]C) Charging them faster (⚡ fast charging)[/dim]")
-        self.console.print("[dim]D) Making them safer (🛡️ safety)[/dim]")
-        self.console.print("[dim]Or just tell me what you're curious about![/dim]")
-        
-        interest = self.console.input("\nWhat interests you? ")
-        
-        # Map interest to focus area
-        focus_map = {
-            "a": "energy_storage", "energy": "energy_storage", "store": "energy_storage",
-            "b": "cycle_life", "last": "cycle_life", "durability": "cycle_life",
-            "c": "fast_charging", "fast": "fast_charging", "quick": "fast_charging",
-            "d": "safety", "safe": "safety", "explosion": "safety"
-        }
-        
-        interest_lower = interest.lower()
-        focus = "general"
-        for key, value in focus_map.items():
-            if key in interest_lower:
-                focus = value
-                break
-        
-        return {
-            "_mode": self.mode,
-            "application_area": "Energy storage",
-            "focus_area": focus,
-            "user_interest": interest,
-            "expertise_approach": "educational"
-        }
-    
-    async def _novice_thermoelectric_exploration(self) -> Dict[str, Any]:
-        """Friendly thermoelectric exploration for novices."""
-        self.console.print("\n[bold]Thermoelectrics turn heat into electricity - pretty cool![/bold]\n")
-        
-        self.console.print("🌡️ What's your heat source like?")
-        self.console.print("[dim]- Body heat or room temperature (🌡️ mild heat)[/dim]")
-        self.console.print("[dim]- Car exhaust or industrial waste (🔥 hot heat)[/dim]")
-        self.console.print("[dim]- Just exploring the concept (🔍 learning)[/dim]")
-        
-        heat_source = self.console.input("\nTell me about your heat source: ")
-        
-        temp_range = "Mid-range (400-700K)"  # Default
-        if "body" in heat_source.lower() or "room" in heat_source.lower():
-            temp_range = "Room temperature (<400K)"
-        elif "exhaust" in heat_source.lower() or "industrial" in heat_source.lower():
-            temp_range = "High temperature (>700K)"
-        
-        return {
-            "_mode": self.mode,
-            "application_area": "Thermoelectrics",
-            "temperature_range": temp_range,
-            "heat_source": heat_source,
-            "expertise_approach": "educational"
-        }
-    
-    async def _novice_general_exploration(self) -> Dict[str, Any]:
-        """General materials exploration for novices."""
-        self.console.print("\n[bold]Materials science is huge! Let's find your area of interest.[/bold]\n")
-        
-        self.console.print("🧪 What kind of problem are you trying to solve?")
-        areas = [
-            "🔋 Store energy (batteries, capacitors)",
-            "🌡️ Convert heat to electricity (thermoelectrics)", 
-            "⚡ Make chemical reactions happen (catalysts)",
-            "📱 Electronics and computing (semiconductors)",
-            "🏠 Strong, lightweight structures (composites)",
-            "🔍 Just exploring and learning"
-        ]
-        
-        for i, area in enumerate(areas, 1):
-            self.console.print(f"[dim]{i}. {area}[/dim]")
-        
-        choice = self.console.input("\nWhat interests you most? (number or description): ")
-        
-        return {
-            "_mode": self.mode,
-            "exploration_area": choice,
-            "expertise_approach": "educational"
-        }
-
-    async def _handle_novice_clarification(self, query: str, questions: List[workspace_tools.Question]) -> Dict[str, Any]:
-        """Educational, adaptive approach for novice users."""
-        self.console.print("\n[cyan]🌱 Let's explore this together![/cyan]")
-        
-        # Detect domain from query
-        query_lower = query.lower()
-        if "battery" in query_lower:
-            return await self._novice_battery_exploration()
-        elif "thermoelectric" in query_lower:
-            return await self._novice_thermoelectric_exploration()
-        else:
-            return await self._novice_general_exploration()

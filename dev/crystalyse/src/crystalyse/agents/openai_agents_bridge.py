@@ -217,52 +217,48 @@ class EnhancedCrystaLyseAgent:
                 logger.info(f"Selected model: {selected_model}, trace_handler: {trace_handler is not None}, session: {session is not None}")
                 async with asyncio.timeout(timeout_seconds):
                     # Always use streaming mode to ensure provenance capture works for all models
-                    if False:  # Disabled non-streaming path - now all models use streaming
-                        pass
-                    else:
-                        # Use streaming for other models
-                        stream_args = {
-                            "starting_agent": sdk_agent,
-                            "input": query,
-                            "session": session,  # Session memory for conversation continuity
-                            "max_turns": 1000
-                        }
-                        if run_config:
-                            stream_args["run_config"] = run_config
+                    stream_args = {
+                        "starting_agent": sdk_agent,
+                        "input": query,
+                        "session": session,  # Session memory for conversation continuity
+                        "max_turns": 1000
+                    }
+                    if run_config:
+                        stream_args["run_config"] = run_config
 
-                        logger.info(f"Using streaming mode, trace_handler present: {trace_handler is not None}")
-                        result = Runner.run_streamed(**stream_args)
+                    logger.info(f"Using streaming mode, trace_handler present: {trace_handler is not None}")
+                    result = Runner.run_streamed(**stream_args)
 
-                        event_count = 0
-                        async for event in result.stream_events():
-                            event_count += 1
-                            if trace_handler:
-                                trace_handler.on_event(event)
-                            
-                            # Capture any message output (more comprehensive)
-                            if hasattr(event, 'item') and hasattr(event.item, 'type'):
-                                if event.item.type == "message_output_item":
-                                    final_response = ItemHelpers.text_message_output(event.item)
-                                elif event.item.type == "reasoning_item":
-                                    # Also capture reasoning as potential final output
-                                    reasoning_content = getattr(event.item, 'content', '')
-                                    if reasoning_content and len(reasoning_content) > 50:  # Substantial content
-                                        final_response = reasoning_content
-                        
-                        logger.info(f"Processed {event_count} events from stream")
+                    event_count = 0
+                    async for event in result.stream_events():
+                        event_count += 1
+                        if trace_handler:
+                            trace_handler.on_event(event)
 
-                        # Also try to get the final result after streaming
-                        try:
-                            final_result = await result
-                            if hasattr(final_result, 'final_output') and final_result.final_output:
-                                final_response = final_result.final_output
-                            elif hasattr(final_result, 'items') and final_result.items:
-                                # Extract text from the last item
-                                last_item = final_result.items[-1]
-                                if hasattr(last_item, 'content'):
-                                    final_response = last_item.content
-                        except Exception as e:
-                            logger.debug(f"Could not extract final result: {e}")
+                        # Capture any message output (more comprehensive)
+                        if hasattr(event, 'item') and hasattr(event.item, 'type'):
+                            if event.item.type == "message_output_item":
+                                final_response = ItemHelpers.text_message_output(event.item)
+                            elif event.item.type == "reasoning_item":
+                                # Also capture reasoning as potential final output
+                                reasoning_content = getattr(event.item, 'content', '')
+                                if reasoning_content and len(reasoning_content) > 50:  # Substantial content
+                                    final_response = reasoning_content
+
+                    logger.info(f"Processed {event_count} events from stream")
+
+                    # Also try to get the final result after streaming
+                    try:
+                        final_result = await result
+                        if hasattr(final_result, 'final_output') and final_result.final_output:
+                            final_response = final_result.final_output
+                        elif hasattr(final_result, 'items') and final_result.items:
+                            # Extract text from the last item
+                            last_item = final_result.items[-1]
+                            if hasattr(last_item, 'content'):
+                                final_response = last_item.content
+                    except Exception as e:
+                        logger.debug(f"Could not extract final result: {e}")
 
                 # Apply render gate if enabled
                 if self.config.render_gate.get("enabled", True):

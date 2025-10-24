@@ -29,12 +29,17 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/ryannduma/crystalyse.git
 cd crystalyse/dev
 
-# Sync workspace (creates .venv, installs all dependencies)
-uv sync
+# Sync workspace (creates .venv with Python 3.11, installs all packages)
+uv sync --all-packages
 
 # Verify installation
 uv run python -c "import crystalyse; print(f'Crystalyse v{crystalyse.__version__}')"
+
+# Test console script
+uv run crystalyse --help
 ```
+
+**Important:** Always use `uv sync --all-packages` for first-time installation to ensure all workspace members (crystalyse + MCP servers) are installed.
 
 ## 📖 Usage
 
@@ -45,17 +50,19 @@ When you're in the `/dev` directory, use:
 ```bash
 cd dev
 
-# Run discovery query
+# Run discovery query (two equivalent methods)
+uv run crystalyse discover "LiFePO4"
 uv run python -m crystalyse.cli discover "LiFePO4"
 
 # Start interactive chat
+uv run crystalyse chat
 uv run python -m crystalyse.cli chat
 
 # Specific analysis mode
-uv run python -m crystalyse.cli discover "novel oxide for batteries" --mode creative
+uv run crystalyse discover "novel oxide for batteries" --mode creative
 
 # Get help
-uv run python -m crystalyse.cli --help
+uv run crystalyse --help
 ```
 
 ### From Repository Root
@@ -285,13 +292,47 @@ source ~/.bashrc  # or ~/.zshrc
 ```bash
 # Make sure you're in the dev/ directory or use --directory
 cd dev
-uv sync
+uv sync --all-packages
 uv run python -c "import crystalyse; print('OK')"
 ```
 
+### "Failed to spawn: crystalyse" or "No such file or directory"
+
+This error occurs when the console script isn't installed or when using the wrong Python version.
+
+**Solution 1: Wrong Python Version**
+```bash
+# Check current Python version
+uv run python --version
+
+# If showing Python 3.9 instead of 3.11:
+cd dev
+rm -rf .venv
+uv sync --all-packages
+
+# Verify
+uv run python --version  # Should show 3.11.x
+uv run crystalyse --help
+```
+
+**Solution 2: Package Not Installed**
+```bash
+# Re-sync with all packages
+cd dev
+uv sync --all-packages
+
+# Verify
+uv run crystalyse --help
+```
+
+**Why this happens:**
+- UV may use system Python (3.9) instead of the required Python 3.11
+- The `.venv` must be created with Python 3.11 for the package to install
+- `uv sync` alone doesn't always install workspace members; use `--all-packages`
+
 ### "Package not found"
 ```bash
-# Re-sync workspace
+# Re-sync workspace with all packages
 cd dev
 uv sync --all-packages
 ```
@@ -301,13 +342,30 @@ uv sync --all-packages
 # Clean reinstall
 cd dev
 rm -rf .venv
-uv sync
+uv sync --all-packages
 ```
 
 ### Import Errors After Moving Files
 ```bash
 # Reinstall with --reinstall flag
 uv sync --reinstall-package crystalyse
+```
+
+### Wrong Python Version in Virtual Environment
+```bash
+# Check .python-version file
+cat dev/.python-version  # Should show: 3.11
+
+# List available Python versions
+uv python list
+
+# If Python 3.11 not installed:
+uv python install 3.11
+
+# Recreate venv with correct version
+cd dev
+rm -rf .venv
+uv sync --all-packages
 ```
 
 ## 📚 Documentation
