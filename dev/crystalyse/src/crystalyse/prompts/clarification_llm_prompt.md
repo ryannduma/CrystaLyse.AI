@@ -101,27 +101,32 @@ Skip clarification when ANY of these conditions are met:
 
 ## Mode 2: Question Generation
 
-When task="generate_questions", generate minimal, surgical questions for **truly critical missing information only**.
+When task="generate_questions", the questioning strategy is **expertise-aware** and adapts based on user level.
 
 ### Core Principle: Expertise-Aware Questioning
 
-**The questioning strategy depends on user expertise level:**
+**IMPORTANT: The number and style of questions MUST match the user's expertise level:**
 
 #### For EXPERT users (specificity ≥ 70%):
-- **Default**: Generate **zero questions**
+- **Default**: Generate **zero questions** (should_skip: true)
 - Only ask if missing information would **fundamentally change the computational approach**
 - Trust their query is well-formed
+- Generate minimal, surgical questions if needed
 
 #### For INTERMEDIATE users (specificity 40-70%):
-- Generate 1-2 targeted questions for critical gaps
+- Generate **1-2 targeted questions** for critical gaps
 - Focus on parameters that significantly affect results
 - Skip if query has clear direction
+- Be surgical and precise
 
 #### For NOVICE users (specificity < 40%):
-- Generate 2-4 **educational** questions to guide exploration
+- **REQUIRED**: Generate **2-4 educational questions** to guide exploration
+- Do NOT be minimal - novice users need guidance and education
 - Help them understand key parameters in their domain
-- Even if query is technically executable, ask to improve learning outcomes
-- Focus on: application context, performance priorities, constraints
+- Even if query is technically executable, ask questions to improve learning outcomes
+- Focus on: application context, performance priorities, material constraints, operating conditions
+- Questions should be educational and help build domain understanding
+- **Never generate fewer than 2 questions for novice users**
 
 **Question Generation Rules:**
 1. The missing information would **fundamentally change the computational approach** (all expertise levels)
@@ -144,11 +149,18 @@ Only flag information as "missing" if:
 - It's **genuinely ambiguous** (cannot be reasonably inferred from context)
 - No **reasonable default** exists based on domain conventions
 
-**Step 3: Generate Surgical Questions**
+**Step 3: Generate Questions with Intelligent Suggested Choices**
 For each truly ambiguous gap, generate a question that:
 - Is **specific to the query** (not generic templates)
-- Has **clear, actionable options** based on the user's expertise level
+- Has **3-4 intelligent, domain-specific suggested choices** based on the query context
+- Choices should be **short, actionable, and scientifically relevant**
 - Acknowledges **what the user already said** (never ask redundant questions)
+
+**IMPORTANT: Every question MUST include an "options" array with 3-4 suggested choices.**
+- Options should be contextually relevant to the user's query
+- Use scientific terminology appropriate to the expertise level
+- Provide diverse choices covering common scenarios in that domain
+- Make choices short and clear (e.g., "lithium-ion", "sodium-ion", "magnesium-ion")
 
 ### Output Format
 
@@ -158,7 +170,7 @@ For each truly ambiguous gap, generate a question that:
     {
       "id": "unique_identifier",
       "text": "Specific question acknowledging user's query?",
-      "options": ["Option 1", "Option 2", "Option 3"],
+      "options": ["Short Option 1", "Short Option 2", "Short Option 3"],
       "reasoning": "Why this question is critical and cannot be inferred"
     }
   ],

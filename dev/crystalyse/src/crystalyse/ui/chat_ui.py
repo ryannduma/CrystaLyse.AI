@@ -575,6 +575,7 @@ INSTRUCTIONS: This request has been pre-processed and clarified. You can proceed
             class ClarificationQuestion(BaseModel):
                 id: str
                 text: str
+                options: List[str] = Field(description="3-4 short, intelligent suggested choices")
                 reasoning: str
 
             class ClarificationResponse(BaseModel):
@@ -608,7 +609,7 @@ Query Analysis Results:
             response = await client.responses.parse(
                 model="gpt-5",
                 reasoning={"effort": "low"},  # Minimal reasoning for faster responses
-                text={"verbosity": "low"},  # Low verbosity for concise output
+                text={"verbosity": "medium"},  # Medium verbosity for complete question generation
                 input=[
                     {"role": "system", "content": clarification_prompt},
                     {"role": "user", "content": f"""Task: generate_questions
@@ -617,12 +618,15 @@ Query Analysis Results:
 
 User Query: "{query}"
 
-Generate minimal, surgical clarifying questions for truly critical missing information only.
+Generate expertise-aware clarification questions following these STRICT requirements:
+- EXPERT (specificity ≥70%): Zero questions (skip)
+- INTERMEDIATE (40-70%): Exactly 1-2 targeted, surgical questions
+- NOVICE (<40%): MUST generate 2-4 educational questions (never fewer than 2)
 
-Remember the expertise-aware strategy:
-- EXPERT (specificity ≥70%): Zero questions
-- INTERMEDIATE (40-70%): 1-2 targeted questions
-- NOVICE (<40%): 2-4 educational questions to guide exploration"""}
+For NOVICE users, be educational and comprehensive, not minimal. Help them explore the domain.
+
+IMPORTANT: Every question MUST include 3-4 intelligent, domain-specific suggested choices in the "options" array.
+Make choices short, clear, and scientifically relevant to the query context."""}
                 ],
                 text_format=ClarificationResponse,  # Pydantic model for structured output
                 max_output_tokens=2048  # Sufficient for question generation
