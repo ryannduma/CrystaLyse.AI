@@ -279,13 +279,16 @@ class ChatExperience:
                         continue
 
                 self._display_message("user", query)
-                self.history.append({"role": "user", "content": query})
-                
+
                 # Store the current query so the clarification callback can access it
                 self.current_query = query
 
                 # NEW ARCHITECTURE: Pre-process query through clarification system
+                # IMPORTANT: Do this BEFORE appending to history so first query gets clarification
                 enriched_query = await self._preprocess_query_with_clarification(query)
+
+                # Append to history after preprocessing
+                self.history.append({"role": "user", "content": query})
 
                 # Create provenance handler for this query (always-on provenance capture)
                 if PROVENANCE_AVAILABLE:
@@ -343,6 +346,11 @@ class ChatExperience:
         Flow: Raw Query -> Analysis -> LLM Question Generation -> [Questions if needed] -> Enriched Query -> Agent
         """
         try:
+            # Skip clarification for follow-up queries (session has history)
+            if len(self.history) > 0:
+                # This is a follow-up query in an existing conversation
+                return raw_query
+
             # Step 1: Analyze the query for completeness and expertise
             analysis = await self.clarification_system._analyze_query_with_llm(raw_query)
 
@@ -433,7 +441,7 @@ Query Analysis Results:
             # Use GPT-5 with Structured Outputs via responses.parse()
             response = await client.responses.parse(
                 model="gpt-5",
-                reasoning={"effort": "medium"},  # Medium reasoning for balanced analysis
+                reasoning={"effort": "low"},  # Minimal reasoning for faster responses
                 text={"verbosity": "low"},  # Low verbosity for concise output
                 input=[
                     {"role": "system", "content": clarification_prompt},
@@ -451,7 +459,7 @@ Remember the expertise-aware strategy:
 - NOVICE (<40%): 2-4 educational questions to guide exploration"""}
                 ],
                 text_format=ClarificationResponse,  # Pydantic model for structured output
-                max_output_tokens=4096  # High limit for reasoning models to avoid truncation
+                max_output_tokens=2048  # Sufficient for question generation
             )
 
             # Get parsed Pydantic object directly - no JSON parsing needed!
