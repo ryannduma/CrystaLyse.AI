@@ -405,7 +405,10 @@ class IntegratedClarificationSystem:
         system_instruction = """You are an expert in materials science query analysis.
 Analyze user queries to determine expertise level, specificity, and whether clarification is needed.
 
-**CRITICAL**: Default to should_skip_clarification=true. Only set to false if truly critical information is missing.
+**Skip Clarification Rules (expertise-aware):**
+- EXPERT query (specificity ≥ 0.7) → should_skip_clarification=true
+- INTERMEDIATE query (specificity 0.4-0.7) with clear direction → should_skip_clarification=true
+- NOVICE query (specificity < 0.4) → should_skip_clarification=false (educational questions provide value)
 
 Expert Level Indicators:
 - "expert": Query contains 2+ of the following: specific material names (e.g. "Na-ion", "LiFePO4"),
@@ -414,19 +417,15 @@ Expert Level Indicators:
   material classes (e.g. "Zintl phases"), specific constraints (e.g. "earth-abundant", "lead-free")
 - "intermediate": Query contains 1-2 technical terms like "battery cathode", "thermal conductivity",
   "semiconductor", or mentions specific applications without detailed constraints
-- "novice": General requests like "battery materials", "find materials", vague descriptions without technical terminology
+- "novice": General requests like "battery materials", "find materials", "suggest", vague descriptions without technical terminology
 
 Specificity Guidelines:
 - High (0.7-1.0): Specific materials mentioned (Na-ion, cathode), quantitative targets (capacity, voltage),
   multiple property specifications, clear application context
 - Medium (0.4-0.6): Some constraints mentioned, application specified but lacks quantitative targets
-- Low (0.0-0.3): Vague requests, no specific constraints or targets
+- Low (0.0-0.3): Vague requests ("suggest", "find"), no specific constraints or targets
 
-Skip Clarification Rules (aggressive):
-- Expert query with specificity ≥ 0.7 → ALWAYS skip
-- Query specifies application AND target properties → ALWAYS skip
-- Query contains material name/type AND performance target → ALWAYS skip
-- Only ask clarification for truly vague queries (specificity < 0.4 AND novice level)
+For NOVICE queries, clarification provides educational value even if query is technically executable.
 
 Domain Confidence:
 - High (0.7-1.0): Deep materials science terminology, proper use of technical concepts

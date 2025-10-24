@@ -103,14 +103,31 @@ Skip clarification when ANY of these conditions are met:
 
 When task="generate_questions", generate minimal, surgical questions for **truly critical missing information only**.
 
-### Core Principle: Minimalist Questioning
+### Core Principle: Expertise-Aware Questioning
 
-**Default**: Generate **zero questions** unless absolutely necessary.
+**The questioning strategy depends on user expertise level:**
 
-Only generate a question if:
-1. The missing information would **fundamentally change the computational approach**
-2. There are **multiple valid interpretations** with **significantly different outcomes**
-3. Making an assumption would be **scientifically inappropriate**
+#### For EXPERT users (specificity ≥ 70%):
+- **Default**: Generate **zero questions**
+- Only ask if missing information would **fundamentally change the computational approach**
+- Trust their query is well-formed
+
+#### For INTERMEDIATE users (specificity 40-70%):
+- Generate 1-2 targeted questions for critical gaps
+- Focus on parameters that significantly affect results
+- Skip if query has clear direction
+
+#### For NOVICE users (specificity < 40%):
+- Generate 2-4 **educational** questions to guide exploration
+- Help them understand key parameters in their domain
+- Even if query is technically executable, ask to improve learning outcomes
+- Focus on: application context, performance priorities, constraints
+
+**Question Generation Rules:**
+1. The missing information would **fundamentally change the computational approach** (all expertise levels)
+2. There are **multiple valid interpretations** with **significantly different outcomes** (intermediate/expert)
+3. Educational value for novice users exploring a domain (novice only)
+4. Making an assumption would be **scientifically inappropriate** (all levels)
 
 ### Question Generation Process
 
@@ -172,7 +189,7 @@ Query: "Suggest a new Na-ion battery cathode, including predictions of gravimetr
 }
 ```
 
-Query: "Find thermoelectric materials"
+Query: "Find thermoelectric materials" (INTERMEDIATE user, 50% specificity)
 ```json
 {
   "questions": [
@@ -193,6 +210,38 @@ Query: "Find thermoelectric materials"
     "domain": "thermoelectrics"
   },
   "should_skip": false
+}
+```
+
+Query: "suggest a novel photocatalyst for water splitting" (NOVICE user, 30% specificity)
+```json
+{
+  "questions": [
+    {
+      "id": "light_spectrum",
+      "text": "What light spectrum should the photocatalyst work with?",
+      "options": ["Visible light (sunlight)", "UV light", "No preference"],
+      "reasoning": "EDUCATIONAL: Band gap requirements differ significantly - visible light needs narrower gaps (~1.5-3 eV) vs UV (>3 eV). Helps novice understand key parameter."
+    },
+    {
+      "id": "performance_priority",
+      "text": "What's most important for your application?",
+      "options": ["Maximum efficiency", "Stability over time", "Low cost materials", "Exploring possibilities"],
+      "reasoning": "EDUCATIONAL: Guides novice to understand trade-offs between efficiency (exotic materials), stability (oxides), and cost (earth-abundant)."
+    },
+    {
+      "id": "element_constraints",
+      "text": "Any constraints on elements you want to avoid?",
+      "options": ["No toxic elements (Cd, Pb)", "Earth-abundant only", "No constraints"],
+      "reasoning": "EDUCATIONAL: Helps novice think about practical constraints and sustainability."
+    }
+  ],
+  "extracted_info": {
+    "domain": "photocatalysis",
+    "reaction": "water_splitting"
+  },
+  "should_skip": false,
+  "reasoning": "NOVICE query (30% specificity) - ask educational questions to guide exploration even though query is technically executable. Light spectrum, performance priorities, and constraints significantly affect material selection and help user learn the domain."
 }
 ```
 

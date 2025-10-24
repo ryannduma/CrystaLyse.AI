@@ -355,6 +355,10 @@ class ChatExperience:
             # Step 2: Use LLM to generate surgical questions (or skip entirely)
             question_result = await self._generate_llm_questions(raw_query, analysis)
 
+            # DEBUG: Log what the LLM decided
+            logger.info(f"LLM Question Generation: should_skip={question_result['should_skip']}, num_questions={len(question_result['questions'])}")
+            logger.info(f"Question result: {question_result}")
+
             if question_result["should_skip"] or len(question_result["questions"]) == 0:
                 # No clarification needed - show extracted info and proceed
                 if question_result["extracted_info"]:
@@ -370,13 +374,9 @@ class ChatExperience:
                 ) for q in question_result["questions"]
             ]
 
-            if analysis.expertise_level == "novice" and analysis.specificity_score < 0.4:
-                # Educational approach for novice users
-                clarification_answers = await self._handle_novice_clarification(raw_query, potential_questions)
-            else:
-                # Direct questions for intermediate/expert users
-                self.console.print("\n[cyan]🔍 I need a few details to provide the best analysis:[/cyan]")
-                clarification_answers = await self._ask_clarification_questions_directly(potential_questions)
+            # Show GPT-5 generated questions for all expertise levels
+            self.console.print("\n[cyan]🔍 I need a few details to provide the best analysis:[/cyan]")
+            clarification_answers = await self._ask_clarification_questions_directly(potential_questions)
 
             # Merge extracted info with clarification answers
             merged_answers = {**question_result["extracted_info"], **clarification_answers}
@@ -391,23 +391,35 @@ class ChatExperience:
 
     async def _generate_llm_questions(self, query: str, analysis) -> Dict[str, Any]:
         """
-        Use LLM to generate surgical, context-aware clarification questions.
-        Returns dict with: {"questions": [...], "extracted_info": {...}, "should_skip": bool}
+        Use GPT-5 with Structured Outputs to generate surgical, context-aware clarification questions.
+        Returns dict with: {"questions": [...], "should_skip": bool, "reasoning": str}
         """
         try:
-            # Get OpenAI client (prefer MDG API key for reasoning)
+            # Define Pydantic models for structured outputs
+            from pydantic import BaseModel, Field
+
+            class ClarificationQuestion(BaseModel):
+                id: str
+                text: str
+                reasoning: str
+
+            class ClarificationResponse(BaseModel):
+                questions: List[ClarificationQuestion]
+                should_skip: bool
+                reasoning: str
+                # Note: extracted_info removed due to strict schema incompatibility with additionalProperties
+
+            # Get OpenAI client
             mdg_api_key = os.getenv('OPENAI_MDG_API_KEY')
-            if mdg_api_key:
-                client = AsyncOpenAI(api_key=mdg_api_key)
-            else:
-                client = AsyncOpenAI()
+            client = AsyncOpenAI(api_key=mdg_api_key) if mdg_api_key else AsyncOpenAI()
 
             # Load clarification prompt
-            prompt_path = Config.REPO_ROOT / "dev" / "crystalyse" / "src" / "crystalyse" / "prompts" / "clarification_llm_prompt.md"
+            from pathlib import Path
+            prompt_path = Path(__file__).parent.parent / "prompts" / "clarification_llm_prompt.md"
             with open(prompt_path, 'r') as f:
                 clarification_prompt = f.read()
 
-            # Prepare context for LLM
+            # Prepare context
             analysis_context = f"""
 Query Analysis Results:
 - Expertise Level: {analysis.expertise_level}
@@ -418,10 +430,12 @@ Query Analysis Results:
 - Suggested Mode: {analysis.suggested_mode}
 """
 
-            # Call LLM for question generation
-            response = await client.chat.completions.create(
-                model="o4-mini",  # Use reasoning model for intelligent question generation
-                messages=[
+            # Use GPT-5 with Structured Outputs via responses.parse()
+            response = await client.responses.parse(
+                model="gpt-5",
+                reasoning={"effort": "medium"},  # Medium reasoning for balanced analysis
+                text={"verbosity": "low"},  # Low verbosity for concise output
+                input=[
                     {"role": "system", "content": clarification_prompt},
                     {"role": "user", "content": f"""Task: generate_questions
 
@@ -429,38 +443,39 @@ Query Analysis Results:
 
 User Query: "{query}"
 
-Generate minimal, surgical clarifying questions for truly critical missing information only. Return JSON with:
-- "questions": list of questions (can be empty if all info provided)
-- "extracted_info": dict of information already in the query
-- "should_skip": true if no clarification needed
+Generate minimal, surgical clarifying questions for truly critical missing information only.
 
-Remember: Default to ZERO questions. Only ask if missing information would fundamentally change the computational approach."""}
+Remember the expertise-aware strategy:
+- EXPERT (specificity ≥70%): Zero questions
+- INTERMEDIATE (40-70%): 1-2 targeted questions
+- NOVICE (<40%): 2-4 educational questions to guide exploration"""}
                 ],
-                temperature=0.3,  # Lower temperature for consistent analysis
-                max_completion_tokens=1000
+                text_format=ClarificationResponse,  # Pydantic model for structured output
+                max_output_tokens=4096  # High limit for reasoning models to avoid truncation
             )
 
-            response_text = response.choices[0].message.content.strip()
+            # Get parsed Pydantic object directly - no JSON parsing needed!
+            result = response.output_parsed
 
-            # Extract JSON from response
-            if '```json' in response_text:
-                json_start = response_text.find('```json') + 7
-                json_end = response_text.find('```', json_start)
-                response_text = response_text[json_start:json_end].strip()
+            # Convert Pydantic model to dict for compatibility
+            questions_dict = {
+                "questions": [q.model_dump() for q in result.questions],
+                "should_skip": result.should_skip,
+                "reasoning": result.reasoning,
+                "extracted_info": {}  # Always empty dict (not included in Pydantic model due to strict schema)
+            }
 
-            result = json.loads(response_text)
+            logger.info(f"LLM question generation: {len(questions_dict['questions'])} questions, should_skip={questions_dict['should_skip']}")
 
-            logger.info(f"LLM question generation: {len(result.get('questions', []))} questions, should_skip={result.get('should_skip', False)}")
-
-            return result
+            return questions_dict
 
         except Exception as e:
             logger.warning(f"LLM question generation failed: {e}, falling back to empty questions")
-            # Fallback: skip clarification on errors
             return {
                 "questions": [],
-                "extracted_info": {},
-                "should_skip": True
+                "should_skip": True,
+                "reasoning": f"Error generating questions: {str(e)}",
+                "extracted_info": {}  # Always include extracted_info
             }
 
     def _generate_questions_for_query(self, query: str, analysis) -> List[workspace_tools.Question]:
