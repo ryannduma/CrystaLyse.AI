@@ -48,9 +48,10 @@ class MCPDetector:
             "species"
         ],
         "smact_validate_fast": [
-            "is_valid",
-            "reason",
-            "composition"
+            "formula",
+            "smact_valid",
+            "stable",
+            "electronegativity_difference"
         ],
         "generate_ml_representation": [
             "representation",
