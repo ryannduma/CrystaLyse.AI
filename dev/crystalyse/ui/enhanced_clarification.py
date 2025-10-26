@@ -402,27 +402,33 @@ class IntegratedClarificationSystem:
         else:
             client = self.openai_client
 
-        system_instruction = """You are an expert in materials science query analysis. 
+        system_instruction = """You are an expert in materials science query analysis.
 Analyze user queries to determine expertise level, specificity, and whether clarification is needed.
 
+**Skip Clarification Rules (expertise-aware):**
+- EXPERT query (specificity ≥ 0.7) → should_skip_clarification=true
+- INTERMEDIATE query (specificity 0.4-0.7) with clear direction → should_skip_clarification=true
+- NOVICE query (specificity < 0.4) → should_skip_clarification=false (educational questions provide value)
+
 Expert Level Indicators:
-- "expert": Query contains 3+ of the following: specific temperature ranges (e.g. "500-800 K"), 
-  performance metrics (e.g. "high ZT values"), material properties (e.g. "isotropy", "crystal anisotropy"), 
-  processing methods (e.g. "bulk polycrystalline processing", "hot pressing", "dense sintering"), 
-  material classes (e.g. "Zintl phases", "oxide thermoelectrics"), specific constraints (e.g. "earth-abundant", 
-  "avoid lead and tellurium"), stability requirements (e.g. "stable in air"), or comparative analysis (e.g. "better than SnSe")
-- "intermediate": Query contains 1-2 technical terms like "battery cathode", "thermal conductivity", 
+- "expert": Query contains 2+ of the following: specific material names (e.g. "Na-ion", "LiFePO4"),
+  quantitative targets (e.g. "gravimetric capacity", "cell voltage", "ZT>1.5"), performance metrics,
+  material properties (e.g. "isotropy", "crystal anisotropy"), processing methods (e.g. "sintering"),
+  material classes (e.g. "Zintl phases"), specific constraints (e.g. "earth-abundant", "lead-free")
+- "intermediate": Query contains 1-2 technical terms like "battery cathode", "thermal conductivity",
   "semiconductor", or mentions specific applications without detailed constraints
-- "novice": General requests like "battery materials", "find materials", vague descriptions without technical terminology
+- "novice": General requests like "battery materials", "find materials", "suggest", vague descriptions without technical terminology
 
 Specificity Guidelines:
-- High (0.7-1.0): Multiple quantitative constraints, specific material comparisons, detailed performance requirements,
-  multiple property specifications, clear processing constraints
+- High (0.7-1.0): Specific materials mentioned (Na-ion, cathode), quantitative targets (capacity, voltage),
+  multiple property specifications, clear application context
 - Medium (0.4-0.6): Some constraints mentioned, application specified but lacks quantitative targets
-- Low (0.0-0.3): Vague requests, no specific constraints or targets
+- Low (0.0-0.3): Vague requests ("suggest", "find"), no specific constraints or targets
+
+For NOVICE queries, clarification provides educational value even if query is technically executable.
 
 Domain Confidence:
-- High (0.7-1.0): Deep materials science terminology, proper use of technical concepts, clear understanding of trade-offs
+- High (0.7-1.0): Deep materials science terminology, proper use of technical concepts
 - Medium (0.4-0.6): Some materials context, basic technical terms used correctly
 - Low (0.0-0.3): General or unclear domain, misuse of technical terms"""
 
@@ -712,11 +718,12 @@ Domain Confidence:
     async def _should_skip_clarification(self, analysis: Optional[QueryAnalysisResponse], request: ClarificationRequest) -> bool:
         """
         Determine if clarification can be skipped based on query confidence.
-        
+        Uses aggressive skip logic - defaults to skipping unless truly necessary.
+
         Args:
             analysis: Query analysis results
             request: Clarification request
-            
+
         Returns:
             True if clarification should be skipped
         """
@@ -724,14 +731,24 @@ Domain Confidence:
         if analysis is None:
             logger.info("No analysis available - requiring clarification")
             return False
-            
+
+        # Aggressive skip logic for expert queries
+        if analysis.expertise_level == "expert" and analysis.specificity_score >= 0.7:
+            logger.info(f"Skipping clarification: expert query with {analysis.specificity_score:.1%} specificity")
+            return True
+
         # Use LLM's recommendation directly from the structured response
         if analysis.should_skip_clarification:
             logger.info("LLM recommends skipping clarification")
             return True
-        else:
-            logger.info("LLM recommends clarification")
-            return False
+
+        # Check for high domain confidence + reasonable specificity
+        if analysis.domain_confidence >= 0.7 and analysis.specificity_score >= 0.6:
+            logger.info(f"Skipping clarification: high domain confidence ({analysis.domain_confidence:.1%}) and specificity ({analysis.specificity_score:.1%})")
+            return True
+
+        logger.info(f"Requiring clarification: expertise={analysis.expertise_level}, specificity={analysis.specificity_score:.1%}, domain_confidence={analysis.domain_confidence:.1%}")
+        return False
     
     async def _handle_high_confidence_skip(self, 
                                           query: str,
