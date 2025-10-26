@@ -48,9 +48,10 @@ class MCPDetector:
             "species"
         ],
         "smact_validate_fast": [
+            "composition",
             "is_valid",
-            "reason",
-            "composition"
+            "success",
+            "use_pauling_test"
         ],
         "generate_ml_representation": [
             "representation",
