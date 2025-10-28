@@ -67,10 +67,39 @@ def _parse_structure(structure_input: Union[str, Dict[str, Any]]) -> Structure:
         parser = CifParser(StringIO(structure_input))
         structure = parser.parse_structures()[0]
     elif isinstance(structure_input, dict):
-        if "lattice" in structure_input:
+        # Check for PyMatGen format (has 'lattice' and 'sites')
+        if "lattice" in structure_input and "sites" in structure_input:
             structure = Structure.from_dict(structure_input)
+        # Check for ASE/Chemeleon format (has 'cell', 'positions', 'numbers' or 'symbols')
+        elif "cell" in structure_input and "positions" in structure_input:
+            # Convert from ASE/Chemeleon format to PyMatGen Structure
+            from pymatgen.core import Lattice
+
+            cell = structure_input["cell"]
+            positions = structure_input["positions"]
+
+            # Get atomic numbers or symbols
+            if "numbers" in structure_input:
+                species = structure_input["numbers"]
+            elif "symbols" in structure_input:
+                species = structure_input["symbols"]
+            else:
+                raise ValueError("Structure dict must contain either 'numbers' or 'symbols'")
+
+            # Create PyMatGen lattice and structure
+            lattice = Lattice(cell)
+            structure = Structure(
+                lattice=lattice,
+                species=species,
+                coords=positions,
+                coords_are_cartesian=True
+            )
         else:
-            raise ValueError("Structure dict must contain 'lattice' key")
+            raise ValueError(
+                "Structure dict must contain either:\n"
+                "  - 'lattice' and 'sites' keys (PyMatGen format), or\n"
+                "  - 'cell', 'positions', and 'numbers'/'symbols' keys (ASE/Chemeleon format)"
+            )
     else:
         raise ValueError(f"Unsupported structure input type: {type(structure_input)}")
     return structure

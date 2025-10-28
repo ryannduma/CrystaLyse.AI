@@ -40,8 +40,10 @@ def _load_phase_diagram() -> Optional[PhaseDiagram]:
 
     # Try to find the phase diagram file
     possible_paths = [
+        "/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         "/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         Path(__file__).parent.parent.parent.parent.parent.parent / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+        Path.home() / "updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         Path.home() / "mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         os.getenv("CRYSTALYSE_PPD_PATH", "")
     ]

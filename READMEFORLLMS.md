@@ -98,9 +98,11 @@ graph LR
 Operating System: Linux, macOS, Windows (with WSL2 recommended)
 Python Version: 3.11 or higher (CRITICAL - earlier versions will fail)
 RAM: 8GB minimum, 16GB recommended
-Storage: 5GB free space for models and dependencies
-Network: Internet connection for package downloads and OpenAI API calls
+Storage: 5GB for installation + ~600MB for Chemeleon checkpoints (auto-cached in ~/.cache/)
+Network: Internet connection for package downloads, OpenAI API calls, and first-run Chemeleon checkpoint download (~523MB from Figshare)
 ```
+
+**Note on First Run**: On first execution, CrystaLyse.AI will automatically download ~523MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This is a one-time download that takes 2-5 minutes depending on connection speed.
 
 ### Required Dependencies
 ```
@@ -238,19 +240,19 @@ python3.11 -m venv crystalyse-dev
 source crystalyse-dev/bin/activate  # Linux/macOS
 # crystalyse-dev\Scripts\activate  # Windows
 
-# Install in development mode
+# Navigate to dev directory (where pyproject.toml is located)
+cd dev
+
+# Step 1: Install core package in development mode FIRST
 pip install -e .
 
-# Install all dependencies including dev tools
+# Step 2: Install all dependencies including dev tools (optional)
 pip install -e ".[dev]"
 
-# Install MCP servers (required for functionality)
-pip install -e ./oldmcpservers/smact-mcp-server
-pip install -e ./oldmcpservers/chemeleon-mcp-server
-pip install -e ./oldmcpservers/mace-mcp-server
-pip install -e ./chemistry-unified-server
-pip install -e ./chemistry-creative-server
-pip install -e ./visualization-mcp-server
+# Step 3: Install MCP servers (they depend on core package from Step 1)
+pip install -e ./chemistry-unified-server      # Complete validation mode
+pip install -e ./chemistry-creative-server     # Fast exploration mode
+pip install -e ./visualization-mcp-server      # 3D visualization
 ```
 
 ---

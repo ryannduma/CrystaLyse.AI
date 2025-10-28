@@ -3,9 +3,13 @@ name = "visualization-mcp"
 version = "0.1.0"
 description = "Visualization MCP Server for CrystaLyse.AI"
 dependencies = [
+    # Core package with tool implementations
+    "crystalyse",
+    # MCP framework and web framework
     "fastapi",
     "uvicorn",
     "python-multipart",
+    # Visualization libraries
     "pymatgen",
     "pymatviz",
     "plotly",

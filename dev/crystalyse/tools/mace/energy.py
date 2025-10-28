@@ -316,6 +316,60 @@ class MACECalculator:
                 error=str(e)
             )
 
+    async def calculate_energy(
+        self,
+        cif_content: str,
+        prefer_gpu: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Calculate energy from CIF content (compatible with MCP server interface).
+
+        Args:
+            cif_content: Crystal structure in CIF format
+            prefer_gpu: Use GPU if available
+
+        Returns:
+            Energy calculation results
+        """
+        try:
+            # Parse CIF to atoms
+            from ase.io import read
+            from io import StringIO
+
+            atoms = read(StringIO(cif_content), format='cif')
+
+            # Convert to structure dict
+            structure = atoms_to_dict(atoms)
+
+            # Update device based on preference
+            if prefer_gpu:
+                self.device = "auto"  # Will auto-select CUDA if available
+            else:
+                self.device = "cpu"
+
+            # Calculate energy
+            result = await self.calculate_formation_energy(structure)
+
+            # Return in dict format for MCP server
+            return {
+                "success": result.success,
+                "formula": result.formula,
+                "formation_energy_per_atom": result.formation_energy,
+                "total_energy": result.total_energy,
+                "num_atoms": len(atoms) if result.success else 0,
+                "uncertainty": None,  # MACE doesn't provide uncertainty by default
+                "computation_time": None,
+                "model_used": f"{self.model_type}_{self.size}",
+                "error": result.error
+            }
+
+        except Exception as e:
+            logger.error(f"Energy calculation from CIF failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def calculate_formation_energy_sync(
         self,
         structure: Dict[str, Any]

@@ -194,15 +194,30 @@ async def generate_crystal_csp(
     prefer_gpu: bool = True
 ) -> PredictionResult:
     """
-    Generate crystal structures using Chemeleon CSP.
+    Generate crystal structures using Chemeleon diffusion model (CSP - Crystal Structure Prediction).
 
     Args:
-        formulas: Chemical formula(s) to generate structures for
-        num_samples: Number of structures to generate per formula
-        prefer_gpu: If True, use GPU if available
+        formulas: Chemical formula(s) to generate structures for (e.g., "LiCoO2", ["Na2SO4", "CaTiO3"])
+        num_samples: Number of structures to generate per formula (default: 1)
+        prefer_gpu: If True, use GPU if available (default: True)
 
     Returns:
-        Structured prediction result with generated structures
+        PredictionResult with:
+            - success: bool
+            - formula: str
+            - predicted_structures: List of structures, each with:
+                * numbers: List[int] - atomic numbers
+                * positions: List[List[float]] - 3D Cartesian coordinates
+                * cell: List[List[float]] - 3x3 lattice matrix
+                * symbols: List[str] - element symbols
+                * volume: float - cell volume
+                * formula: str - reduced formula
+                * confidence: float (0-1)
+            - computation_time: float
+            - method: "chemeleon"
+
+        NOTE: Each structure in predicted_structures can be passed directly to calculate_formation_energy
+        or relax_structure tools by extracting the required fields (numbers, positions, cell).
     """
     if isinstance(formulas, str):
         formulas_list = [formulas]
@@ -226,7 +241,7 @@ async def generate_crystal_csp(
 # MACE TOOLS - Now using modular implementation
 # ===================================================================
 
-@mcp.tool(description="Calculate formation energy using MACE")
+@mcp.tool(description="Calculate formation energy using MACE machine learning force field")
 async def calculate_formation_energy(
     structure_dict: Dict[str, Any],
     model_type: str = "mace_mp",
@@ -236,19 +251,32 @@ async def calculate_formation_energy(
     Calculate formation energy of a crystal from its constituent elements.
 
     Args:
-        structure_dict: Crystal structure in dictionary format
+        structure_dict: Crystal structure with REQUIRED fields:
+            - numbers: List[int] - atomic numbers (e.g., [3, 27, 8, 8] for LiCoO2)
+            - positions: List[List[float]] - 3D positions in Cartesian coordinates
+            - cell: List[List[float]] - 3x3 lattice matrix in Angstroms
+            - pbc: List[bool] - periodic boundaries (optional, defaults to [True, True, True])
         model_type: MACE model type to use
         size: Model size for foundation models
 
     Returns:
-        Structured energy calculation result
+        Structured energy calculation result with formation_energy, total_energy, etc.
     """
     logger.info(f"Calculating formation energy for structure")
-    result = await mace_calculator.calculate_formation_energy(structure_dict)
+
+    # Normalize structure_dict to only required fields (remove extra fields like 'formula', 'symbols', etc.)
+    normalized_structure = {
+        "numbers": structure_dict["numbers"],
+        "positions": structure_dict["positions"],
+        "cell": structure_dict["cell"],
+        "pbc": structure_dict.get("pbc", [True, True, True])
+    }
+
+    result = await mace_calculator.calculate_formation_energy(normalized_structure)
     return result
 
 
-@mcp.tool(description="Relax crystal structure to minimize energy")
+@mcp.tool(description="Relax crystal structure to minimize energy using MACE forces")
 async def relax_structure(
     structure_dict: Dict[str, Any],
     fmax: float = 0.01,
@@ -259,7 +287,11 @@ async def relax_structure(
     Relax structure to local energy minimum using MACE forces.
 
     Args:
-        structure_dict: Initial crystal structure
+        structure_dict: Initial crystal structure with REQUIRED fields:
+            - numbers: List[int] - atomic numbers (e.g., [3, 27, 8, 8] for LiCoO2)
+            - positions: List[List[float]] - 3D positions in Cartesian coordinates
+            - cell: List[List[float]] - 3x3 lattice matrix in Angstroms
+            - pbc: List[bool] - periodic boundaries (optional, defaults to [True, True, True])
         fmax: Maximum force convergence criterion (eV/Å)
         steps: Maximum optimization steps
         optimizer: Optimization algorithm ('BFGS', 'FIRE', 'LBFGS')
@@ -268,8 +300,17 @@ async def relax_structure(
         Relaxation result with optimized structure
     """
     logger.info(f"Relaxing structure with {optimizer}")
+
+    # Normalize structure_dict to only required fields
+    normalized_structure = {
+        "numbers": structure_dict["numbers"],
+        "positions": structure_dict["positions"],
+        "cell": structure_dict["cell"],
+        "pbc": structure_dict.get("pbc", [True, True, True])
+    }
+
     result = await mace_calculator.relax_structure(
-        structure=structure_dict,
+        structure=normalized_structure,
         fmax=fmax,
         steps=steps,
         optimizer=optimizer
@@ -310,22 +351,34 @@ def analyze_space_group(
 @mcp.tool(description="Calculate energy above hull for thermodynamic stability")
 def calculate_energy_above_hull(
     composition: str,
-    energy_per_atom: Optional[float] = None
+    total_energy: float
 ) -> EnergyAboveHullResult:
     """
     Calculate energy above hull using Materials Project phase diagram.
 
+    CRITICAL: Requires TOTAL energy, NOT formation energy or energy_per_atom!
+
+    Workflow:
+    1. Calculate structure with MACE → get total_energy (e.g., -46.7 eV)
+    2. Pass total_energy to this function
+    3. Phase diagram compares against MP reference energies
+
+    Example:
+        BiVO4 with total_energy = -46.7 eV → E_hull ≈ 0.054 eV/atom ✓
+        BiVO4 with formation_energy = +0.8 eV → E_hull ≈ 1.30 eV/atom ✗ (WRONG!)
+
     Args:
-        composition: Chemical formula (e.g., "LiFePO4")
-        energy_per_atom: Optional calculated energy per atom (eV/atom)
+        composition: Chemical formula (e.g., "BiVO4", "LiFePO4")
+        total_energy: Total DFT/MACE energy in eV (NOT formation energy!)
 
     Returns:
         Structured energy above hull result with stability assessment
     """
-    logger.info(f"Calculating energy above hull for: {composition}")
+    logger.info(f"Calculating energy above hull for: {composition} with total_energy={total_energy} eV")
     result = phase_diagram_analyzer.calculate_energy_above_hull(
         composition=composition,
-        energy_per_atom=energy_per_atom
+        energy=total_energy,  # Critical: use total energy!
+        per_atom=False  # total_energy is already total, not per-atom
     )
     return result
 

@@ -65,10 +65,54 @@ class EnhancedCrystaLyseAgent:
         self.mode = mode
         self.model = model
         self.session_id = f"{project_name}_{mode}"
-        
+
+        # Create persistent session for conversation memory (interactive chat mode)
+        # For non-interactive discover mode, this will be created once per agent instance
+        # For interactive chat mode, this persists across multiple discover() calls
+        if SQLiteSession:
+            from pathlib import Path
+            session_dir = Path.home() / ".crystalyse" / "sessions"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            session_db = session_dir / f"{self.session_id}.db"
+            self.session = SQLiteSession(self.session_id, str(session_db))
+            logger.info(f"Session memory enabled: {session_db}")
+        else:
+            self.session = None
+            logger.warning("SQLiteSession not available - conversation memory disabled")
+
         # Set global mode for automatic injection
         GlobalModeManager.set_mode(mode, lock_mode=True)
         logger.info(f"Agent initialized with mode='{mode}' - Mode injection active")
+
+    def clear_session_memory(self):
+        """Clear the persistent session memory and reinitialize."""
+        if self.session and SQLiteSession:
+            try:
+                from pathlib import Path
+                session_dir = Path.home() / ".crystalyse" / "sessions"
+                session_db = session_dir / f"{self.session_id}.db"
+
+                # Close the current session
+                # Note: SQLiteSession might not have a close method, so we'll just recreate
+
+                # Delete the database files
+                import os
+                for ext in ['', '-shm', '-wal']:
+                    db_file = str(session_db) + ext
+                    if os.path.exists(db_file):
+                        os.remove(db_file)
+                        logger.info(f"Deleted session file: {db_file}")
+
+                # Recreate the session
+                self.session = SQLiteSession(self.session_id, str(session_db))
+                logger.info(f"Session memory cleared and reinitialized: {session_db}")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to clear session memory: {e}")
+                return False
+        else:
+            logger.warning("No session to clear")
+            return False
 
     @asynccontextmanager
     async def _managed_mcp_servers(self):
@@ -148,8 +192,9 @@ class EnhancedCrystaLyseAgent:
 
         async with self._managed_mcp_servers() as mcp_servers:
             try:
-                # Create session if SQLiteSession is available, otherwise use None
-                session = SQLiteSession(self.session_id) if SQLiteSession else None
+                # Use persistent session created in __init__
+                # This ensures conversation continuity across multiple discover() calls (interactive chat)
+                session = self.session
                 selected_model = self.model or self._select_model_for_mode(self.mode)
                 
                 # Create mode-aware instructions
@@ -209,7 +254,7 @@ class EnhancedCrystaLyseAgent:
                         stream_args = {
                             "starting_agent": sdk_agent,
                             "input": query,
-                            "context": session,  # Fixed: was "session", should be "context"
+                            "session": session,  # Session memory for conversation continuity
                             "max_turns": 1000
                         }
                         if run_config:
@@ -219,33 +264,46 @@ class EnhancedCrystaLyseAgent:
                         result = Runner.run_streamed(**stream_args)
 
                         event_count = 0
+                        message_outputs = []
                         async for event in result.stream_events():
                             event_count += 1
                             if trace_handler:
                                 trace_handler.on_event(event)
-                            
+
                             # Capture any message output (more comprehensive)
                             if hasattr(event, 'item') and hasattr(event.item, 'type'):
                                 if event.item.type == "message_output_item":
-                                    final_response = ItemHelpers.text_message_output(event.item)
+                                    text = ItemHelpers.text_message_output(event.item)
+                                    if text:
+                                        message_outputs.append(text)
+                                        final_response = text  # Keep updating with latest
                                 elif event.item.type == "reasoning_item":
-                                    # Also capture reasoning as potential final output
+                                    # Optionally capture reasoning as potential final output
                                     reasoning_content = getattr(event.item, 'content', '')
-                                    if reasoning_content and len(reasoning_content) > 50:  # Substantial content
-                                        final_response = reasoning_content
-                        
-                        logger.info(f"Processed {event_count} events from stream")
+                                    if reasoning_content and len(reasoning_content) > 50:
+                                        # Only use reasoning if we haven't seen message outputs
+                                        if not message_outputs:
+                                            final_response = reasoning_content
+
+                        logger.info(f"Processed {event_count} events, captured {len(message_outputs)} message outputs")
 
                         # Also try to get the final result after streaming
                         try:
                             final_result = await result
+                            # Try multiple attributes to extract final output
                             if hasattr(final_result, 'final_output') and final_result.final_output:
                                 final_response = final_result.final_output
+                                logger.debug("Extracted from final_result.final_output")
+                            elif hasattr(final_result, 'output') and final_result.output:
+                                final_response = final_result.output
+                                logger.debug("Extracted from final_result.output")
                             elif hasattr(final_result, 'items') and final_result.items:
                                 # Extract text from the last item
-                                last_item = final_result.items[-1]
-                                if hasattr(last_item, 'content'):
-                                    final_response = last_item.content
+                                for item in reversed(final_result.items):
+                                    if hasattr(item, 'content') and item.content:
+                                        final_response = item.content
+                                        logger.debug("Extracted from final_result.items")
+                                        break
                         except Exception as e:
                             logger.debug(f"Could not extract final result: {e}")
 

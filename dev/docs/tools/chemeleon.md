@@ -295,8 +295,8 @@ Structure Generation Performance:
 Resource Usage:
 ├── CPU: Moderate (ML inference)
 ├── Memory: 2-4 GB per composition
-├── Storage: 1-5 MB per structure (CIF files)
-└── Network: Model downloads (~500 MB initial)
+├── Storage: 1-5 MB per structure (CIF files) + ~600MB for checkpoints (one-time)
+└── Network: Checkpoint auto-download (~523 MB from Figshare, cached in ~/.cache/crystalyse/chemeleon_checkpoints/)
 ```
 
 ### Accuracy Benchmarks

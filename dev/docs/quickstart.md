@@ -9,7 +9,8 @@ Get up and running with CrystaLyse.AI in minutes. This guide covers installation
 - Python 3.11 or higher
 - OpenAI API key
 - 8GB RAM recommended (4GB minimum)
-- Internet connection for model downloads
+- Internet connection for first-run Chemeleon checkpoint download (~523 MB, automatic)
+- Storage: ~600MB for Chemeleon model checkpoints (auto-cached in `~/.cache/`)
 
 ### Quick Install
 
@@ -27,24 +28,21 @@ Get up and running with CrystaLyse.AI in minutes. This guide covers installation
 
 3. **Install CrystaLyse.AI:**
    ```bash
-   # Install core package
+   # Step 1: Install core package FIRST (required)
    pip install -e .
-   
-   # Install individual tool servers (required dependencies)
-   pip install -e ./oldmcpservers/smact-mcp-server
-   pip install -e ./oldmcpservers/chemeleon-mcp-server
-   pip install -e ./oldmcpservers/mace-mcp-server
-   
-   # Install unified MCP servers
-   pip install -e ./chemistry-unified-server
-   pip install -e ./chemistry-creative-server
-   pip install -e ./visualization-mcp-server
+
+   # Step 2: Install MCP servers (they depend on core package)
+   pip install -e ./chemistry-unified-server      # Complete validation mode
+   pip install -e ./chemistry-creative-server     # Fast exploration mode
+   pip install -e ./visualization-mcp-server      # 3D visualization
    ```
 
 4. **Verify installation:**
    ```bash
    crystalyse --help
    ```
+
+**Note on First Run**: On first execution, CrystaLyse.AI will auto-download ~600MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This one-time download takes 2-5 minutes depending on connection speed and includes a progress bar.
 
 ## Configuration
 

@@ -10,10 +10,19 @@ authors = [
     {name = "CrystaLyse.AI Development Team"}
 ]
 dependencies = [
+    # Core package with tool implementations
+    "crystalyse",
+    # MCP framework
     "mcp>=1.0.0",
     "fastmcp>=0.5.0",
+    # Chemistry libraries (also declared in crystalyse, but explicit here for clarity)
     "ase>=3.22.0",
     "numpy>=1.21.0",
+    # Pinned to v0.1.2 which includes fix for missing subpackages
+    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+    "mace-torch>=0.3.0",
+    "torch>=2.1.0",
+    "pymatgen>=2.4.1.0",
 ]
 
 [project.scripts]

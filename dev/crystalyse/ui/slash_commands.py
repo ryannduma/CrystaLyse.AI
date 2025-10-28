@@ -72,7 +72,7 @@ class SlashCommandHandler:
         help_table.add_row("/tools [desc|nodesc]", "List available MCP tools and servers")
         help_table.add_row("/mcp [status|servers|desc]", "Show MCP server status and details")
         help_table.add_row("/stats", "Display session statistics and performance")
-        help_table.add_row("/memory [show|refresh]", "Manage agent memory and context")
+        help_table.add_row("/memory [show|clear|refresh]", "Manage agent memory and conversation history")
         help_table.add_row("/mode [show|creative|rigorous|adaptive]", "View or change agent operating mode")
         help_table.add_row("/model [show|o3|o4-mini|o3-mini]", "View or change language model")
         help_table.add_row("/about", "Show version and system information")
@@ -232,29 +232,63 @@ class SlashCommandHandler:
     def _memory(self, args: List[str]):
         """Manage agent memory."""
         subcommand = args[0] if args else "show"
-        
+
         if subcommand == "show":
             memory_text = Text()
             memory_text.append("Agent Memory Context:\n\n", style="bold")
-            memory_text.append("• Session History: Active\n", style="dim")
+
+            # Check if agent has session
+            if self.chat_experience and hasattr(self.chat_experience, 'agent'):
+                if hasattr(self.chat_experience.agent, 'session') and self.chat_experience.agent.session:
+                    session_id = getattr(self.chat_experience.agent, 'session_id', 'unknown')
+                    memory_text.append(f"• Session ID: {session_id}\n", style="cyan")
+                    memory_text.append("• Persistent Memory: Enabled (SQLite)\n", style="green")
+                    from pathlib import Path
+                    session_dir = Path.home() / ".crystalyse" / "sessions"
+                    session_db = session_dir / f"{session_id}.db"
+                    if session_db.exists():
+                        size_kb = session_db.stat().st_size / 1024
+                        memory_text.append(f"• Database Size: {size_kb:.1f} KB\n", style="dim")
+                else:
+                    memory_text.append("• Persistent Memory: Disabled\n", style="yellow")
+            else:
+                memory_text.append("• Session: Not initialized\n", style="dim")
+
             memory_text.append("• Tool Context: Loaded\n", style="dim")
             memory_text.append("• User Preferences: Available\n", style="dim")
             memory_text.append("• Domain Knowledge: Materials Science\n", style="dim")
-            
+
             self.console.print(Panel(
                 memory_text,
                 title="[bold]Memory Status[/bold]",
                 border_style="magenta"
             ))
-            
+
+        elif subcommand == "clear":
+            if self.chat_experience and hasattr(self.chat_experience, 'agent'):
+                from rich.prompt import Confirm
+                if Confirm.ask("[yellow]Clear all conversation memory? This cannot be undone.[/yellow]"):
+                    self.console.print("[yellow]Clearing session memory...[/yellow]")
+                    if self.chat_experience.agent.clear_session_memory():
+                        # Also clear the chat history
+                        if hasattr(self.chat_experience, 'history'):
+                            self.chat_experience.history = []
+                        self.console.print("[green]✓ Session memory cleared successfully.[/green]")
+                    else:
+                        self.console.print("[red]Failed to clear session memory.[/red]")
+                else:
+                    self.console.print("[dim]Cancelled.[/dim]")
+            else:
+                self.console.print("[red]No active agent session to clear.[/red]")
+
         elif subcommand == "refresh":
             self.console.print("[yellow]Refreshing agent memory context...[/yellow]")
             time.sleep(1)  # Simulate refresh
             self.console.print("[green]Memory context refreshed successfully.[/green]")
-            
+
         else:
             self.console.print(f"[red]Unknown memory subcommand: {subcommand}[/red]")
-            self.console.print("Available: show, refresh")
+            self.console.print("Available: show, clear, refresh")
             
     def _about(self, _args: List[str]):
         """Show version and system information."""

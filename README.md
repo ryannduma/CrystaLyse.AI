@@ -243,19 +243,14 @@ cd CrystaLyse.AI
 conda create -n crystalyse python=3.11
 conda activate crystalyse
 
-# Install core package
+# Step 1: Install core package FIRST (required)
 cd dev
 pip install -e .
 
-# Install individual tool servers (required dependencies)
-pip install -e ./oldmcpservers/smact-mcp-server
-pip install -e ./oldmcpservers/chemeleon-mcp-server
-pip install -e ./oldmcpservers/mace-mcp-server
-
-# Install unified MCP servers
-pip install -e ./chemistry-unified-server
-pip install -e ./chemistry-creative-server
-pip install -e ./visualization-mcp-server
+# Step 2: Install MCP servers (they depend on core package)
+pip install -e ./chemistry-unified-server      # Complete validation mode
+pip install -e ./chemistry-creative-server     # Fast exploration mode
+pip install -e ./visualization-mcp-server      # 3D visualization
 ```
 
 ### Configuration
@@ -364,6 +359,8 @@ crystalyse
 **System Requirements**:
 - Python 3.11+
 - 8GB RAM minimum (16GB recommended)
+- Storage: 5GB for installation + ~600MB for Chemeleon model checkpoints (auto-downloaded to `~/.cache/`)
+- Internet: Required for first-run checkpoint download (~523MB from Figshare)
 - OpenAI API key
 - Optional: NVIDIA GPU for MACE acceleration
 

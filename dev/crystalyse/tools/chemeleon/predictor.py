@@ -1,13 +1,11 @@
-"""Chemeleon crystal structure prediction - extracted from MCP server."""
+"""Chemeleon crystal structure prediction using direct API (no file I/O)."""
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import os
 import logging
-import tempfile
 
 import torch
 import ase
-from ase.io import write as ase_write
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,7 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
     """Load or retrieve cached Chemeleon model."""
     from chemeleon_dng.diffusion.diffusion_module import DiffusionModule
     from chemeleon_dng.script_util import create_diffusion_module
-    from chemeleon_dng.download_util import get_checkpoint_path
+    from .checkpoint_manager import get_checkpoint_path as get_managed_checkpoint_path
 
     cache_key = f"{task}_{checkpoint_path or 'default'}"
 
@@ -64,21 +62,17 @@ def _load_model(task: str = "csp", checkpoint_path: Optional[str] = None, prefer
 
     logger.info(f"Loading new model for {cache_key}")
 
-    # Download checkpoint if needed
+    # Get checkpoint path using our checkpoint manager
+    # This handles auto-download to ~/.cache/crystalyse/chemeleon_checkpoints/
+    # or uses custom directory from CHEMELEON_CHECKPOINT_DIR environment variable
     if checkpoint_path is None:
-        checkpoint_dir = os.getenv(
-            "CHEMELEON_CHECKPOINT_DIR",
-            "/home/ryan/mycrystalyse/CrystaLyse.AI/dev/ckpts"
-        )
-        default_paths = {
-            "csp": str(os.path.join(checkpoint_dir, "chemeleon_csp_alex_mp_20_v0.0.2.ckpt")),
-            "dng": str(os.path.join(checkpoint_dir, "chemeleon_dng_alex_mp_20_v0.0.2.ckpt")),
-            "guide": "."
-        }
-        checkpoint_path = get_checkpoint_path(task=task, default_paths=default_paths)
+        # Check for custom checkpoint directory (optional)
+        custom_dir = os.getenv("CHEMELEON_CHECKPOINT_DIR")
+        checkpoint_path = str(get_managed_checkpoint_path(task=task, custom_dir=custom_dir))
 
     # Load model
     device = _get_device(prefer_gpu=prefer_gpu)
+    logger.info(f"Loading checkpoint: {checkpoint_path}")
     logger.info(f"Loading model on device: {device}")
 
     # Handle version compatibility for DiffusionModule
@@ -149,11 +143,9 @@ class ChemeleonPredictor:
 
     def __init__(self, checkpoint_dir: Optional[str] = None):
         # Use environment variables for checkpoint paths
+        # Default to None to let chemeleon-dng auto-download
         if checkpoint_dir is None:
-            checkpoint_dir = os.getenv(
-                "CHEMELEON_CHECKPOINT_DIR",
-                "/home/ryan/mycrystalyse/CrystaLyse.AI/dev/ckpts"
-            )
+            checkpoint_dir = os.getenv("CHEMELEON_CHECKPOINT_DIR")
         self.checkpoint_dir = checkpoint_dir
 
     async def predict_structure(
@@ -163,57 +155,94 @@ class ChemeleonPredictor:
         checkpoint_path: Optional[str] = None,
         prefer_gpu: bool = True
     ) -> PredictionResult:
-        """Predict crystal structure for a formula."""
+        """
+        Predict crystal structure for a formula using direct API (no disk I/O).
+
+        This method uses the direct DiffusionModule API for in-memory structure generation,
+        avoiding temporary file I/O overhead and providing better error handling.
+
+        Args:
+            formula: Chemical formula (e.g., "TiO2", "GeSn")
+            num_samples: Number of structures to generate
+            checkpoint_path: Optional path to specific checkpoint file
+            prefer_gpu: Use GPU if available
+
+        Returns:
+            PredictionResult with structures or error information
+        """
         import time
+        from pymatgen.core import Composition
+
         start_time = time.time()
 
         try:
-            from pymatgen.core import Composition
-
-            # Load model
+            # Load model (uses caching via _load_model)
             model = _load_model(task="csp", checkpoint_path=checkpoint_path, prefer_gpu=prefer_gpu)
 
-            # Parse formula
+            # Parse formula to get atomic composition
             comp = Composition(formula)
 
-            # Create atom_types and num_atoms for all samples
+            # Prepare batched input for all samples
+            # Chemeleon expects: atom_types (flat list of atomic numbers for all samples)
+            #                    num_atoms (list of atom counts per sample)
             batch_atom_types = []
             batch_num_atoms = []
 
             for _ in range(num_samples):
-                atomic_numbers = [el.Z for el, amt in comp.items() for _ in range(int(amt))]
+                atomic_numbers = [
+                    el.Z for el, amt in comp.items()
+                    for _ in range(int(amt))
+                ]
                 batch_atom_types.extend(atomic_numbers)
                 batch_num_atoms.append(len(atomic_numbers))
 
-            # Sample structures
+            # Generate structures using direct API (in-memory, no disk I/O)
+            logger.info(f"Generating {num_samples} structure(s) for {formula} using Chemeleon CSP")
             samples = model.sample(
                 task="csp",
                 atom_types=batch_atom_types,
                 num_atoms=batch_num_atoms
             )
 
-            # Convert to structure models
-            structures = []
-            for atoms in samples:
-                struct = _atoms_to_structure_dict(atoms, formula)
-                structures.append(struct)
+            # Convert ASE Atoms objects to CrystalStructure models
+            structures = [
+                _atoms_to_structure_dict(atoms, formula)
+                for atoms in samples
+            ]
 
             computation_time = time.time() - start_time
+            logger.info(f"Generated {len(structures)} structure(s) in {computation_time:.2f}s")
 
             return PredictionResult(
                 success=True,
                 formula=formula,
                 predicted_structures=structures,
                 computation_time=computation_time,
+                method="chemeleon-dng",
                 checkpoint_used=checkpoint_path or "default"
             )
 
         except Exception as e:
-            logger.error(f"Error in predict_structure: {e}")
+            logger.error(f"Structure prediction failed for {formula}: {e}", exc_info=True)
+
+            # Provide helpful error context
+            error_msg = str(e)
+            if "checkpoint" in error_msg.lower():
+                error_msg = (
+                    f"Checkpoint loading failed: {e}\n"
+                    f"Try setting CHEMELEON_CHECKPOINT_DIR environment variable "
+                    f"or ensure checkpoints are available in ~/.cache/chemeleon_dng/"
+                )
+            elif "cuda" in error_msg.lower() or "gpu" in error_msg.lower():
+                error_msg = (
+                    f"GPU error: {e}\n"
+                    f"Try running with prefer_gpu=False to use CPU instead"
+                )
+
             return PredictionResult(
                 success=False,
                 formula=formula,
-                error=str(e)
+                error=error_msg
             )
 
     def predict_structure_sync(

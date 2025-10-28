@@ -16,9 +16,8 @@ class MCPDetector:
     The OpenAI Agents SDK wraps MCP tools, making them appear as "unknown_tool"
     in events. This detector identifies the actual tool by parsing output structure.
     """
+
     
-    # Known tool signatures based on output structure
-    # Updated for Phase 1.5 architecture with Pydantic models
     TOOL_SIGNATURES = {
         # Original tools
         "comprehensive_materials_analysis": [
@@ -31,7 +30,7 @@ class MCPDetector:
             "pipeline_steps"
         ],
 
-        # Phase 1.5 SMACT tools
+        
         "validate_composition": [
             "is_valid",
             "charge_balanced",
@@ -48,9 +47,10 @@ class MCPDetector:
             "species"
         ],
         "smact_validate_fast": [
+            "composition",
             "is_valid",
-            "reason",
-            "composition"
+            "success",
+            "use_pauling_test"
         ],
         "generate_ml_representation": [
             "representation",
@@ -63,7 +63,7 @@ class MCPDetector:
             "total_processed"
         ],
 
-        # Phase 1.5 Chemeleon tools
+        
         "generate_crystal_csp": [
             "success",
             "formula",
@@ -71,7 +71,7 @@ class MCPDetector:
             "checkpoint_used"
         ],
 
-        # Phase 1.5 MACE tools
+      
         "calculate_formation_energy": [
             "formation_energy",
             "energy_per_atom",
@@ -99,7 +99,7 @@ class MCPDetector:
             "total_models"
         ],
 
-        # Phase 1.5 PyMatgen tools
+        
         "analyze_space_group": [
             "space_group",
             "number",
@@ -122,7 +122,7 @@ class MCPDetector:
             "charge_balanced"
         ],
 
-        # Phase 1.5 Visualization tools
+        
         "save_structure_as_cif": [
             "success",
             "file_path",
