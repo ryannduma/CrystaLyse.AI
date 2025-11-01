@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystalyse-ai"
-version = "1.0.14"
-description = "CrystaLyse.AI - Autonomous AI agents for accelerated inorganic materials design through natural language interfaces"
+version = "1.0.15"
+description = "DEPRECATED - Use 'crystalyse' package instead. This package is no longer maintained."
 readme = "README.md"
-license = {file = "LICENSE"}
+license = {text = "MIT"}
 authors = [
     {name = "CrystaLyse.AI Development Team"},
 ]
@@ -166,6 +166,7 @@ visualization = "crystalyse_ai.tools.visualization:VisualizationTool"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+license-files = []
 
 [tool.setuptools.packages.find]
 where = ["src"]

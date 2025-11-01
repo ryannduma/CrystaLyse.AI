@@ -6,49 +6,48 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Version 1.0.0 - Stable Release**
-> Production-ready materials design platform with provenance system, auto-download infrastructure, and enhanced PyMatGen integration
+> **Version 1.0.0**
+> Research tool combining composition validation (SMACT), structure prediction (Chemeleon), energy calculations (MACE), and materials analysis (PyMatGen)
 
 ## What's New in v1.0
 
-Crystalyse v1.0 is a complete architectural redesign focused on computational honesty and zero-configuration deployment:
+Version 1.0 includes significant architectural changes focused on computational traceability and simplified setup:
 
 ### Key Features
 
-**Provenance System** - Complete computational honesty with anti-hallucination
+**Provenance System**
 - Every numerical value traces to actual calculations
 - Render gate prevents unprovenanced values from being displayed
 - Full audit trail of all operations
-- Zero fabrication guarantee
+- No fabricated or hallucinated numbers
 
-**Auto-Download Everything** - Zero manual setup
+**Automated Setup**
 - Chemeleon checkpoints auto-download on first use (~600 MB)
 - Materials Project phase diagrams auto-download (~170 MB, 271,617 entries)
-- Standard cache locations (`~/.cache/crystalyse/`)
-- No environment variables required
+- Files cached in `~/.cache/crystalyse/`
+- Environment variables are optional
 
-**Enhanced PyMatGen Integration**
-- Energy above hull calculations with 271,617 Materials Project entries
-- Automatic phase diagram construction
+**PyMatGen Integration**
+- Energy above hull calculations using 271,617 Materials Project entries
+- Phase diagram construction
 - Decomposition product analysis
 - Stability assessment (stable/metastable/unstable)
 
 **Adaptive Clarification System**
-- Learns user expertise level
-- Adapts question complexity
-- Reduces unnecessary interruptions for experts
-- Provides more guidance for beginners
+- Learns user expertise level over time
+- Adjusts question complexity accordingly
+- Fewer interruptions for experienced users
+- More guidance for new users
 
-**Mode-Aware Workflows**
+**Analysis Modes**
 - **Creative Mode**: Fast exploration (~50s) with Chemeleon + MACE
-- **Rigorous Mode**: Complete validation (2-5min) with SMACT + Chemeleon + MACE + analysis
-- **Adaptive Mode**: Intelligent mode selection based on query complexity
+- **Rigorous Mode**: Full validation (2-5min) with SMACT + Chemeleon + MACE + analysis
+- **Adaptive Mode**: Automatic mode selection based on query complexity
 
-**Streamlined Architecture**
-- 90% code reduction vs v1.0
-- Cleaner separation of concerns
+**Simplified Architecture**
 - Modular tool implementations
-- Proper Python packaging
+- Python packaging for MCP servers
+- Cleaner separation of concerns
 
 ## Quick Start
 
@@ -201,14 +200,14 @@ print(result.response)
 
 ## Computational Honesty
 
-Crystalyse v1.0 implements a complete provenance system:
+Crystalyse implements a provenance system to track the origin of all computed values:
 
-- **100% Traceability**: Every numerical value traces to actual tool calculations
-- **Zero Hallucination**: Render gate blocks unprovenanced values
-- **Complete Audit Trail**: Full JSONL logs of all operations
-- **Transparent Uncertainty**: All predictions include confidence scores
+- **Traceability**: Every numerical value traces to actual tool calculations
+- **Render Gate**: Blocks unprovenanced values from being displayed
+- **Audit Trail**: Full JSONL logs of all operations
+- **Uncertainty**: Predictions include confidence scores when available
 
-This means you can trust the numbers. If Crystalyse reports a formation energy, it was actually calculated by MACE, not fabricated by the LLM.
+If Crystalyse reports a formation energy, it was calculated by MACE. If it reports an energy above hull, it came from PyMatGen with Materials Project data. The LLM interprets results but doesn't fabricate numbers.
 
 ## Migration from crystalyse-ai
 
@@ -264,14 +263,14 @@ pip install crystalyse
 
 ## Acknowledgments
 
-CrystaLyse builds on exceptional open-source tools:
+Crystalyse builds on open-source tools from the materials science community:
 
 - **SMACT** - Semiconducting Materials by Analogy and Chemical Theory
 - **Chemeleon** - AI-powered crystal structure prediction
 - **MACE** - Machine learning ACE force fields
 - **PyMatGen** - Python Materials Genomics
 - **Pymatviz** - Materials visualization toolkit
-- **OpenAI Agents SDK** - Production-ready agent framework
+- **OpenAI Agents SDK** - Agent orchestration framework
 
 ## Citation
 

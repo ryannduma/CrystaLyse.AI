@@ -2,7 +2,7 @@
 
 > **⚠️ DEPRECATED - This package has been replaced by [`crystalyse`](https://pypi.org/project/crystalyse/)**
 >
-> **The `crystalyse-ai` package (v1.0.x) is no longer maintained. Please migrate to the new `crystalyse` package (v0.1.0+) which includes:**
+> **The `crystalyse-ai` package is no longer maintained. Please migrate to the new `crystalyse` package (v1.0.0+) which includes:**
 > - Complete provenance system for computational honesty
 > - Auto-download of checkpoints and data files
 > - Enhanced PyMatGen integration with Materials Project database
