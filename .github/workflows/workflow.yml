@@ -1,0 +1,51 @@
+name: Publish CrystaLyse to PyPI
+
+# This workflow uses GitHub's trusted publisher feature for PyPI
+# No API tokens needed - authentication via OpenID Connect (OIDC)
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v0.1.0, v0.2.0, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  id-token: write  # Required for trusted publishing
+
+jobs:
+  build-and-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi  # Must match environment name in PyPI trusted publisher config
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package from pypi-v2 directory
+        run: |
+          cd pypi-v2
+          python -m build
+
+      - name: Check package with twine
+        run: |
+          cd pypi-v2
+          twine check dist/*
+
+      - name: Publish to PyPI via trusted publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi-v2/dist/
+          skip-existing: false
+          verbose: true

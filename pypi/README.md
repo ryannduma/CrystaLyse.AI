@@ -1,12 +1,27 @@
 # CrystaLyse.AI
 
+> **⚠️ DEPRECATED - This package has been replaced by [`crystalyse`](https://pypi.org/project/crystalyse/)**
+>
+> **The `crystalyse-ai` package is no longer maintained. Please migrate to the new `crystalyse` package (v1.0.0+) which includes:**
+> - Complete provenance system for computational honesty
+> - Auto-download of checkpoints and data files
+> - Enhanced PyMatGen integration with Materials Project database
+> - Streamlined architecture with 90% code reduction
+> - Better performance and reliability
+>
+> **Migration**: Simply `pip uninstall crystalyse-ai && pip install crystalyse`
+>
+> **See**: [Migration Guide](https://github.com/ryannduma/CrystaLyse.AI/blob/master/pypi-v2/CHANGELOG.md#migration-guide)
+
+---
+
 **CrystaLyse.AI - Autonomous AI agents for accelerated inorganic materials design through natural language interfaces**
 
 [![PyPI version](https://badge.fury.io/py/crystalyse-ai.svg)](https://badge.fury.io/py/crystalyse-ai)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Status: Research Preview - Fully Functional Materials Design Platform**
+> **Status: DEPRECATED - Use [`crystalyse`](https://pypi.org/project/crystalyse/) instead**
 
 CrystaLyse.AI is a computational materials design platform that accelerates materials exploration through AI-powered analysis and validation. Built on the OpenAI Agents framework with Model Context Protocol (MCP) integration, it provides a dual-mode system for rapid materials design workflows.
 

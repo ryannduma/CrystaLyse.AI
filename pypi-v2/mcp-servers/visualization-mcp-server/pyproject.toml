@@ -1,0 +1,24 @@
+[project]
+name = "visualization-mcp"
+version = "0.1.0"
+description = "Visualization MCP Server for CrystaLyse.AI"
+dependencies = [
+    # Core package with tool implementations
+    "crystalyse",
+    # MCP framework and web framework
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    # Visualization libraries
+    "pymatgen",
+    "pymatviz",
+    "plotly",
+    "kaleido",
+]
+
+[project.scripts]
+visualization-mcp = "visualization_mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

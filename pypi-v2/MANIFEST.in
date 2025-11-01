@@ -1,0 +1,29 @@
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Include configuration files
+include pyproject.toml
+
+# Include prompt templates
+recursive-include src/crystalyse/prompts *.md *.txt
+
+# Exclude development files
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+
+# Exclude test files
+recursive-exclude src/crystalyse/tests *
+recursive-exclude tests *
+
+# Exclude workspace and cache directories
+prune src/crystalyse/workspace
+prune .pytest_cache
+prune .mypy_cache
+prune .ruff_cache
+
+# Exclude egg-info directories
+global-exclude *.egg-info
