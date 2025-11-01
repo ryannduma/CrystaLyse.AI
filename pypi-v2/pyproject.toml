@@ -55,9 +55,7 @@ dependencies = [
     "smact>=3.0.0",
     "torch>=2.1.0",
     "mace-torch>=0.3.0",
-
-    # Chemeleon from GitHub (v0.1.2 with fixes)
-    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+    "chemeleon-dng>=0.1.2",
 
     # Model Context Protocol
     "fastmcp>=0.5.0",
@@ -134,6 +132,7 @@ crystalyse = "crystalyse.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+license-files = []
 
 [tool.setuptools.packages.find]
 where = ["src"]
