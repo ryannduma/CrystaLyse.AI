@@ -534,7 +534,7 @@ If you use MACE through Crystalyse, please cite the original MACE publications:
 
 ```bibtex
 @inproceedings{Batatia2022mace,
-  title = {{MACE}: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields},
+  title = "{MACE}: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields},
   author = {Ilyes Batatia and David Peter Kovacs and Gregor N. C. Simm and Christoph Ortner and Gabor Csanyi},
   booktitle = {Advances in Neural Information Processing Systems},
   editor = {Alice H. Oh and Alekh Agarwal and Danielle Belgrave and Kyunghyun Cho},
