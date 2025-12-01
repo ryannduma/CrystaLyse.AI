@@ -39,7 +39,12 @@ def _load_phase_diagram() -> Optional[PhaseDiagram]:
         return _PPD_DATA
 
     # Try to find the phase diagram file
+    from crystalyse.tools.downloader import get_phase_diagram_path, ensure_phase_diagram_data
+    
+    cache_path = get_phase_diagram_path()
+    
     possible_paths = [
+        cache_path,
         "/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         "/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         Path(__file__).parent.parent.parent.parent.parent.parent / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
@@ -53,6 +58,15 @@ def _load_phase_diagram() -> Optional[PhaseDiagram]:
         if path_str and os.path.exists(path_str):
             _PPD_PATH = path_str
             break
+    
+    # If not found, attempt to download
+    if not _PPD_PATH:
+        logger.info("Phase diagram data not found locally. Attempting to download...")
+        try:
+            downloaded_path = ensure_phase_diagram_data()
+            _PPD_PATH = str(downloaded_path)
+        except Exception as e:
+            logger.warning(f"Failed to download phase diagram data: {e}")
 
     if not _PPD_PATH:
         logger.warning("Phase diagram file not found. Energy above hull calculations will not be available.")

@@ -57,7 +57,15 @@ crystalyse --help
 
 ### First Run
 
-On first execution, Crystalyse automatically downloads:
+### First Run
+
+On first execution, Crystalyse automatically downloads required data files. You can also manually trigger this setup:
+
+```bash
+crystalyse setup
+```
+
+This downloads:
 - Chemeleon model checkpoints (~600 MB, cached in `~/.cache/crystalyse/`)
 - Materials Project phase diagrams (~170 MB, 271,617 entries)
 

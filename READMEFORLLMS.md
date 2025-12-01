@@ -224,6 +224,10 @@ crystalyse --help
 # Run system check
 crystalyse config show
 # Should display configuration without errors
+
+# Setup data files
+crystalyse setup
+# Should download required data files
 ```
 
 ### Method 3: Development Installation (From Source)
@@ -694,6 +698,7 @@ The installation is successful when ALL of these commands work without errors:
 ```bash
 ✅ crystalyse --version                   # Shows v1.0.0
 ✅ crystalyse config show                 # Shows configuration
+✅ crystalyse setup                       # Downloads data files
 ✅ crystalyse config test-api             # API connection works
 ✅ crystalyse config test-servers         # All servers available
 ✅ crystalyse analyse "LiFePO4" --mode creative  # Completes analysis
