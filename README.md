@@ -1,8 +1,8 @@
-# CrystaLyse.AI
+# Crystalyse
 
 **Version 1.0.0**
 
-CrystaLyse.AI is an open, provenance-enforced scientific agent for computational materials design of inorganic crystals. The system orchestrates tools for compositional screening, crystal structure generation, and machine-learning force-field evaluation through a reasoning language model.
+Crystalyse is an open, provenance-enforced scientific agent for computational materials design of inorganic crystals. The system orchestrates tools for compositional screening, crystal structure generation, and machine-learning force-field evaluation through a reasoning language model.
 
 > **Published Package**: The stable v1.0.1 release is available on PyPI as [`crystalyse`](https://pypi.org/project/crystalyse/).
 > **Development Version**: This repository contains v1.0.0-dev with ongoing improvements.
@@ -63,13 +63,13 @@ On first execution, Crystalyse automatically downloads:
 
 ```bash
 # Non-interactive analysis
-crystalyse analyse "Find stable perovskite materials" --mode creative
+crystalyse discover "Find stable perovskite materials" --mode creative
 
 # Interactive session
 crystalyse chat -u researcher -s project_name
 
 # Resume previous session
-crystalyse resume project_name -u researcher
+
 ```
 
 ## Operational Modes
@@ -89,19 +89,19 @@ Mode selection affects:
 
 **Quaternary Oxide Discovery**:
 ```bash
-crystalyse analyse "Predict five new stable quaternary compositions formed of K, Y, Zr and O" --mode rigorous
+crystalyse discover "Predict five new stable quaternary compositions formed of K, Y, Zr and O" --mode rigorous
 ```
 Result: K₃Y₃Zr₃O₁₂ with energy above hull of 51 meV/atom (metastable).
 
 **Sodium-Ion Battery Cathode**:
 ```bash
-crystalyse analyse "Suggest a new Na-ion battery cathode" --mode creative
+crystalyse discover "Suggest a new Na-ion battery cathode" --mode creative
 ```
 Result: Na₃V₂(PO₄)₂F₃ with predicted capacity of 193 mAh/g at 3.7 V.
 
 **Lead-Free Photovoltaics**:
 ```bash
-crystalyse analyse "Alternative to CsPbI3 for indoor photovoltaics" --mode rigorous
+crystalyse discover "Alternative to CsPbI3 for indoor photovoltaics" --mode rigorous
 ```
 Result: Cs₂AgBiBr₆ with 0.54 meV/atom above hull and 1.95 eV bandgap.
 
@@ -136,7 +136,6 @@ Timing benchmarks (Intel i7, 16GB RAM):
 - **[Analysis Modes](dev/docs/concepts/analysis_modes.md)** - Mode selection strategies
 - **[Provenance System](dev/docs/concepts/provenance.md)** - Anti-hallucination architecture
 - **[Tool Documentation](dev/docs/tools/)** - SMACT, Chemeleon, MACE, PyMatGen
-- **[CLAUDE.md](CLAUDE.md)** - Development guide for contributors
 
 ## Architecture
 
@@ -175,31 +174,71 @@ Sustainability awareness includes earth-abundant element prioritisation (Fe, Al,
 If you use Crystalyse in your research, please cite the underlying tools:
 
 ```bibtex
-@article{davies2019smact,
-  title={SMACT: Semiconducting Materials by Analogy and Chemical Theory},
-  author={Davies, Daniel W and Butler, Keith T and Jackson, Adam J and others},
-  journal={Journal of Open Source Software},
-  volume={4}, number={38}, pages={1361}, year={2019}
+@article{Davies2019,
+  doi = {10.21105/joss.01361},
+  url = {https://doi.org/10.21105/joss.01361},
+  year = {2019},
+  publisher = {The Open Journal},
+  volume = {4},
+  number = {38},
+  pages = {1361},
+  author = {Davies, Daniel W. and Butler, Keith T. and Jackson, Adam J. and Skelton, Jonathan M. and Morita, Kazuki and Walsh, Aron},
+  title = {SMACT: Semiconducting Materials by Analogy and Chemical Theory},
+  journal = {Journal of Open Source Software}
 }
 
 @article{park2025chemeleon,
-  title={Exploration of crystal chemical space using text-guided generative AI},
-  author={Park, Hyun Seo and others},
-  journal={Nature Communications}, year={2025}
+  title={Exploration of crystal chemical space using text-guided generative artificial intelligence},
+  author={Park, Hyun and Onwuli, Adaeze and Walsh, Aron},
+  journal={Nature Communications},
+  volume={16},
+  pages={4379},
+  year={2025},
+  doi={10.1038/s41467-025-59636-y}
 }
 
-@article{batatia2022mace,
-  title={MACE: Higher Order Equivariant Message Passing Neural Networks},
+@article{batatia2025foundation,
+  title={A foundation model for atomistic materials chemistry},
   author={Batatia, Ilyes and others},
-  journal={NeurIPS}, year={2022}
+  journal={The Journal of Chemical Physics},
+  volume={163},
+  number={18},
+  pages={184110},
+  year={2025},
+  doi={10.1063/5.0297006}
 }
 
-@software{ong2013pymatgen,
-  title={Python Materials Genomics (pymatgen)},
-  author={Ong, Shyue Ping and others},
-  year={2013}
+@article{ong2013pymatgen,
+  title={Python Materials Genomics (pymatgen): A robust, open-source python library for materials analysis},
+  author={Ong, Shyue Ping and Richards, William Davidson and Jain, Anubhav and Hautier, Geoffroy and Kocher, Michael and Cholia, Shreyas and Gunter, Dan and Chevrier, Vincent L and Persson, Kristin A and Ceder, Gerbrand},
+  journal={Computational Materials Science},
+  volume={68},
+  pages={314--319},
+  year={2013},
+  doi={10.1016/j.commatsci.2012.10.028}
+}
+
+@software{riebesell_pymatviz_2022,
+  title={Pymatviz: visualization toolkit for materials informatics},
+  author={Riebesell, Janosh and Yang, Haoyu and Goodall, Rhys and Baird, Sterling G.},
+  year={2022},
+  doi={10.5281/zenodo.7486816},
+  url={https://github.com/janosh/pymatviz},
+  version={0.8.2}
+}
+
+@article{seshadri20203dmol,
+  title={The 3Dmol.js Learning Environment: A Classroom Response System for 3D Chemical Structures},
+  author={Seshadri, Keshavan and Liu, Peng and Koes, David Ryan},
+  journal={Journal of Chemical Education},
+  volume={97},
+  number={10},
+  pages={3872--3876},
+  year={2020},
+  doi={10.1021/acs.jchemed.0c00580}
 }
 ```
+
 
 ## Acknowledgements
 
@@ -209,7 +248,8 @@ Crystalyse builds on open-source tools from the materials science community:
 - **Chemeleon** - AI-powered crystal structure prediction
 - **MACE** - Foundation models for atomistic materials chemistry
 - **PyMatGen** - Robust, open-source Python library for materials analysis
-- **Pymatviz** - A toolkit for visualizations in materials informatics.
+- **Pymatviz** - A toolkit for visualisations in materials informatics.
+- **3Dmol.js** - A capabble visualisation package for 3D Chemical Structures.
 - **OpenAI Agents SDK** - Agent orchestration framework
 
 This work was supported by EPSRC project EP/X037754/1 and the AIchemy hub (grants EP/Y028775/1, EP/Y028759/1).
