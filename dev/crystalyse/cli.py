@@ -307,6 +307,23 @@ def discover(
     asyncio.run(_run())
 
 @app.command()
+def setup(
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-download of data files"),
+):
+    """
+    Download and set up required data files (e.g., phase diagrams).
+    """
+    from crystalyse.tools.downloader import ensure_phase_diagram_data
+    
+    console.print("[cyan]Setting up Crystalyse data files...[/cyan]")
+    try:
+        path = ensure_phase_diagram_data(force=force)
+        console.print(f"[green]✓ Phase diagram data ready at:[/green] {path}")
+    except Exception as e:
+        console.print(f"[red]✗ Failed to setup data:[/red] {e}")
+        raise typer.Exit(code=1)
+
+@app.command()
 def chat(
     user: str = typer.Option("default", "--user", "-u", help="User ID for personalized experience"),
     session: Optional[str] = typer.Option(None, "--session", "-s", help="Session name for organization"),
