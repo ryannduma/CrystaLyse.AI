@@ -1,0 +1,191 @@
+site_name: Crystalyse Documentation
+site_description: Autonomous AI agents for accelerated inorganic materials design through natural language interfaces
+site_url: https://crystalyse-ai.readthedocs.io/
+repo_url: https://github.com/ryannduma/CrystaLyse.AI
+repo_name: ryannduma/CrystaLyse.AI
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 Crystalyse Development Team
+# Theme configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  
+  font:
+    text: Roboto
+    code: Roboto Mono
+  
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.code.select
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+  
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil 
+    view: material/eye
+
+# Documentation structure
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quickstart: quickstart.md
+    - Installation: guides/installation.md
+    - CLI Usage: guides/cli_usage.md
+    - Session Usage: guides/session_based_usage.md
+  - Core Concepts:
+    - Agents: concepts/agents.md
+    - Agent Modes: concepts/agent_modes.md
+    - Analysis Modes: concepts/analysis_modes.md
+    - Mode Switching: concepts/autonomous_mode_switching.md
+    - CLI Architecture: concepts/cli_architecture.md
+    - Render Gate System: concepts/render_gate_system.md
+    - Memory Systems: concepts/memory.md
+    - Sessions: concepts/sessions.md
+    - Tools: concepts/tools.md
+    - User Interface: concepts/ui.md
+    - Provenance: concepts/provenance_system.md
+    - Clarification: concepts/clarification_system.md
+  - Features:
+    - Memory System: features/memory-system.md
+    - Session Management: features/session-management.md
+  - Tools:
+    - Overview: tools/index.md
+    - Chemeleon: tools/chemeleon.md
+    - MACE: tools/mace.md
+    - SMACT: tools/smact.md
+    - Visualisation: tools/visualisation.md
+  - Reference:
+    - API Overview: reference/index.md
+    - CLI Reference: reference/cli/index.md
+    - Configuration: reference/config/index.md
+    - Errors: reference/errors/index.md
+    - Architecture: architecture/overview.md
+
+# Extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      title: Table of contents
+  
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            show_signature_annotations: true
+            show_source: false
+            members_order: source
+            group_by_category: true
+            show_category_heading: true
+            show_if_no_docstring: false
+
+# Extra CSS and JavaScript
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Additional configuration
+extra:
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX  # Replace with actual GA4 property
+  
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ryannduma/CrystaLyse.AI
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/crystalyse/
+    - icon: fontawesome/solid/globe
+      link: https://crystalyse.ai
+  
+  version:
+    provider: mike
+    default: stable
+
+# Validation
+strict: true
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn

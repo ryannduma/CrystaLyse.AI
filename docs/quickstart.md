@@ -1,0 +1,287 @@
+# Quickstart
+
+Get up and running with Crystalyse in minutes. This guide covers installation, configuration, and your first materials analysis.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11 or higher
+- OpenAI API key
+- 8GB RAM recommended (4GB minimum)
+- Internet connection for first-run Chemeleon checkpoint download (~523 MB, automatic)
+- Storage: ~600MB for Chemeleon model checkpoints (auto-cached in `~/.cache/`)
+
+### Quick Install
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ryannduma/Crystalyse.git
+   cd Crystalyse
+   ```
+
+2. **Create environment:**
+   ```bash
+   conda create -n crystalyse python=3.11
+   conda activate crystalyse
+   ```
+
+3. **Install Crystalyse:**
+   ```bash
+   # Step 1: Install core package FIRST (required)
+   pip install -e .
+
+   # Step 2: Install MCP servers (they depend on core package)
+   pip install -e ./chemistry-unified-server      # Complete validation mode
+   pip install -e ./chemistry-creative-server     # Fast exploration mode
+   pip install -e ./visualization-mcp-server      # 3D visualization
+   ```
+
+4. **Verify installation:**
+   ```bash
+   crystalyse --help
+   ```
+
+**Note on First Run**: On first execution, Crystalyse will auto-download ~600MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This one-time download takes 2-5 minutes depending on connection speed and includes a progress bar.
+
+## Configuration
+
+### Set OpenAI API Key
+
+```bash
+export OPENAI_API_KEY="your-api-key-here"
+```
+
+### Verify Configuration
+
+Check that all components are working:
+```bash
+Check that all components are working by running a simple help command:
+```bash
+crystalyse --help
+```
+```
+
+This should display your configuration including available MCP servers.
+
+## First Materials Analysis
+
+### Quick Analysis
+
+Analyse a perovskite material for solar cells:
+
+```bash
+crystalyse discover "Find a perovskite material for solar cells" --mode creative
+```
+
+Expected output:
+```
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                 Crystalyse - Materials Discovery Platform                 │
+│                 v1.0.0 - AI-Powered Materials Discovery                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭───────────────────────────────╮
+│ ✅ Analysis Complete          │
+│ Completed in 50.3s            │
+╰───────────────────────────────╯
+
+╭─────────────────────── Discovery Results ────────────────────────────╮
+│ Generated 5 perovskite candidates with formation energies:            │
+│                                                                        │
+│ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)           │
+│ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                         │
+│ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                         │
+│ ...                                                                    │
+│                                                                        │
+│ 3D visualisations saved: CsGeI3_3dmol.html, CsPbI3_3dmol.html        │
+╰────────────────────────────────────────────────────────────────────────╯
+```
+
+### Interactive Session
+
+Start a conversation-based session:
+
+```bash
+crystalyse chat -u researcher -s solar_project -m creative
+```
+
+In the session:
+```
+🔬 You: Find lead-free perovskites for photovoltaics
+🤖 Crystalyse: I'll explore lead-free perovskite alternatives...
+
+🔬 You: What about tin-based alternatives?
+🤖 Crystalyse: Excellent question! Based on the previous analysis...
+```
+
+Session commands:
+- `/mode rigorous` - Switch to rigorous validation mode
+- `/agent analyse` - Switch to one-shot analysis mode
+- `/help` - Show available commands
+- `/exit` - End session
+
+## Analysis Modes
+
+### Creative Mode (Fast Exploration)
+
+```bash
+crystalyse discover "Design high-capacity battery materials" --mode creative
+```
+
+- **Tools Used**: Chemeleon + MACE
+- **Speed**: ~50 seconds
+- **Output**: Structure generation + energy calculation + 3D visualisation
+
+### Rigorous Mode (Complete Validation)
+
+```bash
+crystalyse discover "Find stable electrolyte materials" --mode rigorous
+```
+
+- **Tools Used**: SMACT + Chemeleon + MACE + Analysis Suite
+- **Speed**: 2-5 minutes  
+- **Output**: Composition validation + structures + energies + comprehensive analysis plots
+
+## Command Reference
+
+### Basic Commands
+
+```bash
+# One-shot discovery
+crystalyse discover "your query" --mode [creative|rigorous]
+
+# Interactive chat
+crystalyse chat -u username -s session_name -m [creative|rigorous]
+
+# Interactive chat
+crystalyse chat -u username -s session_name -m [creative|rigorous]
+```
+
+### Unified Interface
+
+Launch the unified interface for mode switching:
+```bash
+crystalyse
+```
+
+Available in-session commands:
+- `/mode creative` or `/mode rigorous` - Switch analysis modes
+- `/agent chat` or `/agent analyse` - Switch agent types
+- `/help` - Show help
+- `/clear` - Clear screen
+- `/exit` - Exit
+
+## Understanding Output
+
+### Creative Mode Output
+- **3D Visualisations**: Interactive HTML files with molecular structures
+- **Energy Rankings**: Formation energies per atom for stability comparison
+- **Quick Results**: Streamlined output focused on structure and stability
+
+### Rigorous Mode Output
+- **Comprehensive Analysis**: XRD patterns, RDF plots, coordination analysis
+- **Validation Reports**: SMACT composition screening results
+- **Professional Plots**: Publication-ready PDF analysis files
+- **Complete Pipeline**: Full traceability from composition to properties
+
+## Working with Results
+
+### Visualisation Files
+
+Crystalyse automatically creates visualisation files in your current directory:
+
+```bash
+# 3D structure viewers
+CsGeI3_3dmol.html          # Interactive 3D structure
+CsPbI3_3dmol.html
+
+# Analysis plots (rigorous mode)
+CsGeI3_analysis/
+├── CsGeI3.cif                      # Structure file
+├── XRD_Pattern_CsGeI3.pdf          # X-ray diffraction
+├── RDF_Analysis_CsGeI3.pdf         # Radial distribution
+└── Coordination_Analysis_CsGeI3.pdf # Coordination environment
+```
+
+### Session Management
+
+```bash
+# Continue multi-day projects with full context
+```
+
+## Example Workflows
+
+### Battery Material Design
+
+```bash
+# Start a battery research session
+crystalyse chat -u battery_researcher -s lithium_study -m rigorous
+
+# In session:
+🔬 You: Analyse LiCoO2 cathode material properties
+🔬 You: What happens during delithiation to CoO2?
+🔬 You: Calculate volume changes and energy density
+🔬 You: Compare with experimental values from Materials Project
+
+# Results persist across sessions
+```
+
+### Solar Cell Materials
+
+```bash
+# Quick perovskite screening
+crystalyse discover "Screen perovskites with band gaps 1.2-1.6 eV" --mode creative
+
+# Detailed analysis of promising candidates
+crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode rigorous
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **MCP Server Connection Errors**
+   ```bash
+   # Check server status
+   # Ensure all required environment variables are set
+   
+   # Look for "available" status for each tool
+   ```
+
+2. **API Key Issues**
+   ```bash
+   # Verify key is set
+   echo $OPENAI_API_KEY
+   
+   # Check for valid key format (starts with sk-)
+   ```
+
+3. **Memory Errors**
+   - Reduce `num_samples` in structure generation
+   - Use creative mode for faster analysis
+   - Ensure 8GB+ RAM available
+
+4. **GPU Issues**
+   ```bash
+   # MACE will automatically fall back to CPU
+   # Check GPU availability in logs
+   ```
+
+### Getting Help
+
+- **Documentation**: Browse the complete [CLI Guide](guides/cli_usage.md)
+- **Tool Issues**: Check individual tool documentation under [Tools](tools/index.md)
+- **Verbose Output**: Add `--verbose` to any command for detailed logging
+
+
+## Next Steps
+
+Now that you have Crystalyse running:
+
+1. **Learn the Tools**: Explore [SMACT](tools/smact.md), [Chemeleon](tools/chemeleon.md), and [MACE](tools/mace.md) capabilities
+2. **Understand Modes**: Read about [Analysis Modes](concepts/analysis_modes.md) and when to use each
+3. **Advanced Features**: Check out [Session Management](concepts/sessions.md) for persistent research
+4. **Integration**: Check [API Reference](reference/index.md) for programmatic usage
+
+Ready to start designing materials? Try the [CLI Usage Guide](guides/cli_usage.md) for comprehensive examples.
