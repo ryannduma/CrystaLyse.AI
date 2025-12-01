@@ -226,4 +226,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Built by Ryan Nduma, Hyunsoo Park, and Aron Walsh with support and inspiration from the AI4SCIENCE community and especially the Materials Design Group at Imperial College London**
+*Built by Ryan Nduma, Hyunsoo Park, and Aron Walsh with support and inspiration from the AI4SCIENCE community and especially the Materials Design Group at Imperial College London*
