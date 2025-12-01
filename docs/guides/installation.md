@@ -32,7 +32,7 @@ This guide provides comprehensive instructions for installing Crystalyse on vari
 Clone and install from the repository:
 ```bash
 # Clone repository
-git clone https://github.com/ryannduma/Crystalyse.git
+git clone https://github.com/ryannduma/CrystaLyse.AI.git
 cd Crystalyse
 
 # Create conda environment (recommended)
