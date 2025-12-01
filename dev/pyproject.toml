@@ -25,7 +25,7 @@ dependencies = [
     "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
 
     "torch>=2.1.0",
-    "smact>=3.0.0",
+    "smact>=2.7.0",
     "mace-torch>=0.3.0",
 ]
 
@@ -43,6 +43,13 @@ visualization = [
     "py3Dmol>=2.0.4",
     "kaleido>=0.2.1",
     "pymatviz>=0.8.5",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-minify-plugin>=0.7.0",
 ]
 
 all = [
