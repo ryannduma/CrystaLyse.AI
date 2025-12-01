@@ -1,5 +1,7 @@
 # Crystalyse
 
+[![PyPI](https://img.shields.io/pypi/v/crystalyse?label=pypi%20package)](https://pypi.org/project/crystalyse/)
+
 **Version 1.0.0**
 
 Crystalyse is an open, provenance-enforced scientific agent for computational materials design of inorganic crystals. The system orchestrates tools for compositional screening, crystal structure generation, and machine-learning force-field evaluation through a reasoning language model.
