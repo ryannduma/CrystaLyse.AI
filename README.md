@@ -31,7 +31,7 @@ Anti-hallucination mechanisms enforce provenance tracking: every numerical prope
 **From PyPI (Stable v1.0.1)**:
 ```bash
 pip install crystalyse
-export OPENAI_MDG_API_KEY="sk-your-key-here"
+export OPENAI_API_KEY="sk-your-key-here"
 crystalyse --help
 ```
 
@@ -49,7 +49,7 @@ pip install -e ./chemistry-creative-server
 pip install -e ./visualization-mcp-server
 
 # Configure
-export OPENAI_MDG_API_KEY="sk-your-key-here"
+export OPENAI_API_KEY="sk-your-key-here"
 crystalyse --help
 ```
 

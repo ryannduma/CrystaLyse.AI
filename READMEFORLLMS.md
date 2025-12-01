@@ -1,17 +1,17 @@
-# READMEFORLLMS.md - CrystaLyse.AI Installation Guide for AI Agents
+# READMEFORLLMS.md - Crystalyse Installation Guide for AI Agents
 
-This document provides explicit, step-by-step instructions for AI coding agents, copilots, and LLM assistants to understand, install, verify, and troubleshoot CrystaLyse.AI. All commands are provided with exact syntax and expected outputs.
+This document provides explicit, step-by-step instructions for AI coding agents, copilots, and LLM assistants to understand, install, verify, and troubleshoot Crystalyse. All commands are provided with exact syntax and expected outputs.
 
 ## Project Overview
 
-**Project Name**: CrystaLyse.AI
+**Project Name**: Crystalyse
 **Version**: 1.0.0-dev
 **Purpose**: Autonomous AI agent for accelerated inorganic materials design that lets materials scientists delegate substantial computational tasks directly from their terminal
 **Repository**: https://github.com/ryannduma/CrystaLyse.AI
 **PyPI Package**: `crystalyse` (PyPI stable: v1.0.1, Dev version: v1.0.0-dev)
 **License**: MIT
 
-### What CrystaLyse.AI Does
+### What Crystalyse Does
 - **Enhanced Tool Coordination**: Single sophisticated agent (`EnhancedCrystaLyseAgent`) coordinates specialized chemistry tools intelligently
 - **Adaptive Analysis**: Intelligent mode selection (adaptive/creative/rigorous) based on context and user expertise
 - **Natural Language Clarification**: LLM-powered adaptive questioning system that learns user preferences
@@ -21,7 +21,7 @@ This document provides explicit, step-by-step instructions for AI coding agents,
 
 ## Architecture Overview for AI Agents
 
-Understanding CrystaLyse.AI's architecture helps AI agents troubleshoot issues and explain functionality to users.
+Understanding Crystalyse's architecture helps AI agents troubleshoot issues and explain functionality to users.
 
 ### System Architecture
 
@@ -102,7 +102,7 @@ Storage: 5GB for installation + ~600MB for Chemeleon checkpoints (auto-cached in
 Network: Internet connection for package downloads, OpenAI API calls, and first-run Chemeleon checkpoint download (~523MB from Figshare)
 ```
 
-**Note on First Run**: On first execution, CrystaLyse.AI will automatically download ~523MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This is a one-time download that takes 2-5 minutes depending on connection speed.
+**Note on First Run**: On first execution, Crystalyse will automatically download ~523MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This is a one-time download that takes 2-5 minutes depending on connection speed.
 
 ### Required Dependencies
 ```
@@ -133,12 +133,12 @@ chmod +x install.sh
 
 **Expected Output:**
 ```
-[INFO] Starting CrystaLyse.AI installation...
+[INFO] Starting Crystalyse installation...
 [SUCCESS] Using Python 3.11.x at /usr/bin/python3.11
 [INFO] Creating virtual environment at /home/user/crystalyse-env...
 [SUCCESS] Virtual environment created and activated
-[INFO] Installing CrystaLyse.AI using pip...
-[SUCCESS] CrystaLyse.AI installed successfully: v1.0.0
+[INFO] Installing Crystalyse using pip...
+[SUCCESS] Crystalyse installed successfully: v1.0.0
 [SUCCESS] Installation completed successfully!
 ```
 
@@ -199,23 +199,23 @@ pip install --upgrade pip
 # Expected output: Successfully installed pip-x.x.x
 ```
 
-**Step 4: Install CrystaLyse.AI**
+**Step 4: Install Crystalyse**
 ```bash
 # Basic installation
-pip install crystalyse-ai
+pip install crystalyse
 
 # OR with all optional features (recommended)
-pip install "crystalyse-ai[all]"
+pip install "crystalyse[all]"
 
 # OR with specific feature sets
-pip install "crystalyse-ai[visualization,quantum]"
+pip install "crystalyse[visualization,quantum]"
 ```
 
 **Step 5: Verify Installation**
 ```bash
 # Check if command is available
 crystalyse --version
-# Expected output: CrystaLyse.AI v1.0.0
+# Expected output: Crystalyse v1.0.0
 
 # Run help command
 crystalyse --help
@@ -391,8 +391,8 @@ source ~/.bashrc
 **Solution**:
 ```bash
 # For PyPI installation (servers should auto-install)
-pip uninstall crystalyse-ai
-pip install "crystalyse-ai[all]"
+pip uninstall crystalyse
+pip install "crystalyse[all]"
 
 # For development installation
 cd CrystaLyse.AI
@@ -414,10 +414,10 @@ crystalyse config test-servers
 # Don't use sudo with pip in virtual environment
 # Instead, ensure virtual environment is activated
 source crystalyse-env/bin/activate
-pip install crystalyse-ai
+pip install crystalyse
 
 # If still having issues, use user installation
-pip install --user crystalyse-ai
+pip install --user crystalyse
 ```
 
 ### Issue 5: Memory Errors During Analysis
@@ -631,8 +631,8 @@ df -h              # Need 5GB+ free
 
 ### 2. Dependency Check
 ```bash
-# Check CrystaLyse.AI installation
-pip show crystalyse-ai
+# Check Crystalyse installation
+pip show crystalyse
 
 # Check critical dependencies
 pip show openai
@@ -640,7 +640,7 @@ pip show torch
 pip show ase
 
 # Reinstall if missing
-pip install --upgrade crystalyse-ai
+pip install --upgrade crystalyse
 ```
 
 ### 3. Configuration Check
@@ -671,7 +671,7 @@ vm_stat  # macOS
 ### 5. Clean Reinstall (if all else fails)
 ```bash
 # Remove everything
-pip uninstall crystalyse-ai
+pip uninstall crystalyse
 rm -rf ~/.crystalyse
 deactivate
 rm -rf crystalyse-env
@@ -680,7 +680,7 @@ rm -rf crystalyse-env
 python3.11 -m venv crystalyse-env
 source crystalyse-env/bin/activate
 pip install --upgrade pip
-pip install "crystalyse-ai[all]"
+pip install "crystalyse[all]"
 export OPENAI_API_KEY="sk-your-key"
 crystalyse config show
 ```
