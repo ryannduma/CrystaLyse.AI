@@ -10,17 +10,51 @@ copyright: Copyright &copy; 2025 Crystalyse Development Team
 # Theme configuration
 theme:
   name: material
-  custom_dir: docs/overrides
+  language: en
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  
+  font:
+    text: Roboto
+    code: Roboto Mono
+  
   features:
-    - content.code.copy
-    - content.code.select
-    - navigation.path
+    - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.code.select
     - content.code.annotate
-  palette:
-    primary: black
-  favicon: images/favicon.ico
+    - content.tabs.link
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+  
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil 
+    view: material/eye
 
 # Documentation structure
 nav:
