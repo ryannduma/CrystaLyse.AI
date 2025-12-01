@@ -1,407 +1,229 @@
 # CrystaLyse.AI
 
-![CrystaLyse.AI Interface](dev/docs/assets/images/CLI_Startup_Image.png)
+**Version 1.0.0**
 
-**Status**: Research Preview v2.0.0-alpha 
+CrystaLyse.AI is an open, provenance-enforced scientific agent for computational materials design of inorganic crystals. The system orchestrates tools for compositional screening, crystal structure generation, and machine-learning force-field evaluation through a reasoning language model.
 
-CrystaLyse.AI is an autonomous AI agent for inorganic materials design. CrystaLyse.AI lets materials scientists delegate computational materials design tasks directly from their terminal. In early testing, CrystaLyse completed materials design workflows in minutes that would normally take a few days of manual computational work. With CrystaLyse.AI, our goal is a tool that assists researchers in solving challenges at the materials design frontiers.
+> **Published Package**: The stable v1.0.1 release is available on PyPI as [`crystalyse`](https://pypi.org/project/crystalyse/).
+> **Development Version**: This repository contains v1.0.0-dev with ongoing improvements.
 
-Built on the OpenAI Agents SDK framework with Model Context Protocol (MCP) integration, it provides a modular system for rapid, intelligent and adaptable materials design workflows.
+## Overview
 
-> **💡 For AI Assistants & Copilots**: If you're using GitHub Copilot, Claude, ChatGPT, or other AI coding assistants, check out [`READMEFORLLMS.md`](READMEFORLLMS.md) - a comprehensive guide designed specifically for AI agents to quickly understand this project's capabilities, installation, and usage patterns. Simply copy-paste its contents into your AI assistant for instant project context!
+Crystalyse integrates four computational backends through Model Context Protocol (MCP) endpoints:
 
-## Key Features
+- **SMACT** - Compositional screening via charge balance and electronegativity checks
+- **Chemeleon** - Crystal structure generation using denoising diffusion models
+- **MACE-MP0** - Formation energy calculation via machine learning force fields
+- **PyMatGen** - Phase diagram analysis and crystallographic tools
 
-### ✅ Enhanced Agent System with Intelligent Tool Coordination
-- **Adaptive Mode**: Intelligent balance of speed and accuracy (default)
-- **Creative Mode**: Fast exploration (~50 seconds) using Chemeleon + MACE  
-- **Rigorous Mode**: Complete validation (2-5 minutes) with SMACT + Chemeleon + MACE + Analysis Suite
-- **Dynamic tool coordination** through single enhanced agent (`EnhancedCrystaLyseAgent`)
+The agent operates through the OpenAI Agents SDK, supporting three modes that balance exploration breadth against validation depth:
 
-### ✅ Complete Materials Pipeline
-- **Composition Validation**: SMACT screening for chemically reasonable element combinations
-- **Structure Prediction**: Chemeleon crystal structure generation with multiple candidates
-- **Energy Calculations**: MACE formation energy evaluation with uncertainty quantification
-- **Comprehensive Analysis**: XRD patterns, RDF analysis, coordination studies
-- **3D Visualisation**: Interactive molecular viewers and professional analysis plots
+- **Creative** - Rapid exploration (~50s per query) with fewer candidate structures
+- **Rigorous** - Thorough validation (2-5min per query) with extensive polymorph sampling
+- **Adaptive** - Dynamic routing based on query complexity
 
-### ✅ Advanced Interface & User Experience
-
-- **Enhanced CLI**: Rich terminal interface with professional displays
-- **Natural Language Clarification**: LLM-powered adaptive question system
-- **Workspace Management**: Transparent file operations with preview/approval
-- **Session-Based Chat**: Persistent conversations with cross-session learning
-- **User Preference Memory**: Adaptive behavior based on expertise and usage patterns
-
-## Architecture Overview
-
-### High-Level System Architecture
-
-```mermaid
-graph TB
-    subgraph "User Interface Layer"
-        CLI[Enhanced CLI<br/>Rich Console + Themes]
-        UNIFIED[Unified Interface<br/>Single Entry Point]
-        LEGACY[Legacy CLI Commands<br/>Backward Compatibility]
-    end
-    
-    subgraph "Agent Layer"
-        ENHANCED_AGENT[EnhancedCrystaLyseAgent<br/>OpenAI Agents SDK Integration]
-        TOOL_COORDINATOR[Tool Coordination<br/>MCP Server Management]
-        VALIDATOR[Response Validator<br/>Anti-Hallucination]
-    end
-    
-    subgraph "Memory System"
-        SESSION_MEM[Session Memory<br/>SQLite Conversations]
-        USER_MEM[User Memory<br/>Preferences & Research]
-        DISCOVERY[Discovery Cache<br/>Computational Results]
-        CROSS_SESSION[Cross-Session Context<br/>Research Continuity]
-    end
-    
-    subgraph "MCP Server Architecture"
-        CREATIVE[Chemistry Creative Server<br/>Chemeleon + MACE + Viz]
-        UNIFIED_SERVER[Chemistry Unified Server<br/>SMACT + Chemeleon + MACE + Analysis]
-        VIZ[Visualisation Server<br/>3Dmol.js + Pymatviz]
-    end
-    
-    subgraph "Tool Dependencies (oldmcpservers)"
-        SMACT[SMACT MCP<br/>Composition Validation]
-        CHEMELEON[Chemeleon MCP<br/>Structure Prediction]
-        MACE[MACE MCP<br/>Energy Calculation]
-    end
-    
-    subgraph "Infrastructure"
-        POOL[MCP Connection Pool<br/>Persistent Connections]
-        SESSION_MGR[Session Manager<br/>Lifecycle Management]
-        RESILIENT[Resilient Tool Caller<br/>Fault Tolerance]
-    end
-    
-    CLI --> ENHANCED_AGENT
-    UNIFIED --> ENHANCED_AGENT
-    LEGACY --> ENHANCED_AGENT
-    
-    ENHANCED_AGENT --> TOOL_COORDINATOR
-    ENHANCED_AGENT --> VALIDATOR
-    ENHANCED_AGENT <--> SESSION_MEM
-    ENHANCED_AGENT <--> USER_MEM
-    ENHANCED_AGENT <--> DISCOVERY
-    ENHANCED_AGENT <--> CROSS_SESSION
-    
-    TOOL_COORDINATOR --> SESSION_MGR
-    SESSION_MGR --> POOL
-    POOL --> RESILIENT
-    
-    RESILIENT --> CREATIVE
-    RESILIENT --> UNIFIED_SERVER
-    RESILIENT --> VIZ
-    
-    UNIFIED_SERVER --> SMACT
-    UNIFIED_SERVER --> CHEMELEON
-    UNIFIED_SERVER --> MACE
-    CREATIVE --> CHEMELEON
-    CREATIVE --> MACE
-```
-
-### Dual-Mode Operation Flow
-
-```mermaid
-graph LR
-    subgraph "Entry Points"
-        USER_QUERY[User Query]
-        MODE_SELECT{Mode Selection<br/>/mode creative or rigorous}
-    end
-    
-    subgraph "Creative Mode (~50s)"
-        CREATIVE_SERVER[Chemistry Creative Server]
-        FAST_STRUCT[Chemeleon Structure<br/>Generation]
-        FAST_ENERGY[MACE Energy<br/>Calculation]
-        BASIC_VIZ[Basic 3D<br/>Visualisation]
-        CREATIVE_RESULT[Fast Results<br/>Structure + Energy]
-    end
-    
-    subgraph "Rigorous Mode (2-5min)"
-        UNIFIED_SERVER[Chemistry Unified Server]
-        SMACT_VAL[SMACT Composition<br/>Validation]
-        FULL_STRUCT[Chemeleon Complete<br/>Structure Generation]
-        FULL_ENERGY[MACE Full Energy<br/>Analysis]
-        COMPREHENSIVE[XRD + RDF +<br/>Coordination Analysis]
-        RIGOROUS_RESULT[Complete Results<br/>Publication Ready]
-    end
-    
-    subgraph "Memory Integration"
-        CACHE[Discovery Cache<br/>Avoid Redundancy]
-        SESSION[Session History<br/>Research Context]
-        INSIGHTS[Cross-Session<br/>Learning]
-    end
-    
-    USER_QUERY --> MODE_SELECT
-    MODE_SELECT -->|Creative| CREATIVE_SERVER
-    MODE_SELECT -->|Rigorous| UNIFIED_SERVER
-    
-    CREATIVE_SERVER --> FAST_STRUCT
-    FAST_STRUCT --> FAST_ENERGY
-    FAST_ENERGY --> BASIC_VIZ
-    BASIC_VIZ --> CREATIVE_RESULT
-    
-    UNIFIED_SERVER --> SMACT_VAL
-    SMACT_VAL --> FULL_STRUCT
-    FULL_STRUCT --> FULL_ENERGY
-    FULL_ENERGY --> COMPREHENSIVE
-    COMPREHENSIVE --> RIGOROUS_RESULT
-    
-    CREATIVE_RESULT --> CACHE
-    RIGOROUS_RESULT --> CACHE
-    CACHE --> SESSION
-    SESSION --> INSIGHTS
-```
-
-### Session-Based Research Flow
-
-```mermaid
-graph TB
-    subgraph "Session Lifecycle"
-        START[Session Start<br/>crystalyse chat -s project]
-        RESUME[Session Resume<br/>crystalyse resume project]
-        CONTEXT[Context Loading<br/>Previous Conversations]
-    end
-    
-    subgraph "Interactive Commands"
-        MODE_SWITCH["/mode creative|rigorous"]
-        AGENT_SWITCH["/agent chat|analyse"]
-        HISTORY["/history - Show Past"]
-        STATUS["/status - Current State"]
-        THEME["/theme - Change UI"]
-    end
-    
-    subgraph "Research Memory"
-        CONV_HIST[Conversation History<br/>SQLite Storage]
-        DISCOVERIES[Discovery Database<br/>Computational Results]
-        USER_PROF[User Profiles<br/>Research Interests]
-        WEEKLY[Weekly Summaries<br/>Research Progress]
-    end
-    
-    subgraph "Multi-Day Continuity"
-        PROJECT[Long-term Projects]
-        COLLAB[Collaborative Sessions]
-        INSIGHTS[Pattern Recognition]
-        EXPORT[Research Export]
-    end
-    
-    START --> CONTEXT
-    RESUME --> CONTEXT
-    CONTEXT --> MODE_SWITCH
-    CONTEXT --> AGENT_SWITCH
-    
-    MODE_SWITCH --> CONV_HIST
-    AGENT_SWITCH --> CONV_HIST
-    HISTORY --> CONV_HIST
-    STATUS --> USER_PROF
-    
-    CONV_HIST --> DISCOVERIES
-    DISCOVERIES --> WEEKLY
-    WEEKLY --> PROJECT
-    PROJECT --> COLLAB
-    COLLAB --> INSIGHTS
-    INSIGHTS --> EXPORT
-```
-
-## Repository Structure
-
-```
-CrystaLyse.AI/
-├── crystalyse/                    # Core package
-│   ├── agents/                    # AI agent implementations
-│   ├── infrastructure/            # Connection pooling, session management
-│   ├── memory/                    # Memory system and caching
-│   ├── output/                    # Dual formatter and visualisation
-│   ├── validation/                # Anti-hallucination system
-│   └── cli.py                     # Unified command-line interface
-├── chemistry-unified-server/      # Rigorous mode (SMACT + Chemeleon + MACE)
-├── chemistry-creative-server/     # Creative mode (Chemeleon + MACE)
-├── visualization-mcp-server/      # 3D structures and analysis plots
-├── oldmcpservers/                 # Individual tool servers (required dependencies)
-│   ├── smact-mcp-server/          # SMACT composition validation
-│   ├── chemeleon-mcp-server/      # Chemeleon structure prediction
-│   └── mace-mcp-server/           # MACE energy calculations
-├── docs/                          # Comprehensive documentation
-│   ├── guides/                    # Installation and usage guides
-│   ├── concepts/                  # Analysis modes and architecture
-│   ├── tools/                     # Individual tool documentation
-│   └── reference/                 # Complete API reference
-```
+Anti-hallucination mechanisms enforce provenance tracking: every numerical property must trace to explicit tool invocations rather than model estimation.
 
 ## Quick Start
 
 ### Installation
 
+**From PyPI (Stable v1.0.1)**:
 ```bash
-# Clone repository  
+pip install crystalyse
+export OPENAI_MDG_API_KEY="sk-your-key-here"
+crystalyse --help
+```
+
+**From Source (Development v1.0.0-dev)**:
+```bash
 git clone https://github.com/ryannduma/CrystaLyse.AI.git
-cd CrystaLyse.AI
+cd CrystaLyse.AI/dev
 
-# Create conda environment
-conda create -n crystalyse python=3.11
-conda activate crystalyse
-
-# Step 1: Install core package FIRST (required)
-cd dev
+# Install core package
 pip install -e .
 
-# Step 2: Install MCP servers (they depend on core package)
-pip install -e ./chemistry-unified-server      # Complete validation mode
-pip install -e ./chemistry-creative-server     # Fast exploration mode
-pip install -e ./visualization-mcp-server      # 3D visualization
-```
+# Install MCP servers
+pip install -e ./chemistry-unified-server
+pip install -e ./chemistry-creative-server
+pip install -e ./visualization-mcp-server
 
-### Configuration
-
-```bash
-# Set OpenAI API key
-export OPENAI_API_KEY="sk-your-key-here"
-
-# Verify installation
+# Configure
+export OPENAI_MDG_API_KEY="sk-your-key-here"
 crystalyse --help
-crystalyse config show
 ```
 
-## Usage Examples
+### First Run
 
-### Quick Analysis
+On first execution, Crystalyse automatically downloads:
+- Chemeleon model checkpoints (~600 MB, cached in `~/.cache/crystalyse/`)
+- Materials Project phase diagrams (~170 MB, 271,617 entries)
+
+### Basic Usage
 
 ```bash
-# Creative mode (fast exploration)
-crystalyse analyse "Find stable perovskite materials for solar cells" --mode creative
+# Non-interactive analysis
+crystalyse analyse "Find stable perovskite materials" --mode creative
 
-# Rigorous mode (complete validation)
-crystalyse analyse "Analyse CsSnI3 for photovoltaic applications" --mode rigorous
+# Interactive session
+crystalyse chat -u researcher -s project_name
+
+# Resume previous session
+crystalyse resume project_name -u researcher
 ```
 
-### Interactive Research Sessions
+## Operational Modes
 
+| Mode | Duration | Structures/Composition | Use Case |
+|------|----------|------------------------|----------|
+| Creative | ~50s | ~3 candidates | Rapid exploration, broad screening |
+| Rigorous | 2-5min | 30+ candidates | Final validation, publication-ready |
+| Adaptive | Variable | Context-dependent | Dynamic routing based on query |
+
+Mode selection affects:
+- Number of crystal structures generated per composition
+- Depth of stability validation
+- Computational resource allocation
+
+## Example Tasks
+
+**Quaternary Oxide Discovery**:
 ```bash
-# Start a research session
-crystalyse chat -u researcher -s solar_project -m creative
-
-# Resume previous work
-crystalyse resume solar_project -u researcher
-
-# List all sessions
-crystalyse sessions -u researcher
+crystalyse analyse "Predict five new stable quaternary compositions formed of K, Y, Zr and O" --mode rigorous
 ```
+Result: K₃Y₃Zr₃O₁₂ with energy above hull of 51 meV/atom (metastable).
 
-### Unified Interface
-
+**Sodium-Ion Battery Cathode**:
 ```bash
-# Launch interactive interface with mode switching
-crystalyse
-
-# In-session commands:
-# /mode creative     - Switch to creative mode
-# /mode rigorous     - Switch to rigorous mode
-# /agent chat        - Switch to chat agent
-# /agent analyse     - Switch to analysis agent
-# /help              - Show available commands
-# /exit              - Exit interface
+crystalyse analyse "Suggest a new Na-ion battery cathode" --mode creative
 ```
+Result: Na₃V₂(PO₄)₂F₃ with predicted capacity of 193 mAh/g at 3.7 V.
 
-## Example Output
-
-**Creative Mode Results**:
+**Lead-Free Photovoltaics**:
+```bash
+crystalyse analyse "Alternative to CsPbI3 for indoor photovoltaics" --mode rigorous
 ```
-╭─────────────────────── Design Results ────────────────────────────╮
-│ Generated 5 perovskite candidates with formation energies:            │
-│                                                                        │
-│ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)           │
-│ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                         │
-│ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                         │
-│ 4. RbPbI₃ - Formation energy: -2.503 eV/atom                         │
-│ 5. RbSnI₃ - Formation energy: -2.488 eV/atom                         │
-│                                                                        │
-│ 3D visualisations created: CsGeI3_3dmol.html, CsPbI3_3dmol.html      │
-╰────────────────────────────────────────────────────────────────────────╯
-```
+Result: Cs₂AgBiBr₆ with 0.54 meV/atom above hull and 1.95 eV bandgap.
 
-**Rigorous Mode Output**:
-- Complete SMACT composition validation
-- Multiple structure candidates per composition
-- Professional analysis plots (XRD, RDF, coordination analysis)
-- 3D interactive visualisations
-- Publication-ready results
+## Provenance System
 
-## Applications
+The system enforces computational honesty through three layers:
 
-### Energy Materials
-- Battery cathodes and anodes (Li-ion, Na-ion, solid-state)
-- Solid electrolytes and ion conductors  
-- Photovoltaic semiconductors and perovskites
-- Thermoelectric materials
+1. **Prompt Guidance** - Instructs compute-or-decline behaviour
+2. **Runtime Tracking** - Captures all tool outputs with (value, unit, source_tool, artifact_hash, timestamp)
+3. **Render Gate** - Blocks unprovenanced numerical claims from display
 
-### Electronic Materials
-- Ferroelectric and multiferroic materials
-- Magnetic materials and spintronics
-- Semiconductor devices and memory materials
-- Superconductors and quantum materials
+All reported material properties originate from explicit tool invocations. Derived values (e.g., battery capacity = 26801/*M*) are calculated from provenanced inputs. JSONL audit trails enable full reproducibility.
 
-### Research Workflows
-- High-throughput materials screening
-- Structure-property relationship studies
-- Materials optimisation and design
-- Experimental validation planning
+## Performance
 
-## Performance Characteristics
+Computational requirements:
+- **Python**: 3.11+
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: ~2GB for installation and cache
+- **GPU**: Optional, accelerates MACE calculations
+- **Network**: Required for first-run downloads
 
-| Operation | Creative Mode | Rigorous Mode |
-|-----------|---------------|---------------|
-| Simple query | ~50 seconds | 2-3 minutes |
-| Complex analysis | 1-2 minutes | 3-5 minutes |
-| Batch processing | 5-10 minutes | 15-30 minutes |
-
-**System Requirements**:
-- Python 3.11+
-- 8GB RAM minimum (16GB recommended)
-- Storage: 5GB for installation + ~600MB for Chemeleon model checkpoints (auto-downloaded to `~/.cache/`)
-- Internet: Required for first-run checkpoint download (~523MB from Figshare)
-- OpenAI API key
-- Optional: NVIDIA GPU for MACE acceleration
+Timing benchmarks (Intel i7, 16GB RAM):
+- Simple query: Creative 50s, Rigorous 2-3min
+- Complex analysis: Creative 1-2min, Rigorous 3-5min
+- Batch processing (10 materials): Creative 5-10min, Rigorous 15-30min
 
 ## Documentation
 
-Comprehensive documentation is available in the [`docs/`](docs/) directory:
+- **[User Guide](dev/docs/guides/cli_usage.md)** - Command reference and workflows
+- **[Installation Guide](dev/docs/guides/installation.md)** - Detailed setup instructions
+- **[Analysis Modes](dev/docs/concepts/analysis_modes.md)** - Mode selection strategies
+- **[Provenance System](dev/docs/concepts/provenance.md)** - Anti-hallucination architecture
+- **[Tool Documentation](dev/docs/tools/)** - SMACT, Chemeleon, MACE, PyMatGen
+- **[CLAUDE.md](CLAUDE.md)** - Development guide for contributors
 
-- **[Quickstart Guide](docs/quickstart.md)** - Get started in minutes
-- **[Installation Guide](docs/guides/installation.md)** - Detailed setup instructions
-- **[CLI Usage Guide](docs/guides/cli_usage.md)** - Complete command reference
-- **[Analysis Modes](docs/concepts/analysis_modes.md)** - Creative vs Rigorous workflows
-- **[Tool Documentation](docs/tools/)** - SMACT, Chemeleon, MACE, Visualisation
-- **[API Reference](docs/reference/)** - Complete API documentation
+## Architecture
 
-## Scientific Integrity
+The system uses a single-agent architecture with modular MCP servers:
 
-CrystaLyse.AI maintains computational honesty:
-- **100% Traceability**: Every result traces to actual tool calculations
-- **Zero Fabrication**: No estimated or hallucinated numerical values
-- **Complete Transparency**: Clear distinction between AI reasoning and computational validation
-- **Anti-Hallucination System**: Response validation prevents fabricated results
+```
+User Prompt → Clarification Engine → Mode Selection (Creative/Adaptive/Rigorous)
+                                                    ↓
+                              Reasoning LLM (OpenAI o3/o4-mini)
+                                                    ↓
+                        MCP Toolkit (SMACT, Chemeleon, MACE, PyMatGen)
+                                                    ↓
+                              Provenance Tracking & Validation
+                                                    ↓
+                            Results with Complete Audit Trail
+```
 
-## Acknowledgments
+Memory system provides four layers:
+- Session memory (conversation history, tool traces)
+- Discovery cache (computed materials, 24hr TTL)
+- User preference memory (expertise level, clarification depth)
+- Cross-session context (research themes, successful strategies)
 
-CrystaLyse.AI builds upon exceptional open-source tools:
+## Safety and Sustainability
 
-- **[SMACT](https://github.com/WMD-group/SMACT)**: Semiconducting Materials by Analogy and Chemical Theory
-- **[Chemeleon](https://github.com/hspark1212/chemeleon)**: Crystal structure prediction with AI
-- **[MACE](https://github.com/ACEsuit/mace)**: Machine learning ACE force fields
-- **[Pymatviz](https://github.com/janosh/pymatviz)**: Materials visualisation toolkit
-- **[OpenAI Agents SDK](https://github.com/openai/openai-agents-python)**: Production-ready agent framework
+The agent implements three-tier safety filtering:
+
+**Tier 1** (Automatic refusal) - Explosive materials, toxic heavy metals, chemical weapon precursors
+**Tier 2** (Context review) - Ambiguous requests requiring additional clarification
+**Tier 3** (Safe execution) - Legitimate safety applications (fire-resistant ceramics, biocompatible implants)
+
+Sustainability awareness includes earth-abundant element prioritisation (Fe, Al, Si over rare earths) and critical element flagging (Co, In, Ga dependencies).
 
 ## Citation
 
-If you use CrystaLyse.AI in your research, please cite the underlying tools:
+If you use Crystalyse in your research, please cite the underlying tools:
 
-- **SMACT**: Davies et al., "SMACT: Semiconducting Materials by Analogy and Chemical Theory" JOSS 4, 1361 (2019)
-- **Chemeleon**: Park et al., "Exploration of crystal chemical space using text-guided generative artificial intelligence" Nature Communications (2025)
-- **MACE**: Batatia et al., "MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields" NeurIPS (2022)
-- **Pymatviz**: Riebesell et al., "Pymatviz: visualization toolkit for materials informatics" (2022)
+```bibtex
+@article{davies2019smact,
+  title={SMACT: Semiconducting Materials by Analogy and Chemical Theory},
+  author={Davies, Daniel W and Butler, Keith T and Jackson, Adam J and others},
+  journal={Journal of Open Source Software},
+  volume={4}, number={38}, pages={1361}, year={2019}
+}
+
+@article{park2025chemeleon,
+  title={Exploration of crystal chemical space using text-guided generative AI},
+  author={Park, Hyun Seo and others},
+  journal={Nature Communications}, year={2025}
+}
+
+@article{batatia2022mace,
+  title={MACE: Higher Order Equivariant Message Passing Neural Networks},
+  author={Batatia, Ilyes and others},
+  journal={NeurIPS}, year={2022}
+}
+
+@software{ong2013pymatgen,
+  title={Python Materials Genomics (pymatgen)},
+  author={Ong, Shyue Ping and others},
+  year={2013}
+}
+```
+
+## Acknowledgements
+
+Crystalyse builds on open-source tools from the materials science community:
+
+- **SMACT** - Semiconducting Materials by Analogy and Chemical Theory
+- **Chemeleon** - AI-powered crystal structure prediction
+- **MACE** - Machine learning ACE force fields
+- **PyMatGen** - Python Materials Genomics
+- **Pymatviz** - Materials visualisation toolkit
+- **OpenAI Agents SDK** - Agent orchestration framework
+
+This work was supported by EPSRC project EP/X037754/1 and the AIchemy hub (grants EP/Y028775/1, EP/Y028759/1).
 
 ## License
 
-MIT License - see LICENSE for details.
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/ryannduma/CrystaLyse.AI/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ryannduma/CrystaLyse.AI/discussions)
+- **Email**: ryannduma@gmail.com
+
+---
+
+**Built by Ryan Nduma, Hyunsoo Park, and Aron Walsh at Imperial College London.**

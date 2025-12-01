@@ -4,14 +4,14 @@ This document provides explicit, step-by-step instructions for AI coding agents,
 
 ## Project Overview
 
-**Project Name**: CrystaLyse.AI  
-**Version**: Research Preview v2.0.0-alpha  
-**Purpose**: Autonomous AI agent for accelerated inorganic materials design that lets materials scientists delegate substantial computational tasks directly from their terminal  
-**Repository**: https://github.com/ryannduma/CrystaLyse.AI  
-**PyPI Package**: `crystalyse-ai` (PyPI version: v1.0.14, Dev version: v2.0.0-alpha)  
-**License**: MIT  
+**Project Name**: CrystaLyse.AI
+**Version**: 1.0.0-dev
+**Purpose**: Autonomous AI agent for accelerated inorganic materials design that lets materials scientists delegate substantial computational tasks directly from their terminal
+**Repository**: https://github.com/ryannduma/CrystaLyse.AI
+**PyPI Package**: `crystalyse` (PyPI stable: v1.0.1, Dev version: v1.0.0-dev)
+**License**: MIT
 
-### What CrystaLyse.AI 2.0 Does
+### What CrystaLyse.AI Does
 - **Enhanced Tool Coordination**: Single sophisticated agent (`EnhancedCrystaLyseAgent`) coordinates specialized chemistry tools intelligently
 - **Adaptive Analysis**: Intelligent mode selection (adaptive/creative/rigorous) based on context and user expertise
 - **Natural Language Clarification**: LLM-powered adaptive questioning system that learns user preferences
@@ -712,7 +712,7 @@ If this completes in ~50 seconds and produces 3D visualization files, the instal
 
 - **Documentation**: https://crystalyse-ai.readthedocs.io
 - **Issues**: https://github.com/ryannduma/CrystaLyse.AI/issues
-- **Version**: Research Preview v1.0.0
+- **Version**: 1.0.0-dev
 - **License**: MIT
 - **Python Requirements**: 3.11+
 - **Platform Support**: Linux, macOS, Windows (WSL2)

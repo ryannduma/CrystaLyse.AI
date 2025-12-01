@@ -14,7 +14,7 @@ Key Features:
     - Natural Language Tools: Simple tools that LLMs can easily use
 """
 
-__version__ = "2.0.0-alpha"
+__version__ = "1.0.0-dev"
 
 # Import unified agent
 try:
