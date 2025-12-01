@@ -1,0 +1,36 @@
+# MANIFEST.in - Include additional files in the distribution
+
+# Documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include VISION.md
+include install.sh
+
+# Configuration files
+include pyproject.toml
+recursive-include src/crystalyse_ai/prompts *.md
+recursive-include src/crystalyse_ai/ui_config *.json
+
+# MCP Server checkpoints and models
+recursive-include src/crystalyse_ai/mcp_servers/*/ckpts *.ckpt
+
+# Documentation
+recursive-include docs *.md *.rst *.txt
+recursive-include docs/assets *.png *.svg *.jpg *.jpeg
+
+# Examples
+recursive-include examples *.py *.ipynb *.md
+
+# Test files (for development installs)
+recursive-include tests *.py
+
+# Exclude unnecessary files
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude crystalyse_debug.log
+exclude crystalyse_errors.log
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * *.so
+recursive-exclude * .DS_Store

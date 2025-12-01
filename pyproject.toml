@@ -1,0 +1,77 @@
+[project]
+name = "crystalyse"
+version = "1.0.0-dev"
+description = "Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=1.0.0",
+    "openai-agents>=0.0.16",
+
+    "pymatgen>=2024.1.0",
+    "ase>=3.22.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "typing-extensions>=4.5.0",
+    "pydantic>=2.0.0",
+    "asyncio>=3.4.3",
+    "rich>=13.0.0",
+    "click>=8.1.0",
+    "prompt-toolkit>=3.0.0",
+    "typer>=0.12.0",
+
+    # Pinned to v0.1.2 which includes fix for missing subpackages in PyPI distribution
+    # Can use GitHub source for now until PyPI package is published
+    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+
+    "torch>=2.1.0",
+    "smact>=2.7.0",
+    "mace-torch>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+visualization = [
+    "plotly>=5.18.0",
+    "py3Dmol>=2.0.4",
+    "kaleido>=0.2.1",
+    "pymatviz>=0.8.5",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-minify-plugin>=0.7.0",
+]
+
+all = [
+    "crystalyse[visualization]",
+]
+
+[project.scripts]
+crystalyse = "crystalyse.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["dev"]
+include = ["crystalyse*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
