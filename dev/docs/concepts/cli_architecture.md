@@ -1,8 +1,8 @@
-# CLI Architecture - CrystaLyse.AI v2.0-alpha
+# CLI Architecture - CrystaLyse.AI v1.0.0
 
 ## Overview
 
-CrystaLyse.AI v2.0-alpha provides a unified CLI architecture built on a single enhanced agent (`EnhancedCrystaLyseAgent`) that coordinates with specialized tools and MCP servers. This document clarifies the actual implementation versus documentation discrepancies.
+CrystaLyse.AI v1.0.0 provides a unified CLI architecture built on a single enhanced agent (`EnhancedCrystaLyseAgent`) that coordinates with specialized tools and MCP servers. This document clarifies the actual implementation versus documentation discrepancies.
 
 ## Agent Architecture Reality
 

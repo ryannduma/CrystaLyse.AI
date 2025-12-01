@@ -1,597 +1,465 @@
 # CLI Usage Guide
 
-Complete guide to using CrystaLyse.AI from the command line. This covers all available commands, options, and advanced usage patterns.
+Complete guide to using CrystaLyse.AI from the command line.
 
 ## Overview
 
-CrystaLyse.AI provides three ways to interact with the system:
+CrystaLyse.AI provides a simple command-line interface with three primary commands:
 
-1. **Unified Interface**: `crystalyse` - Interactive mode with in-session switching
-2. **Direct Commands**: `crystalyse analyse`, `crystalyse chat` - Specific operations
-3. **Session Management**: `crystalyse resume`, `crystalyse sessions` - Persistent workflows
+1. **`crystalyse discover`** - Non-interactive materials discovery with provenance tracking
+2. **`crystalyse chat`** - Interactive session-based chat with adaptive clarification
+3. **`crystalyse user-stats`** - View user learning profile and preferences
 
-## Command Structure
+## Installation
+
+### From PyPI (Stable)
 
 ```bash
-crystalyse [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS] [ARGUMENTS]
+pip install crystalyse
+export OPENAI_MDG_API_KEY="your-api-key-here"
+crystalyse --help
 ```
 
-### Global Options
+### From Source (Development)
 
 ```bash
--h, --help     Show help message
---version      Show version information
---verbose, -v  Enable verbose logging
---config PATH  Use custom configuration file
+cd dev
+pip install -e .
+export OPENAI_MDG_API_KEY="your-api-key-here"
+crystalyse --help
 ```
 
-## Core Commands
+## Global Options
 
-### `crystalyse` (Unified Interface)
-
-Launch the interactive unified interface with mode and agent switching capabilities.
+These options apply to all commands and must be specified before the command name:
 
 ```bash
-crystalyse
+crystalyse [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
 ```
 
-**Features:**
-- Real-time mode switching (`/mode creative`, `/mode rigorous`)
-- Agent switching (`/agent chat`, `/agent analyse`)
-- Session persistence
-- Clean, modern interface
-
-**Available Commands in Session:**
-```bash
-/mode creative     # Switch to creative mode (fast)
-/mode rigorous     # Switch to rigorous mode (complete)
-/agent chat        # Switch to conversation mode
-/agent analyse     # Switch to one-shot analysis mode
-/help              # Show help
-/clear             # Clear screen
-/exit              # Exit interface
-```
-
-**Example Session:**
-```bash
-$ crystalyse
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                 CrystaLyse.AI - Materials Discovery Platform                 │
-│                 Research Preview v2.0.0-alpha - AI-Powered Materials Design        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─────────────────────────────────────────────────────────────────────────╮
-│ Mode: Creative | Agent: Chat | User: default                           │
-╰─────────────────────────────────────────────────────────────────────────╯
-
-➤ Find perovskites for solar cells
-[Analysis results...]
-
-➤ /mode rigorous
-✅ Mode switched to Rigorous
-
-➤ Analyse the most stable candidate in detail
-[Detailed analysis results...]
-```
-
-### `crystalyse analyse`
-
-Run one-shot materials analysis with immediate results.
+**Available global options:**
 
 ```bash
-crystalyse analyse QUERY [OPTIONS]
-```
-
-**Options:**
-```bash
---mode MODE           Analysis mode: creative, rigorous (default: creative)
---user-id USER        User ID for memory and caching (default: cli_user)
---verbose, -v         Enable verbose output and logging
+--project, -p TEXT      Project name for workspace organisation (default: crystalyse_session)
+--mode [creative|rigorous|adaptive]   Analysis mode (default: adaptive)
+--model TEXT            Language model to use (default: auto-select based on mode)
+--verbose, -v           Enable verbose output
+--version               Show version and exit
+--help                  Show help message
 ```
 
 **Examples:**
 
 ```bash
-# Basic analysis
-crystalyse analyse "Find battery cathode materials"
+# Use rigorous mode with custom project name
+crystalyse --mode rigorous --project battery_study discover "Find Li-ion cathodes"
 
-# Rigorous analysis
-crystalyse analyse "Analyse LiCoO2 stability" --mode rigorous
+# Use specific model
+crystalyse --model o3 discover "Analyse CsSnI3 stability"
 
-# With specific user
-crystalyse analyse "Design superconductors" --user-id researcher1
-
-# Verbose output
-crystalyse analyse "Screen perovskites" --verbose
+# Verbose output for debugging
+crystalyse --verbose discover "Quick test"
 ```
 
-**Expected Output:**
+## Core Commands
+
+### `crystalyse discover`
+
+Non-interactive materials discovery with automatic provenance tracking. Ideal for scripting, automation, and quick explorations.
+
+**Usage:**
+
 ```bash
-$ crystalyse analyse "Find perovskite solar cell materials" --mode creative
+crystalyse discover QUERY [OPTIONS]
+```
 
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                 CrystaLyse.AI - Materials Discovery Platform                 │
-│                 Research Preview v2.0.0-alpha - AI-Powered Materials Design        │
-╰──────────────────────────────────────────────────────────────────────────────╯
+**Options:**
 
-╭───────────────────────────────╮
-│ ✅ Analysis Complete          │
-│ Completed in 50.3s            │
-╰───────────────────────────────╯
+```bash
+--provenance-dir PATH   Custom directory for provenance output (default: ./provenance_output)
+--hide-summary          Hide provenance summary table (data still captured)
+```
 
-╭───────────────────────────── Discovery Results ──────────────────────────────╮
-│ Generated 5 perovskite candidates with formation energies:                   │
-│                                                                              │
-│ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)                  │
-│ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                                │
-│ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                                │
-│ 4. RbPbI₃ - Formation energy: -2.503 eV/atom                                │
-│ 5. RbSnI₃ - Formation energy: -2.488 eV/atom                                │
-│                                                                              │
-│ 3D visualisations created: CsGeI3_3dmol.html, CsPbI3_3dmol.html             │
-╰──────────────────────────────────────────────────────────────────────────────╯
+**Provenance is always enabled** - every query generates a complete audit trail including:
+- Materials discovered with computed properties
+- MCP tool calls with timestamps
+- Performance metrics
+- Computational artefacts (structures, visualisations)
 
-╭──────────────────────────── Performance Metrics ─────────────────────────────╮
-│   Time               50.2s                                                   │
-│   Tool Calls         1                                                       │
-│   Model              o4-mini                                                 │
-│   Mode               creative                                                │
-╰──────────────────────────────────────────────────────────────────────────────╯
+**Examples:**
+
+```bash
+# Basic discovery (creative mode, ~50 seconds)
+crystalyse discover "Find stable perovskite solar cell materials"
+
+# Rigorous mode for comprehensive analysis (2-5 minutes)
+crystalyse --mode rigorous discover "Analyse CsSnI3 phase stability"
+
+# Custom provenance directory
+crystalyse discover "Li-ion cathodes" --provenance-dir ./my_research
+
+# Hide summary for cleaner output
+crystalyse discover "Quick test" --hide-summary
+
+# Adaptive mode (automatically selects creative or rigorous)
+crystalyse --mode adaptive discover "Design high-capacity battery materials"
+```
+
+**Expected output:**
+
+```bash
+$ crystalyse discover "Find perovskite solar cell materials"
+
+[cyan]Starting non-interactive discovery:[/cyan] Find perovskite solar cell materials
+[dim]Mode: adaptive | Project: crystalyse_session[/dim]
+
+[Tool execution with progress bars...]
+
+╭─────────────────────── Discovery Results ────────────────────────╮
+│ Generated 3 perovskite candidates:                               │
+│                                                                   │
+│ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)       │
+│ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                     │
+│ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                     │
+│                                                                   │
+│ Visualisations: CsGeI3_3dmol.html, CsPbI3_3dmol.html             │
+╰───────────────────────────────────────────────────────────────────╯
+
+╭─────────────────── Provenance Summary ───────────────────╮
+│ Session: crystalyse_adaptive_20250101_120000             │
+│ Materials discovered: 3                                  │
+│ Tool calls: 2                                            │
+│ Duration: 48.5s                                          │
+│                                                          │
+│ Output directory:                                        │
+│ ./provenance_output/crystalyse_adaptive_20250101_120000 │
+╰──────────────────────────────────────────────────────────╯
 ```
 
 ### `crystalyse chat`
 
-Start interactive session-based chat with persistent memory.
+Interactive session-based chat with adaptive clarification, user preference learning, and session persistence.
+
+**Usage:**
 
 ```bash
 crystalyse chat [OPTIONS]
 ```
 
 **Options:**
+
 ```bash
---user-id, -u USER       User ID for memory system (default: default)
---session-id, -s ID      Session ID (auto-generated if not provided)
---mode, -m MODE          Analysis mode: creative, rigorous (default: creative)
---verbose, -v            Enable verbose logging
+--user, -u TEXT       User ID for personalised experience (default: "default")
+--session, -s TEXT    Session name for organisation (auto-generated if not provided)
 ```
+
+**Features:**
+
+- **Adaptive clarification**: System learns your expertise level and adjusts question complexity
+- **Cross-session learning**: Preferences persist across sessions
+- **Mode switching**: Switch between creative/rigorous during conversation
+- **Session persistence**: SQLite-based conversation storage
 
 **Examples:**
 
 ```bash
-# Start new chat session
-crystalyse chat -u researcher1 -s battery_study -m creative
+# Start chat with user ID and session name
+crystalyse chat --user researcher1 --session battery_study
 
-# Auto-generated session ID
-crystalyse chat -u materials_scientist -m rigorous
-
-# Simple chat
+# Quick anonymous chat
 crystalyse chat
+
+# Chat with global mode option
+crystalyse --mode rigorous chat --user scientist --session photovoltaics
 ```
 
-**In-Session Commands:**
+**In-session slash commands:**
+
+The chat interface does not have built-in slash commands. It's a simple conversational interface where you ask questions naturally.
+
+**Example session:**
+
 ```bash
-/history              # Show conversation history
-/clear                # Clear conversation history
-/undo                 # Remove last interaction
-/sessions             # List all sessions for user
-/resume <session_id>  # Instructions to resume another session
-/help                 # Show session help
-/exit                 # Exit chat
+$ crystalyse chat -u researcher -s solar_study
+
+╭──────────────────────────────────────────────────────────╮
+│         CrystaLyse.AI - Interactive Chat Session         │
+│                                                          │
+│ User: researcher                                         │
+│ Session: solar_study                                     │
+│ Mode: adaptive                                           │
+╰──────────────────────────────────────────────────────────╯
+
+You: Find perovskites for solar cells
+
+[Agent processes query with adaptive clarification if needed...]
+
+CrystaLyse: I've analysed several perovskite compositions for
+photovoltaic applications. Here are the key findings:
+
+Most Stable Candidates:
+1. CsGeI₃: -2.558 eV/atom (excellent stability)
+2. CsPbI₃: -2.542 eV/atom (good alternative)
+
+3D visualisations saved for detailed inspection.
+
+You: What about band gaps?
+
+CrystaLyse: Based on the structures generated:
+
+Band Gap Estimates:
+- CsGeI₃: ~1.6 eV (excellent for single-junction solar cells)
+- CsPbI₃: ~1.5 eV (good for photovoltaics)
+
+These are preliminary estimates from structural analysis.
+
+You: exit
+
+[cyan]Session ended.[/cyan]
 ```
 
-**Example Session:**
-```bash
-$ crystalyse chat -u researcher -s solar_study -m creative
+### `crystalyse user-stats`
 
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                🔬 CrystaLyse.AI - Session-Based Chat                         │
-│                                                                              │
-│ User: researcher                                                             │
-│ Session: solar_study                                                         │
-│ Mode: Creative                                                               │
-│                                                                              │
-│ Key Features:                                                                │
-│ ✅ Automatic conversation history                                            │
-│ ✅ Persistent memory across sessions                                         │
-│ ✅ Multi-turn context understanding                                          │
-│ ✅ Computational validation with live tools                                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
+Display user learning profile showing detected expertise, preferences, and interaction history.
 
-🔬 You: Analyse perovskite stability for photovoltaics
-
-[Agent processes with Chemeleon + MACE...]
-
-╭─────────────────────── 🔬 CrystaLyse Response ────────────────────────╮
-│ I've analysed several perovskite compositions for photovoltaic        │
-│ applications. Here are the key findings:                              │
-│                                                                        │
-│ Most Stable Candidates:                                                │
-│ 1. CsGeI₃: -2.558 eV/atom (excellent stability)                       │
-│ 2. CsPbI₃: -2.542 eV/atom (good alternative)                          │
-│                                                                        │
-│ 3D visualisations saved for detailed inspection.                      │
-╰────────────────────────────────────────────────────────────────────────╯
-
-🔬 You: What about band gaps for these materials?
-
-╭─────────────────────── 🔬 CrystaLyse Response ────────────────────────╮
-│ Based on the structures I generated for CsGeI₃ and CsPbI₃:            │
-│                                                                        │
-│ Band Gap Estimates (from structural analysis):                        │
-│ - CsGeI₃: ~1.6 eV (excellent for single-junction solar cells)         │
-│ - CsPbI₃: ~1.5 eV (good for photovoltaics)                           │
-│                                                                        │
-│ These are preliminary estimates. For precise values, consider          │
-│ DFT calculations with hybrid functionals.                             │
-╰────────────────────────────────────────────────────────────────────────╯
-
-🔬 You: /exit
-✅ Session ended successfully
-```
-
-### `crystalyse resume`
-
-Resume a previous session with full context restoration.
+**Usage:**
 
 ```bash
-crystalyse resume SESSION_ID [OPTIONS]
+crystalyse user-stats [OPTIONS]
 ```
 
 **Options:**
+
 ```bash
---user-id, -u USER    User ID (default: default)  
---mode, -m MODE       Analysis mode (default: creative)
+--user, -u TEXT    User ID to show stats for (default: "default")
+```
+
+**Example:**
+
+```bash
+$ crystalyse user-stats -u researcher1
+
+╭─────────────────── CrystaLyse Learning Profile ───────────────────╮
+│ User: researcher1                                                 │
+│ Interactions: 15                                                  │
+│ Detected Expertise: Expert                                        │
+│ Speed Preference: Balanced (0.6)                                  │
+│ Successful Modes: rigorous (90%), creative (70%)                  │
+│                                                                   │
+│ Domain Familiarity:                                               │
+│   • Batteries: Expert (0.9)                                       │
+│   • Photovoltaics: Intermediate (0.6)                             │
+│   • Thermoelectrics: Novice (0.3)                                 │
+╰───────────────────────────────────────────────────────────────────╯
+```
+
+### `crystalyse analyse-provenance`
+
+Analyse provenance data from previous discovery sessions.
+
+**Usage:**
+
+```bash
+crystalyse analyse-provenance [OPTIONS]
+```
+
+**Options:**
+
+```bash
+--session TEXT    Specific session ID to analyse
+--latest          Analyse the most recent session
+--dir PATH        Provenance directory to search (default: ./provenance_output)
 ```
 
 **Examples:**
 
 ```bash
-# Resume specific session
-crystalyse resume battery_study -u researcher1
+# Analyse most recent session
+crystalyse analyse-provenance --latest
 
-# Resume with mode override
-crystalyse resume solar_project -u scientist -m rigorous
+# Analyse specific session
+crystalyse analyse-provenance --session crystalyse_creative_20250101_120000
+
+# Custom provenance directory
+crystalyse analyse-provenance --latest --dir ./my_research/provenance
 ```
 
-### `crystalyse sessions`
+## Analysis Modes
 
-List and manage user sessions.
+CrystaLyse.AI supports three operational modes that control the analysis workflow:
+
+| Mode | Duration | Structures | Tools Used | Use Case |
+|------|----------|-----------|------------|----------|
+| **Creative** | ~50s | ~3 candidates | Chemeleon + MACE | Rapid exploration, broad screening |
+| **Rigorous** | 2-5min | 30+ candidates | SMACT + Chemeleon + MACE + PyMatGen | Final validation, publication-ready |
+| **Adaptive** | Variable | Context-dependent | Intelligent routing | Dynamic selection based on query |
+
+**Mode selection:**
 
 ```bash
-crystalyse sessions [OPTIONS]
+# Explicitly set mode
+crystalyse --mode creative discover "Quick exploration"
+crystalyse --mode rigorous discover "Thorough validation"
+crystalyse --mode adaptive discover "Let system decide"  # Default
 ```
 
-**Options:**
-```bash
---user-id, -u USER    User ID to list sessions for (default: default)
-```
+**Mode behaviour:**
 
-**Example:**
-```bash
-$ crystalyse sessions -u researcher1
+- **Creative**: Fast screening using Chemeleon structure prediction + MACE energy calculations. Returns ~3 most promising candidates with basic visualisation.
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Session ID              ┃ Messages ┃ Last Activity              ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ battery_study           │ 15       │ 2025-01-15 14:30:25       │
-│ solar_project           │ 8        │ 2025-01-15 09:15:43       │
-│ superconductor_research │ 22       │ 2025-01-14 16:45:12       │
-└─────────────────────────┴──────────┴─────────────────────────────┘
-```
+- **Rigorous**: Comprehensive analysis using SMACT composition validation, Chemeleon structure generation, MACE calculations, and PyMatGen phase diagram analysis. Returns 30+ candidates with full characterisation.
 
-## Utility Commands
+- **Adaptive**: Analyses query complexity and automatically routes to creative or rigorous mode. High-specificity queries → rigorous; exploratory queries → creative.
 
-### `crystalyse demo`
+## Environment Variables
 
-Run a demonstration showing session-based capabilities.
+Configure CrystaLyse.AI behaviour through environment variables:
 
 ```bash
-crystalyse demo [OPTIONS]
+# Required
+export OPENAI_MDG_API_KEY="your-key-here"
+
+# Optional
+export CRYSTALYSE_MODEL="o4-mini"              # Default model
+export CRYSTALYSE_PYTHON_PATH="/path/to/python" # Python for MCP servers
+export CRYSTALYSE_DEBUG="false"                # Debug mode
+export CRYSTALYSE_ENABLE_HTML_VIZ="false"      # HTML visualisation
+export CRYSTALYSE_PPD_PATH="/path/to/ppd.pkl"  # Custom phase diagram path
+export CHEMELEON_CHECKPOINT_DIR="/path/to/ckpts" # Custom checkpoint directory
 ```
 
-**Options:**
-```bash
---user-id, -u USER    User ID for demo (default: demo_user)
-```
-
-### `crystalyse examples`
-
-Show example queries and workflow patterns.
-
-```bash
-crystalyse examples
-```
-
-### `crystalyse config`
-
-View and manage configuration.
-
-```bash
-crystalyse config SUBCOMMAND
-```
-
-**Subcommands:**
-```bash
-show    # Display current configuration
-path    # Show configuration file location
-```
-
-**Example:**
-```bash
-$ crystalyse config show
-
-   CrystaLyse.AI Runtime   
-       Configuration       
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━┓
-┃ Setting       ┃ Value   ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━┩
-│ Default Model │ o4-mini │
-│ Max Turns     │ 1000    │
-└───────────────┴─────────┘
-
-╭───────────────────────── MCP Server Configurations ──────────────────────────╮
-│ {                                                                            │
-│   "chemistry_unified": {                                                     │
-│     "command": "python",                                                     │
-│     "args": ["-m", "chemistry_unified.server"],                             │
-│     "cwd": "/path/to/chemistry-unified-server/src"                          │
-│   },                                                                         │
-│   "chemistry_creative": {                                                    │
-│     "command": "python",                                                     │
-│     "args": ["-m", "chemistry_creative.server"],                            │
-│     "cwd": "/path/to/chemistry-creative-server/src"                         │
-│   }                                                                          │
-│ }                                                                            │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
-
-### `crystalyse dashboard`
-
-Display live system status dashboard.
-
-```bash
-crystalyse dashboard
-```
-
-## Advanced Usage
-
-### Environment Variables
-
-Control CrystaLyse.AI behaviour with environment variables:
-
-```bash
-# API Configuration
-export OPENAI_API_KEY="sk-..."
-export CRYSTALYSE_MODEL="o4-mini"          # Default model
-export CRYSTALYSE_MAX_TURNS="1000"         # Conversation limit
-
-# MCP Server Configuration  
-export CHEMISTRY_MCP_PATH="/custom/path"   # Custom server paths
-export CRYSTALYSE_DEBUG="true"             # Debug mode
-
-# Performance Tuning
-export CRYSTALYSE_BATCH_SIZE="10"          # Batch processing size
-export CRYSTALYSE_MAX_CANDIDATES="100"     # Structure candidates
-export CRYSTALYSE_STRUCTURE_SAMPLES="5"    # Samples per composition
-```
-
-### Configuration File
+## Configuration File
 
 Create `~/.crystalyse/config.yaml` for persistent settings:
 
 ```yaml
 # Model configuration
 default_model: "o4-mini"
-max_turns: 1000
 
-# Performance settings
-parallel_batch_size: 10
-max_candidates: 100
-structure_samples: 5
-
-# MCP server overrides
+# MCP server paths (auto-configured for standard installations)
 mcp_servers:
   chemistry_unified:
     command: "python"
     args: ["-m", "chemistry_unified.server"]
-    cwd: "/custom/path/chemistry-unified-server/src"
+    cwd: "/path/to/chemistry-unified-server/src"
 
-# Logging
-debug_mode: false
-enable_metrics: true
+  chemistry_creative:
+    command: "python"
+    args: ["-m", "chemistry_creative.server"]
+    cwd: "/path/to/chemistry-creative-server/src"
+
+  visualization:
+    command: "python"
+    args: ["-m", "visualization_mcp.server"]
+    cwd: "/path/to/visualization-mcp-server/src"
+
+# Provenance settings
+provenance:
+  enabled: true  # Always enabled, cannot be disabled
+  output_dir: "./provenance_output"
+  show_summary: true
+
+# Performance tuning
+timeouts:
+  creative: 120
+  adaptive: 180
+  rigorous: 300
 ```
 
-### Batch Processing
+## First Run Auto-Downloads
 
-Process multiple queries efficiently:
+On first execution, CrystaLyse automatically downloads required data:
 
-```bash
-# Create query file
-echo "Find battery cathode materials" > queries.txt
-echo "Design superconductor materials" >> queries.txt
-echo "Analyse perovskite stability" >> queries.txt
+**Chemeleon Model Checkpoints** (~600 MB):
+- Downloaded to `~/.cache/crystalyse/chemeleon_checkpoints/`
+- One-time download, cached permanently
+- No manual setup required
 
-# Process in batch (planned feature)
-crystalyse batch analyse queries.txt --mode creative
-```
+**Materials Project Phase Diagrams** (~170 MB, 271,617 entries):
+- Auto-located from multiple fallback paths
+- Used for energy-above-hull calculations
+- Requires `ppd-mp_all_entries_uncorrected_250409.pkl.gz`
 
-### Integration with Workflows
-
-#### Shell Scripting
-
-```bash
-#!/bin/bash
-# Automated materials screening
-
-# Set environment
-export OPENAI_API_KEY="sk-..."
-
-# Screen multiple compositions
-for material in "LiCoO2" "LiFePO4" "LiMn2O4"; do
-    echo "Analysing $material..."
-    crystalyse analyse "Analyse $material cathode properties" \
-        --mode rigorous \
-        --user-id battery_screening
-done
-
-# Summarise results
-crystalyse sessions -u battery_screening
-```
-
-#### Python Integration
-
-```python
-import subprocess
-import json
-
-def analyse_material(formula, mode="creative"):
-    """Analyse material using CrystaLyse.AI CLI."""
-    cmd = [
-        "crystalyse", "analyse", 
-        f"Analyse {formula} properties",
-        "--mode", mode
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.stdout
-
-# Use in research pipeline
-materials = ["CsSnI3", "CsPbI3", "CsGeI3"]
-for material in materials:
-    analysis = analyse_material(material, mode="rigorous")
-    print(f"Analysis of {material}:")
-    print(analysis)
-```
+Progress bars show download status. Files are never re-downloaded.
 
 ## Troubleshooting
 
-### Common Issues
+### Command not found
 
-#### 1. Command Not Found
 ```bash
 $ crystalyse: command not found
 
 # Solution: Check installation
-pip install -e .
+pip install -e .  # From dev/ directory
 # or
-pip install crystalyse-ai
+pip install crystalyse
 ```
 
-#### 2. API Key Errors
+### API key errors
+
 ```bash
 $ Error: OpenAI API key not found
 
 # Solution: Set environment variable
-export OPENAI_API_KEY="sk-your-key-here"
+export OPENAI_MDG_API_KEY="your-key-here"
 
-# Or check current setting
-echo $OPENAI_API_KEY
+# Verify
+echo $OPENAI_MDG_API_KEY
 ```
 
-#### 3. MCP Server Connection Errors
+### MCP server connection errors
+
 ```bash
 $ Error: Chemistry server connection failed
 
-# Solution: Check server status
-crystalyse config show
+# Check Python path
+which python
 
-# Look for server availability status
-# Restart if needed (servers auto-restart)
+# Set if using conda/venv
+export CRYSTALYSE_PYTHON_PATH="/path/to/your/python"
+
+# Verify installation
+pip list | grep crystalyse
+pip list | grep chemistry
 ```
 
-#### 4. Session Database Issues
+### Session database issues
+
 ```bash
 $ Error: Cannot access session database
 
-# Solution: Check permissions
+# Check permissions
 ls -la ~/.crystalyse/conversations.db
 
 # Reset if corrupted
 rm ~/.crystalyse/conversations.db
-crystalyse chat  # Creates new database
-```
-
-#### 5. Memory/Performance Issues
-```bash
-# Reduce resource usage
-export CRYSTALYSE_STRUCTURE_SAMPLES="3"  # Fewer samples
-export CRYSTALYSE_MAX_CANDIDATES="50"    # Fewer candidates
-
-# Use creative mode for faster processing
-crystalyse analyse "query" --mode creative
-```
-
-### Debug Mode
-
-Enable detailed logging for troubleshooting:
-
-```bash
-# Verbose output
-crystalyse --verbose analyse "your query"
-
-# Debug environment variable
-export CRYSTALYSE_DEBUG="true"
-crystalyse analyse "your query"
-
-# Check logs
-tail -f ~/.crystalyse/debug.log
-```
-
-### Performance Optimisation
-
-#### GPU Acceleration
-```bash
-# Check GPU availability
-nvidia-smi
-
-# MACE will automatically use GPU if available
-# Monitor GPU usage during analysis
-watch -n 1 nvidia-smi
-```
-
-#### Memory Management
-```bash
-# Monitor memory usage
-htop
-
-# Reduce batch sizes if memory limited
-export CRYSTALYSE_BATCH_SIZE="5"
-```
-
-#### Disk Space
-```bash
-# Check disk usage
-df -h
-
-# Clean old visualisation files
-find . -name "*_3dmol.html" -mtime +7 -delete
-find . -name "*_analysis" -type d -mtime +7 -exec rm -rf {} +
+crystalyse chat  # Creates fresh database
 ```
 
 ## Best Practices
 
-### Workflow Recommendations
-
-1. **Start Simple**: Use creative mode for initial exploration
-2. **Iterate**: Refine queries based on initial results
-3. **Validate**: Use rigorous mode for final validation
-4. **Document**: Use sessions to maintain research context
-5. **Organise**: Use meaningful session and user IDs
-
-### Query Optimisation
+### Query optimisation
 
 ```bash
-# Good: Specific, actionable queries
-crystalyse analyse "Find stable perovskites with band gaps 1.2-1.6 eV"
+# Good: Specific and actionable
+crystalyse discover "Find stable perovskites with band gaps 1.2-1.6 eV"
 
-# Better: Include context and constraints
-crystalyse analyse "Design lead-free perovskite solar cell materials with good stability and band gaps suitable for single-junction cells"
+# Better: Include application context
+crystalyse discover "Design lead-free perovskite solar cell materials"
 
-# Best: Specify application requirements
-crystalyse analyse "Find environmentally friendly perovskite alternatives to MAPbI3 for tandem solar cells, prioritising stability and efficiency"
+# Best: Specify requirements and constraints
+crystalyse --mode rigorous discover "Find environmentally friendly perovskite alternatives to MAPbI3 for tandem solar cells"
 ```
 
-### Session Management
+### Workflow recommendations
+
+1. **Start with creative mode** for rapid exploration
+2. **Iterate** based on initial results
+3. **Validate with rigorous mode** for publication-quality analysis
+4. **Use sessions** for complex multi-part investigations
+5. **Check provenance** to verify computational integrity
+
+### Session management
 
 ```bash
 # Use descriptive session names
@@ -600,9 +468,82 @@ crystalyse chat -s battery_cathode_screening_2025 -u researcher
 # Organise by project
 crystalyse chat -s project_solar_perovskites -u team_lead
 crystalyse chat -s project_battery_anodes -u team_lead
-
-# Regular cleanup
-crystalyse sessions -u researcher  # Review old sessions
 ```
 
-This comprehensive CLI guide covers all aspects of using CrystaLyse.AI effectively from the command line. For programmatic usage, see the [API Reference](../reference/), and for specific tool details, check the [Tools Documentation](../tools/).
+### Integration with research workflows
+
+**Shell scripting:**
+
+```bash
+#!/bin/bash
+# Automated materials screening
+
+export OPENAI_MDG_API_KEY="your-key"
+
+for material in "LiCoO2" "LiFePO4" "LiMn2O4"; do
+    echo "Analysing $material..."
+    crystalyse --mode rigorous discover "Analyse $material cathode properties" \
+        --provenance-dir ./screening_results/$material
+done
+```
+
+**Python integration:**
+
+```python
+import subprocess
+
+def discover_material(formula, mode="creative"):
+    """Run CrystaLyse discovery from Python."""
+    cmd = [
+        "crystalyse",
+        "--mode", mode,
+        "discover",
+        f"Analyse {formula} properties"
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout
+
+# Use in pipeline
+materials = ["CsSnI3", "CsPbI3", "CsGeI3"]
+for material in materials:
+    analysis = discover_material(material, mode="rigorous")
+    print(f"Analysis of {material}:\n{analysis}\n")
+```
+
+## Performance Optimisation
+
+**GPU acceleration:**
+
+```bash
+# Check GPU availability
+nvidia-smi
+
+# MACE automatically uses GPU if available
+# Monitor during analysis
+watch -n 1 nvidia-smi
+```
+
+**Memory management:**
+
+```bash
+# Monitor memory
+htop
+
+# Use creative mode for lower memory usage
+crystalyse --mode creative discover "query"
+```
+
+**Disk space:**
+
+```bash
+# Check available space
+df -h
+
+# Clean old provenance data
+find ./provenance_output -type d -mtime +30 -exec rm -rf {} +
+
+# Clean visualisations
+find . -name "*_3dmol.html" -mtime +7 -delete
+```
+
+This CLI guide reflects the actual implementation in CrystaLyse.AI v1.0.0. For API-level integration, see the reference documentation.

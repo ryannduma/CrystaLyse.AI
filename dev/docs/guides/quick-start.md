@@ -1,187 +1,251 @@
-# Quick Start Guide - CrystaLyse.AI v2.0-alpha
+# Quick Start Guide
 
 ## Installation
 
 ### Prerequisites
-- Python 3.11+ (required for v2.0-alpha)
-- Conda environment manager
+- Python 3.11+
+- Conda environment manager (recommended)
 - OpenAI API key
 
-### Setup
+### From PyPI (Stable)
+```bash
+pip install crystalyse
+export OPENAI_MDG_API_KEY="your-api-key-here"
+crystalyse --help
+```
+
+### From Source (Development)
 ```bash
 # Clone repository
 git clone https://github.com/ryannduma/CrystaLyse.AI.git
-cd CrystaLyse.AI
+cd CrystaLyse.AI/dev
 
 # Create and activate environment
 conda create -n crystalyse python=3.11
 conda activate crystalyse
 
-# Navigate to dev directory (where pyproject.toml is located)
-cd dev
-
-# Step 1: Install core package in development mode FIRST
+# Install core package first
 pip install -e .
 
-# Step 2: Install MCP servers (they depend on core package)
-pip install -e ./chemistry-unified-server      # Complete validation mode
-pip install -e ./chemistry-creative-server     # Fast exploration mode
-pip install -e ./visualization-mcp-server      # 3D visualization
+# Install MCP servers
+pip install -e ./chemistry-unified-server
+pip install -e ./chemistry-creative-server
+pip install -e ./visualization-mcp-server
 
-# Set OpenAI API key
-export OPENAI_API_KEY="your-api-key-here"
+# Configure
+export OPENAI_MDG_API_KEY="your-api-key-here"
 ```
 
-## First Steps
+## First Run
 
-### 1. Quick Discovery
+On first execution, Crystalyse automatically downloads:
+- Chemeleon model checkpoints (~600 MB)
+- Materials Project phase diagrams (~170 MB, 271,617 entries)
+
+Files are cached in `~/.cache/crystalyse/` and never downloaded again.
+
+## Basic Usage
+
+### Non-Interactive Discovery
 ```bash
-# Simple one-shot discovery
-crystalyse discover "Find a lead-free perovskite for solar cells" --mode creative
+# Creative mode (fast exploration, ~50s)
+crystalyse analyse "Find lead-free perovskite for solar cells" --mode creative
 
-# Rigorous analysis
-crystalyse discover "Explore battery cathode materials" --mode rigorous
+# Rigorous mode (complete validation, 2-5min)
+crystalyse analyse "Explore battery cathode materials" --mode rigorous
 ```
 
-### 2. Interactive Session
+### Interactive Session
 ```bash
-# Start a research session with enhanced clarification system
-crystalyse chat -u researcher1 -s my_project -m adaptive
+# Start research session
+crystalyse chat -u researcher -s project_name
 
-# In the session:
+# In session:
 > Find stable oxide perovskites
 > What's the formation energy of the most promising candidate?
-> Generate 3D visualisation of the crystal structure
-> /history  # View conversation
-> /exit     # Save and exit
+> Generate crystal structure visualisation
+> /history
+> /exit
 ```
 
-### 3. User Stats & Session Management
+### Session Management
 ```bash
-# View your learning progress and preferences
-crystalyse user-stats -u researcher1
+# View learning progress
+crystalyse user-stats -u researcher
 
-# List your sessions
-crystalyse sessions -u researcher1
+# List sessions
+crystalyse sessions -u researcher
 
-# Resume a specific session
-crystalyse resume my_project -u researcher1
+# Resume session
+crystalyse resume project_name -u researcher
 ```
 
-## Discovery Modes
+## Analysis Modes
 
-### Creative Mode (Fast Exploration)
-- **Speed**: ~50 seconds per query
-- **Tools**: Chemeleon + MACE + Basic Visualization
+### Creative Mode
+- **Duration**: ~50s per query
+- **Tools**: Chemeleon + MACE + basic visualisation
 - **Use case**: Rapid screening, initial exploration
+- **Structures**: ~3 candidates per composition
 
 ```bash
-crystalyse discover "Find perovskites" --mode creative
-crystalyse chat --mode creative
+crystalyse analyse "Find perovskites" --mode creative
 ```
 
-### Rigorous Mode (Complete Validation)  
-- **Speed**: 2-5 minutes per query
-- **Tools**: SMACT + Chemeleon + MACE + Analysis Suite + Advanced Visualization
+### Rigorous Mode
+- **Duration**: 2-5min per query
+- **Tools**: SMACT + Chemeleon + MACE + analysis + visualisation
 - **Use case**: Publication-quality results, detailed analysis
+- **Structures**: 30+ candidates per composition
 
 ```bash
-crystalyse discover "Analyze CsSnI3" --mode rigorous
-crystalyse chat --mode rigorous
+crystalyse analyse "Analyse CsSnI3" --mode rigorous
 ```
 
-### Adaptive Mode (Intelligent Selection) - DEFAULT
-- **Behaviour**: Automatically balances speed and accuracy
+### Adaptive Mode (Default)
+- **Behaviour**: Automatic balancing of speed and accuracy
 - **Logic**: Context-aware tool selection and clarification
-- **Use case**: General research, mixed workflows, enhanced UX
+- **Use case**: General research, mixed workflows
 
 ```bash
-crystalyse discover "Battery materials"  # Uses adaptive by default
-crystalyse chat  # Default mode
+crystalyse analyse "Battery materials"  # Adaptive by default
 ```
 
 ## Example Workflows
 
 ### Battery Materials Research
 ```bash
-# Start battery-focused session with adaptive mode
-crystalyse chat -u researcher1 -s battery_cathodes -m adaptive
+crystalyse chat -u researcher -s battery_cathodes
 
-# Example queries with enhanced clarification:
+# Example queries:
 > Find high-capacity cathode materials for Li-ion batteries
-# System may ask: "What voltage range are you targeting?" or "Any specific capacity requirements?"
 > Compare formation energies of LiCoO2 variants
 > What happens if we substitute Ni for Co?
-> Generate XRD patterns and coordination analysis for the most stable structures
-> Save the top 3 candidates to my research workspace
+> Generate XRD patterns for the most stable structure
 ```
 
 ### Solar Cell Materials
-```bash  
-# Start photovoltaic session with creative mode
-crystalyse chat -u researcher1 -s solar_materials -m creative
+```bash
+crystalyse chat -u researcher -s solar_materials -m creative
 
-# Example queries with workspace management:
+# Example queries:
 > Find lead-free perovskites with optimal band gaps
-# System may clarify: "For single-junction or tandem cells?" and save preferences
-> Screen for materials stable at 150°C  
-> Visualise the crystal structure and electronic properties of the most promising candidate
-> What synthesis routes would work for these materials?
+> Screen for materials stable at 150°C
+> Visualise crystal structure and electronic properties
+> What synthesis routes would work?
 ```
 
 ### Catalyst Discovery
 ```bash
-# Start catalysis session with enhanced tool coordination
-crystalyse chat -u researcher1 -s catalysts -m adaptive
+crystalyse chat -u researcher -s catalysts -m adaptive
 
-# Example queries demonstrating intelligent tool coordination:
+# Example queries:
 > Find oxide catalysts for CO2 reduction
-# EnhancedCrystaLyseAgent coordinates chemistry tools for comprehensive analysis
 > Focus on earth-abundant elements only
-> What about defect sites in these structures?
 > Calculate surface energies for the (100) facet
 ```
 
 ## Understanding Results
 
-### Computational Honesty with Anti-Hallucination
-All numerical results trace to actual tool computations with validation:
-- ✅ "MACE calculated formation energy: -2.45 ± 0.03 eV (confidence: high)" 
-- ✅ "Enhanced tool validation: SMACT + Chemeleon + MACE confirm stability"
-- ❌ "Formation energy is approximately -2.5 eV" (no computational basis)
+### Computational Honesty
+All numerical results trace to actual tool computations:
+- Valid: "MACE calculated formation energy: -2.45 eV"
+- Valid: "SMACT validation confirms charge balance"
+- Invalid: "Formation energy is approximately -2.5 eV" (no tool basis)
 
-### v2.0-alpha Result Components
-1. **Enhanced Tool Validation**: Intelligent coordination and cross-validation of chemistry tools
-2. **Enhanced Clarification**: Context-aware questions based on expertise level
-3. **Workspace Integration**: Transparent file operations with preview/approval
-4. **Structure Prediction**: Chemeleon-generated crystal structures with multiple candidates
-5. **Energetics**: MACE formation energy calculations with uncertainty quantification
-6. **Comprehensive Analysis**: XRD patterns, RDF analysis, coordination studies
-7. **Advanced Visualization**: Interactive 3D molecular views and professional plots
+### Result Components
+1. **Composition Validation** - SMACT screening for chemical plausibility
+2. **Structure Prediction** - Chemeleon-generated crystal structures
+3. **Energy Calculations** - MACE formation energy with uncertainty
+4. **Stability Analysis** - PyMatGen energy above hull calculations
+5. **Visualisation** - 3D structures, XRD patterns, RDF analysis
 
-### Interpreting v2.0-alpha Outputs
-- **Formation Energy**: More negative = more stable (with uncertainty bounds)
-- **Tool Coordination**: Single enhanced agent validates findings through multiple chemistry tools
-- **Adaptive Recommendations**: System learns your preferences and adjusts suggestions
-- **Workspace State**: Clear tracking of generated files and analysis results
-- **Cross-Session Learning**: System builds understanding across research sessions
+### Interpreting Outputs
+- **Formation Energy**: More negative = more stable
+- **Energy Above Hull**: <25 meV/atom likely synthesisable, 25-200 meV/atom metastable
+- **Confidence Scores**: Chemeleon structure prediction confidence
+- **Provenance**: Every value traces to specific tool invocation
 
-## Tips for Success with v2.0-alpha
+## Tips for Success
 
-### Enhanced Query Practices
-1. **Leverage Clarification**: Let the system ask follow-up questions to refine your request
-2. **Use Adaptive Mode**: Default mode balances speed with accuracy and learns your preferences
-3. **Workspace Awareness**: Review file previews before approval, organize by project
-4. **Enhanced Tool Benefits**: Complex queries automatically coordinate multiple specialized chemistry tools
+### Query Practices
+1. Be specific about constraints (temperature, composition, properties)
+2. Let adaptive clarification refine ambiguous requests
+3. Use creative mode for exploration, rigorous for validation
+4. Specify units when asking for numerical properties
 
-### Advanced Session Management
-1. **User Profiles**: System learns your expertise level and research patterns
-2. **Cross-Session Context**: Previous discoveries inform new research directions
-3. **Preference Learning**: Adaptive behavior based on your typical workflows
-4. **Research Continuity**: Long-term project support with intelligent context management
+### Session Management
+1. Use descriptive session names for organisation
+2. User profiles track expertise and preferences
+3. Cross-session context informs new research
+4. Resume sessions for long-term projects
 
-### v2.0-alpha Troubleshooting
-- **Tool Coordination**: If one chemistry tool fails, others continue and provide partial results
-- **Clarification Loops**: If system asks too many questions, provide more specific initial queries
-- **Workspace Management**: Use file organization features to maintain clean project structure
-- **Performance Optimization**: Adaptive mode automatically selects optimal tools for speed vs accuracy
+### Troubleshooting
+- **Tool failures**: System reports errors clearly, suggests alternatives
+- **Slow performance**: Creative mode faster, check network for downloads
+- **Clarification loops**: Provide more specific initial queries
+- **Missing checkpoints**: Allow first-run auto-download to complete
+
+## Advanced Usage
+
+### Custom Data Paths
+```bash
+# Custom checkpoint directory
+export CHEMELEON_CHECKPOINT_DIR=/path/to/checkpoints
+
+# Custom phase diagram data
+export CRYSTALYSE_PPD_PATH=/path/to/ppd.pkl.gz
+```
+
+### Mode Switching
+```bash
+# In interactive session:
+/mode creative    # Switch to creative mode
+/mode rigorous    # Switch to rigorous mode
+/mode adaptive    # Switch to adaptive mode
+```
+
+### Programmatic API
+```python
+from crystalyse.agents import EnhancedCrystaLyseAgent
+from crystalyse.config import CrystaLyseConfig
+
+config = CrystaLyseConfig()
+agent = EnhancedCrystaLyseAgent(config=config, mode="rigorous")
+
+result = agent.query(
+    "Analyse CsSnI3 perovskite for photovoltaic applications",
+    user_id="researcher"
+)
+
+print(result.response)
+```
+
+## Performance Expectations
+
+### Computational Time
+- Simple query (creative): ~50s
+- Simple query (rigorous): 2-3min
+- Complex analysis (creative): 1-2min
+- Complex analysis (rigorous): 3-5min
+- Batch processing (10 materials, creative): 5-10min
+- Batch processing (10 materials, rigorous): 15-30min
+
+### Resource Requirements
+- Python: 3.11+
+- RAM: 8GB minimum, 16GB recommended
+- Storage: ~2GB (installation + cache)
+- Network: Required for first-run downloads
+- GPU: Optional (accelerates MACE calculations)
+
+## Next Steps
+
+- **[CLI Usage Guide](cli_usage.md)** - Comprehensive command reference
+- **[Analysis Modes](../concepts/analysis_modes.md)** - Mode selection strategies
+- **[Provenance System](../concepts/provenance_system.md)** - Computational honesty architecture
+- **[Tool Documentation](../tools/)** - SMACT, Chemeleon, MACE, PyMatGen details
+
+---
+
+**Version**: 1.0.0-dev
+**PyPI Stable**: 1.0.1

@@ -1,211 +1,210 @@
-# CrystaLyse.AI Vision & Standards
+# CrystaLyse.AI Vision
 
-**Our Mission**: Transform materials discovery from a slow, expensive process into an interactive, AI-accelerated research partnership that maintains the highest standards of scientific rigor while unleashing unprecedented creative exploration of chemical space.
+## Mission
 
----
+Transform materials design from sequential, resource-intensive workflows into adaptive, AI-accelerated research that maintains scientific rigor whilst enabling systematic exploration of chemical space.
 
-## 🔄 The Discovery Paradigm Shift
+## Scientific Context
 
-### Traditional Materials Discovery
-```
-Literature Review → Hypothesis → Synthesis → Characterisation → Analysis
-Timeline: 6-18 months per material
-```
+The high-throughput paradigm transformed computational materials science by enabling systematic exploration of broad design spaces. Public materials databases now exceed hundreds of thousands of computed crystal structures, assembled through automated workflows combining enumeration, crystal structure prediction, generative sampling, and density functional theory calculations.
 
-### CrystaLyse.AI Discovery
-```
-Natural Language Query → AI Reasoning → Computational Validation → Ranked Recommendations
-Timeline: 2-5 minutes per batch of materials
-```
+Despite these advances, the prevailing mode remains fundamentally linear: fixed pipelines following deterministic sequences. As design problems scale in complexity, the need grows for adaptive systems that can prioritise pathways dynamically rather than execute prescribed workflows.
 
-This represents a **1000x acceleration** in the discovery timeline while maintaining scientific rigor through computational validation.
+## Core Principles
 
----
+**Scientific Integrity**
 
-## 🎨 Creative + Rigorous Philosophy
+Maintain complete traceability of all numerical results to actual computational tools. The system employs three-layer provenance enforcement:
 
-The dual-mode system embodies a fundamental insight about research methodology:
+- Prompt guidance instructing compute-or-decline behaviour
+- Runtime tracking capturing all tool outputs with (value, unit, source_tool, artifact_hash, timestamp)
+- Render gate blocking unprovenanced material properties from display
 
-### **Creative Phase**: Unconventional Exploration
-- Explore chemical spaces without computational constraints
-- Generate novel compositions using AI chemical intuition
-- Encourage bold hypotheses and unconventional thinking
-- Rapid iteration and broad exploration
+Every reported formation energy, hull distance, or structural parameter must originate from explicit tool invocations rather than model estimation.
 
-### **Validation Phase**: Rigorous Screening
-- Apply computational screening to promising candidates
-- Use SMACT, Chemeleon, and MACE for comprehensive validation
-- Provide quantitative stability and property assessments
-- Filter results based on scientific feasibility
+**Workflow Acceleration**
 
-### **Iterative Refinement**: Continuous Learning
-- Use validated results to guide further creative exploration
-- Learn from successful and failed predictions
-- Build cumulative knowledge base of promising chemical spaces
-- Refine search strategies based on experimental feedback
+Enable researchers to delegate substantial computational materials design tasks through natural language interfaces. The system decomposes queries autonomously, formulates multi-step plans, and executes tool calls with validation protocols.
 
----
+Computational efficiency:
+- Creative mode: ~50s per query for rapid exploration
+- Rigorous mode: 2-5min per query for comprehensive validation
+- Adaptive mode: Context-dependent routing balancing speed and depth
 
-## 🎯 Technical Excellence Standards
+**Adaptive Intelligence**
 
-### 📊 Performance Targets
+Learn user expertise levels and adapt clarification strategies accordingly. The integrated clarification system analyses queries (terminology density, specificity, confidence cues) to tailor questions. User preference memory maintains expertise indicators with temporal decay, enabling progressive reduction in clarification depth for experienced users.
 
-**Scientific Integrity** (Non-Negotiable):
-- **100%** computational honesty - every numerical result traces to actual tool calls
-- **0%** tolerance for fabricated energies, structures, or properties
-- **Complete transparency** in tool usage and failure reporting
-- **Clear distinction** between AI reasoning and computational validation
+**Extensibility**
 
-**Discovery Efficiency**:
-- **2-5 minutes** per batch discovery workflow
-- **>90%** uptime for computational tool pipeline
-- **<5%** false positive rate in feasibility screening
-- **Comprehensive coverage** of earth-abundant element combinations
+Support integration with existing research infrastructure through modular architecture. MCP servers provide standardised interfaces across computational tools (SMACT, Chemeleon, MACE, PyMatGen). The system detects available tools at runtime, enabling dynamic capability discovery and graceful degradation when components are unavailable.
 
-### 🏗️ Architecture Principles
+## Design Philosophy
 
-**Model Context Protocol (MCP)**:
-- Seamless integration of computational chemistry tools
-- Standardised interfaces across SMACT, Chemeleon, MACE
-- Robust error handling and graceful degradation
-- Real-time tool availability monitoring
+**Single-Agent Architecture**
 
-**Agent Framework**:
-- Production-grade implementation using OpenAI Agents SDK
-- Persistent session management and memory systems
-- Anti-hallucination safeguards at every computational step
-- Comprehensive logging and traceability
+Avoid multi-agent coordination overhead through provenance-enforced single-agent design. Multi-agent frameworks incur brittleness (high failure rates on standard benchmarks) and excessive token consumption (>10× versus single-agent approaches). Runtime tool discovery via MCP enables flexible orchestration without distributed coordination protocols.
 
-**Memory & Learning**:
-- Persistent discovery storage with vector search
-- User profile learning and preference adaptation
-- Session continuity across research projects
-- Knowledge graph of material relationships
+**Database Grounding**
 
----
+Mandatory external validation for composition validity and stability assessment. The system queries Materials Project phase diagrams (271,617 entries) for energy above hull calculations. Execution-time validation with hash-based provenance defends against tool hallucination whilst foundation models continue improving.
 
-## 🧪 Scientific Integrity Standards
+**Provenance as Architecture**
 
-### Computational Honesty Requirements
+Computational honesty emerges from architectural enforcement rather than prompt engineering alone. The render gate applies rule-based semantic classification across six categories (Material Property, Derived, Literature, Contextual, Statistical, Unclassified). Unprovenanced material properties are logged in validation mode, enabling refinement of classification rules before strict filtering.
 
-**Tool Usage Transparency**:
-- Every computational claim must reference specific tool calls
-- Failed tool executions must be clearly reported
-- No estimation or "typical values" without explicit labelling
-- Complete audit trail for all numerical outputs
+## Technical Approach
 
-**Validation Protocols**:
-- SMACT validation for all proposed compositions
-- Chemeleon structure generation with coordinate verification
-- MACE energy calculations with uncertainty quantification
-- Cross-validation between multiple computational methods
+**Three-Mode Operation**
 
-**Failure Handling**:
-- Graceful degradation when tools are unavailable
-- Clear communication of computational limitations
-- Alternative approaches when primary tools fail
-- Never substitute fabricated results for missing computations
+Balance exploration breadth against validation depth through computational strategy selection:
 
----
+- **Creative**: Fewer candidate structures (~3 per composition), faster exploration
+- **Rigorous**: Extensive polymorph sampling (30+ structures), comprehensive checks
+- **Adaptive**: Dynamic routing based on query complexity and intermediate confidence
 
-## 🌍 Broader Impact Vision
+Mode selection affects structure generation parameters, stability validation protocols, and computational resource allocation.
 
-### 🎓 Educational Transformation
+**Hierarchical Agent Architecture**
 
-**Democratised Access**:
-- World-class computational tools available to any researcher
-- Interactive learning through AI-guided exploration
-- Real-time feedback on materials science concepts
-- Bridge between theoretical knowledge and computational practice
+Three-layer system enabling autonomous behaviour with scientific oversight:
 
-**Research Training**:
-- Learn computational methods through guided discovery
-- Understand structure-property relationships interactively
-- Develop intuition for chemical feasibility
-- Experience publication-quality research workflows
+- **Orchestration layer**: Strategic decision-making and computational approach selection
+- **Execution layer**: MCP server communication with context-aware resource management
+- **Validation layer**: Pattern-based verification ensuring complete traceability
 
-### 🏭 Industrial Innovation
+Base timeouts scale intelligently: 60s SMACT validation, 300s Chemeleon generation, 600s MACE calculations, with dynamic adjustment based on complexity assessment.
 
-**Accelerated Development**:
-- Rapidly screen thousands of material candidates
-- Eliminate expensive failed synthesis attempts
-- Reduce time-to-market for new materials
-- Enable rapid prototyping of material properties
+**Memory System**
 
-**Cost Optimisation**:
-- Computational screening before expensive synthesis
-- Focus experimental resources on validated candidates
-- Reduce materials development costs by 10-100x
-- Enable exploration of previously inaccessible chemical spaces
+Four specialised layers enabling research continuity:
 
-### 🔬 Research Revolution
+- Session memory (conversation history, tool traces, timing metrics)
+- Discovery cache (computed materials, 24hr TTL)
+- User preference memory (expertise level, clarification depth)
+- Cross-session context (research themes, successful strategies)
 
-**AI-Human Partnership**:
-- AI suggests novel materials for human investigation
-- Computational validation guides experimental priorities
-- Iterative refinement between theory and experiment
-- Cumulative learning from global research community
+SQLite persistence enables multi-day projects with cumulative knowledge retention.
 
-**Scientific Acceleration**:
-- Transform discovery from serial to parallel process
-- Enable systematic exploration of vast chemical spaces
-- Accelerate fundamental understanding of structure-property relationships
-- Drive breakthrough discoveries in energy, electronics, and sustainability
+## Long-Term Vision
 
----
+**Extended Property Coverage**
 
-## 🌟 The Ultimate Goal
+Current limitations include electronic, optical, and magnetic properties requiring additional surrogate models. Future development targets:
 
-**CrystaLyse.AI's grand vision**: Become the primary research partner for every materials scientist on Earth - an AI that can:
+- Electronic structure surrogates (tight-binding models)
+- Optical property predictors (band gap, absorption spectra)
+- Magnetic property calculators (exchange parameters, Curie temperatures)
+- OPTIMADE database connectivity for broader materials coverage
 
-1. **Understand** complex materials challenges in natural language
-2. **Explore** vast chemical spaces with creative AI reasoning
-3. **Validate** promising candidates with computational rigor
-4. **Recommend** synthesis routes and experimental strategies
-5. **Learn** from each discovery to improve future suggestions
+**Experimental Integration**
 
-### The Dream Scenario
+Close the computational-experimental loop through direct equipment connectivity:
 
-A researcher working on next-generation solar cells simply asks:
+- Automated synthesis planning from predicted structures
+- Real-time characterisation data feedback
+- Iterative refinement between prediction and validation
+- High-throughput experimental design optimisation
 
-> *"Find me a lead-free perovskite that's stable, non-toxic, and has optimal band gap for tandem cells"*
+**Enhanced Safety**
 
-**CrystaLyse.AI responds within minutes with:**
-- 5 validated material candidates with computed properties
-- Crystal structures ready for experimental synthesis
-- Stability analysis and synthesis route recommendations
-- 3D visualisations and downloadable data files
-- Uncertainty estimates and confidence intervals
-- Suggested experimental validation protocols
+Address current vulnerabilities (25% failure rate on disguised toxic requests) through architectural improvements:
 
----
+- Semantic safety classifiers beyond pattern matching
+- Real-time toxicity assessment for generated compositions
+- Life-cycle analysis integration for sustainability evaluation
+- Adversarial robustness through continuous testing
 
-## 📏 Standards We Hold Ourselves To
+**Community Tools**
 
-### Development Principles
+Enable broader adoption through:
 
-1. **Scientific Integrity First**: Never compromise computational honesty for convenience
-2. **User Trust**: Every claim must be verifiable and traceable
-3. **Continuous Validation**: Regular testing against experimental results
-4. **Open Science**: Transparent methodologies and reproducible results
-5. **Collaborative Growth**: Learn from the global materials research community
+- Plugin interface for custom ML models and calculators
+- Jupyter kernel integration for interactive notebooks
+- OpenAPI + Python SDK for laboratory automation
+- Cloud deployment options for institutional use
 
-### Quality Metrics
+## Design Standards
 
-- **Accuracy**: >95% agreement with experimental feasibility
-- **Speed**: 2-5 minute end-to-end discovery workflows
-- **Reliability**: >99% uptime for critical computational tools
-- **Transparency**: 100% traceability for all computational results
-- **Innovation**: Consistent discovery of novel, synthesisable materials
+**Computational Honesty**
 
-### Ethical Commitments
+Zero tolerance for fabricated energies, structures, or properties. All numerical outputs undergo validation with complete audit trails. Material properties lacking provenance are flagged and blocked from display.
 
-- **Democratised Access**: Equal access regardless of institutional resources
-- **Scientific Openness**: Open methodologies and reproducible workflows
-- **Responsible AI**: Clear limitations and uncertainty communication
-- **Global Benefit**: Focus on materials for sustainability and human welfare
-- **Collaborative Enhancement**: Improve through community feedback and validation
+**Reproducibility**
+
+Complete computational history preserved in JSONL format. Every session generates:
+- events.jsonl (raw events with timestamps)
+- tool_calls.jsonl (tool invocations with timing)
+- materials.jsonl (discovered materials)
+- performance.jsonl (computational metrics)
+
+Session summaries include MCP tool call counts, materials discovered, and provenance statistics.
+
+**Failure Transparency**
+
+Clear communication of computational limitations. Tool failures reported explicitly rather than substituted with estimates. Alternative approaches suggested when primary tools unavailable. Graceful degradation maintaining partial functionality.
+
+## Research Applications
+
+The system targets computational materials design across:
+
+**Energy Materials**
+- Battery cathodes and anodes (Li-ion, Na-ion, solid-state)
+- Solid electrolytes and fast ion conductors
+- Photovoltaic semiconductors and perovskites
+- Thermoelectric materials
+
+**Electronic Materials**
+- Ferroelectric and multiferroic materials
+- Magnetic materials and spintronics
+- Semiconductor devices
+- Quantum materials
+
+**Structural Materials**
+- High-temperature ceramics
+- Hard coatings and superhard materials
+- Transparent conductors
+
+## Limitations and Future Work
+
+**Current Constraints**
+
+- Tool coverage limited to composition validation, structure prediction, formation energy
+- Database-bounded discovery scope (Materials Project, ICSD)
+- Point estimates without per-calculation uncertainty quantification
+- Consumer hardware computational limits
+- Format sensitivity in composition validity (training corpus bias)
+
+**Development Priorities**
+
+Near-term (v1.1-v1.2):
+- Plugin interface for custom tools
+- ML-based provenance classifier (transformer model replacing regex)
+- Jupyter kernel integration
+
+Medium-term (v1.3-v2.0):
+- OpenAPI + Python SDK for automation
+- Literature contextualization (property extraction, database integration)
+- Extended property coverage (electronic, optical, magnetic)
+
+Long-term (v2.1+):
+- Multimodal interface (web, collaborative)
+- Experimental integration (synthesis equipment connectivity)
+- Cloud deployment (institutional scale)
+
+## Acknowledgements
+
+This vision builds on foundations provided by:
+- SMACT developers (composition validation)
+- Chemeleon developers (structure prediction)
+- MACE developers (ML force fields)
+- PyMatGen developers (materials analysis)
+- Materials Project and ICSD (materials data)
+
+Supported by EPSRC project EP/X037754/1 and AIchemy hub (grants EP/Y028775/1, EP/Y028759/1).
 
 ---
 
-**This vision guides every decision, every line of code, and every interaction with the CrystaLyse.AI platform. We are building not just a tool, but a transformation in how humanity discovers the materials that will shape our future.**
+**Ryan Nduma, Hyunsoo Park, and Aron Walsh**
+
+Department of Materials, Imperial College London

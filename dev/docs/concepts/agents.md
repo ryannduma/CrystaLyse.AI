@@ -1,308 +1,405 @@
-# CrystaLyse.AI 2.0 Agents
+# Agent System
 
 ## Overview
 
-CrystaLyse.AI 2.0 features an enhanced agent system built on the OpenAI Agents SDK. The system uses a single sophisticated agent (`EnhancedCrystaLyseAgent`) that coordinates with specialized tools and MCP servers to provide advanced materials discovery capabilities with enhanced UX features.
+CrystaLyse.AI v1.0.0 uses a single agent architecture built on the OpenAI Agents SDK. The `EnhancedCrystaLyseAgent` coordinates with MCP servers and workspace tools to provide materials discovery capabilities with adaptive clarification and provenance tracking.
 
-## Agent Architecture
-
-### Current Implementation
+## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                 Enhanced Agent System                         │
+│                 EnhancedCrystaLyseAgent                      │
 ├──────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │           EnhancedCrystaLyseAgent                       │ │
-│  │  - OpenAI Agents SDK Integration                       │ │
-│  │  - Enhanced Clarification System                       │ │
-│  │  - Workspace Management                                │ │
-│  │  - Multi-Mode Operation (adaptive/creative/rigorous)   │ │
-│  │  - Session-Based Memory                                │ │
+│  │  OpenAI Agents SDK Integration                         │ │
+│  │  • Session management (SQLite persistence)             │ │
+│  │  • Tool orchestration                                  │ │
+│  │  • Conversation handling                               │ │
 │  └─────────────────────────────────────────────────────────┘ │
 ├──────────────────────────────────────────────────────────────┤
 │  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────┐ │
-│  │ MCP Server      │  │ Workspace        │  │ Memory      │ │
-│  │ Coordination    │  │ Tools            │  │ System      │ │
-│  │ (Chemistry      │  │ (File Ops +      │  │ (Session +  │ │
-│  │ Tools)          │  │ Clarification)   │  │ Discovery)  │ │
+│  │ MCP Servers     │  │ Workspace Tools  │  │ Memory      │ │
+│  │ (Chemistry      │  │ (File Ops +      │  │ System      │ │
+│  │ Tools)          │  │ Clarification)   │  │ (4-layer)   │ │
 │  └─────────────────┘  └──────────────────┘  └─────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Agent: EnhancedCrystaLyseAgent
 
-The main agent class provides all materials discovery functionality through intelligent tool coordination:
+**Location**: `/dev/crystalyse/agents/openai_agents_bridge.py`
 
 ### Key Features
-- **OpenAI Agents SDK Integration**: Production-ready agent framework with proper session management
-- **Enhanced Clarification System**: LLM-powered adaptive questioning based on user expertise
-- **Workspace Management**: Transparent file operations with preview/approval workflows
-- **Multi-Mode Operation**: Adaptive, creative, and rigorous analysis modes
-- **Anti-Hallucination**: Response validation to ensure computational honesty
-- **Session Persistence**: SQLite-based conversation and discovery memory
 
-### Tool Integration Architecture
+- **OpenAI Agents SDK Integration**: Built on the official Agents SDK with session management
+- **Adaptive Clarification**: LLM-powered questioning that adapts to user expertise
+- **Provenance Tracking**: Complete audit trail of all computational operations
+- **Multi-Mode Operation**: Creative (~50s), Rigorous (2-5min), Adaptive (context-dependent)
+- **Response Validation**: Anti-hallucination system validates all numerical claims
+- **Session Persistence**: SQLite-based conversation storage
 
-The agent coordinates with various tools and services:
+### Tool Integration
 
-#### MCP Server Integration
-- **Chemistry Creative Server**: Fast exploration tools (Chemeleon + MACE + Visualization)
-- **Chemistry Unified Server**: Complete validation tools (SMACT + Chemeleon + MACE + Analysis)
-- **Visualization Server**: Advanced 3D rendering and analysis plots
+The agent coordinates with three types of tools:
 
-#### Workspace Tools
-- **File Operations**: Read, write, and list files with user preview/approval
-- **Clarification System**: Adaptive questioning based on user expertise and context
-- **Session Management**: Persistent conversation storage and retrieval
+**MCP Servers** (chemistry computations):
+- Chemistry Creative Server: Chemeleon + MACE (~50s)
+- Chemistry Unified Server: SMACT + Chemeleon + MACE + PyMatGen (2-5min)
+- Visualisation Server: 3D rendering, XRD patterns, coordination analysis
 
-#### Memory Systems
-- **Session Memory**: SQLite-based conversation persistence
-- **Discovery Cache**: Computational results caching to avoid redundancy
-- **User Preferences**: Learning system that adapts to user patterns
+**Workspace Tools** (file operations):
+- File read/write with user approval
+- Adaptive clarification system
+- Progress tracking and visualization
 
-## How Agents Work
+**Memory Systems** (persistence):
+- Session memory (conversation history)
+- Discovery cache (computational results)
+- User preferences (learning system)
+- Cross-session context (research summaries)
 
-### 1. Input Processing
+## How the Agent Works
 
-Agents accept various input formats:
-- Chemical formulas (e.g., CaTiO3, LiFePO4)
-- Materials names (e.g., perovskite, spinel)
-- Natural language queries (e.g., "Find stable cathode materials")
-- Crystal structure files (CIF format)
-- Composition specifications (e.g., "lithium iron phosphate")
+### 1. Query Processing
 
-### 2. Tool Selection
+The agent accepts materials discovery queries in natural language:
+- "Find stable perovskite solar cell materials"
+- "Analyse CsSnI3 for photovoltaics"
+- "Design high-capacity battery cathodes"
 
-Agents intelligently select appropriate tools based on analysis mode:
-```python
-# Creative Mode (Fast Exploration)
-if mode == "creative":
-    use_tools = ["chemeleon_mcp", "mace_mcp", "visualisation_server"]
+### 2. Mode-Based Tool Selection
 
-# Rigorous Mode (Complete Validation)
-elif mode == "rigorous":
-    use_tools = ["smact_mcp", "chemeleon_mcp", "mace_mcp", 
-                 "visualisation_server", "analysis_suite"]
-```
+Based on the selected mode, the agent routes to appropriate tools:
+
+**Creative Mode** (~50 seconds):
+- Uses Chemistry Creative Server
+- Generates ~3 structure candidates
+- Basic visualisation
+- Fast screening workflow
+
+**Rigorous Mode** (2-5 minutes):
+- Uses Chemistry Unified Server
+- Generates 30+ candidates with full validation
+- SMACT composition screening
+- PyMatGen phase diagram analysis
+- Comprehensive visualisation
+
+**Adaptive Mode** (default):
+- Analyses query complexity
+- Automatically selects creative or rigorous
+- Balances speed and thoroughness
 
 ### 3. Analysis Pipeline
 
-The standard materials analysis flow:
-1. **Parse Input**: Convert to standardised materials representation
-2. **Composition Validation**: SMACT screening for chemical feasibility (rigorous mode)
-3. **Structure Generation**: Chemeleon crystal structure prediction
-4. **Energy Calculation**: MACE formation energy evaluation
-5. **Analysis & Visualisation**: XRD patterns, 3D structures, coordination analysis
-6. **Results Synthesis**: Combine outputs with uncertainty quantification
-7. **Format Response**: Present findings with scientific integrity
+Standard materials discovery workflow:
 
-### 4. Memory Integration
+1. **Parse Query**: Extract materials specifications and requirements
+2. **Clarification** (if needed): Adaptive questioning based on expertise
+3. **Composition Validation**: SMACT chemical feasibility (rigorous mode)
+4. **Structure Generation**: Chemeleon DNG prediction
+5. **Energy Calculation**: MACE formation energies
+6. **Stability Analysis**: PyMatGen energy above hull (rigorous mode)
+7. **Visualisation**: 3D structures, XRD patterns, coordination analysis
+8. **Response Formation**: Synthesis with provenance tracking
 
-Agents utilise multiple memory types:
-- **Working Memory**: Current analysis context
-- **Session Memory**: Conversation history
-- **Discovery Memory**: Important findings
-- **User Memory**: Preferences and history
+### 4. Provenance Enforcement
+
+Three-layer provenance system ensures computational honesty:
+
+1. **Prompt Guidance**: Instructs agent to compute or decline
+2. **Runtime Tracking**: Captures all tool outputs with metadata
+3. **Render Gate**: Blocks unprovenanced numerical values from display
+
+See [provenance_system.md](provenance_system.md) for details.
+
+## Usage
+
+### CLI Interface (Primary)
+
+The agent is accessed through CLI commands:
+
+```bash
+# Non-interactive discovery
+crystalyse discover "Find stable perovskites"
+
+# Interactive chat session
+crystalyse chat -u researcher -s battery_study
+
+# With mode control
+crystalyse --mode rigorous discover "Analyse CsSnI3"
+```
+
+### Programmatic Usage
+
+For custom integrations:
+
+```python
+import asyncio
+from crystalyse.agents import EnhancedCrystaLyseAgent
+from crystalyse.config import Config
+
+async def run_discovery():
+    config = Config.load()
+
+    agent = EnhancedCrystaLyseAgent(
+        config=config,
+        project_name="my_research",
+        mode="creative",  # "creative", "rigorous", or "adaptive"
+        model="o4-mini"   # or "o3" for rigorous mode
+    )
+
+    result = await agent.discover(
+        query="Find stable perovskite materials",
+        history=None  # Optional conversation history
+    )
+
+    print(result["status"])     # "completed" or "failed"
+    print(result["response"])   # Agent's response text
+    print(result["metadata"])   # Performance metrics
+
+    return result
+
+# Run
+asyncio.run(run_discovery())
+```
+
+### Interactive Sessions
+
+The agent supports persistent sessions through the chat command:
+
+```bash
+crystalyse chat -u researcher -s battery_project
+```
+
+Features:
+- Conversation history persists across sessions
+- User preferences learned over time
+- Contextual understanding builds with interactions
+- SQLite-based storage in `~/.crystalyse/`
+
+## Configuration
+
+### Basic Configuration
+
+```python
+from crystalyse.config import Config
+
+# Load default configuration
+config = Config.load()  # Reads ~/.crystalyse/config.yaml
+
+# Create agent
+agent = EnhancedCrystaLyseAgent(
+    config=config,
+    project_name="research_project",
+    mode="adaptive",
+    model="o4-mini"
+)
+```
+
+### Config File
+
+Create `~/.crystalyse/config.yaml`:
+
+```yaml
+# Model selection
+default_model: "o4-mini"
+
+# MCP server paths (auto-configured)
+mcp_servers:
+  chemistry_unified:
+    command: "python"
+    args: ["-m", "chemistry_unified.server"]
+    cwd: "/path/to/chemistry-unified-server/src"
+
+  chemistry_creative:
+    command: "python"
+    args: ["-m", "chemistry_creative.server"]
+    cwd: "/path/to/chemistry-creative-server/src"
+
+# Provenance (always enabled)
+provenance:
+  enabled: true
+  output_dir: "./provenance_output"
+  show_summary: true
+
+# Timeouts by mode
+timeouts:
+  creative: 120
+  adaptive: 180
+  rigorous: 300
+```
 
 ## Agent Capabilities
 
 ### Materials Science Understanding
 
-Agents comprehend:
+The agent comprehends:
 - Crystal structures and space groups
 - Inorganic materials chemistry
 - Formation energy and thermodynamic stability
-- Structure-property relationships in materials
-- Materials design principles
+- Structure-property relationships
+- Materials design principles for batteries, solar cells, etc.
 
 ### Analysis Tasks
 
-Core analytical capabilities:
-- **Structure Prediction**: Crystal structure generation using AI models
-- **Energy Calculation**: Formation energies with uncertainty quantification
-- **Composition Validation**: Chemical feasibility screening
-- **Stability Analysis**: Thermodynamic stability assessment
-- **Visualisation**: 3D crystal structures, XRD patterns, coordination analysis
+Core capabilities:
+- **Structure Prediction**: AI-based crystal structure generation (Chemeleon)
+- **Energy Calculation**: Formation energies with ML force fields (MACE)
+- **Composition Validation**: Chemical feasibility screening (SMACT)
+- **Stability Analysis**: Energy above hull calculations (PyMatGen)
+- **Visualisation**: 3D structures, XRD patterns, coordination environments
 
 ### Natural Language Interface
 
-Agents understand materials design queries in plain English:
-- "Find stable perovskite materials for solar cells"
-- "What's the formation energy of LiFePO4?"
-- "Design high-capacity battery cathode materials"
-- "Analyse CaTiO3 for photocatalytic applications"
-
-## Configuration
-
-### Basic Agent Configuration
-
-```python
-from crystalyse.agents import EnhancedCrystaLyseAgent
-from crystalyse.config import Config
-
-# Basic configuration
-config = Config.load()
-agent = EnhancedCrystaLyseAgent(
-    config=config,
-    project_name="my_research",
-    mode="adaptive",  # "creative", "rigorous", or "adaptive" (default)
-    model="o4-mini"   # or "o3" for rigorous mode
-)
-```
-
-### Advanced Usage
-
-```python
-# Using the agent for discovery
-async def run_discovery():
-    result = await agent.discover(
-        query="Find stable perovskite materials for solar cells",
-        history=None,  # Optional conversation history
-        trace_handler=None  # Optional event handler for UI
-    )
-    
-    print(result["status"])     # "completed" or "failed"
-    print(result["response"])   # Agent's response
-    return result
-```
-
-## Working with Agents
-
-### Simple Analysis
-
-```python
-# Basic materials analysis
-result = agent.analyse("LiFePO4")
-print(result.formation_energy)
-print(result.crystal_structure)
-print(result.summary)
-```
-
-### Interactive Sessions
-
-```python
-# Start an interactive session
-session = agent.create_session("battery_materials_project")
-
-# Maintain context across queries
-session.query("Analyse LiFePO4 cathode material")
-session.query("What about other lithium iron phosphates?")
-session.query("Which has the highest capacity?")
-```
-
-### Batch Processing
-
-```python
-# Analyse multiple materials
-materials = ["LiFePO4", "LiCoO2", "LiNi0.5Mn1.5O4"]
-results = agent.batch_analyse(materials)
-
-for material, result in results:
-    print(f"{material}: Formation Energy = {result.formation_energy} eV/atom")
-```
+Understands diverse query formats:
+- "Find materials for X application"
+- "Analyse Y composition for Z properties"
+- "Design materials with W characteristics"
+- "Compare A and B for performance"
 
 ## Best Practices
 
-### 1. Choose the Right Agent
+### Mode Selection
 
-- Use `CrystaLyseAgent` for one-off analyses
-- Use `SessionBasedAgent` for research projects
-- Use specialised agents for domain-specific tasks
+**Creative Mode** - Use for:
+- Initial exploration
+- Broad screening
+- Rapid prototyping
+- Time-sensitive analysis
 
-### 2. Optimise Tool Selection
+**Rigorous Mode** - Use for:
+- Final validation
+- Publication-quality results
+- Comprehensive characterisation
+- Critical design decisions
 
-- Enable only necessary tools to improve performance
-- Configure tool-specific parameters for your use case
-- Consider tool dependencies and ordering
+**Adaptive Mode** - Use for:
+- General research
+- Unknown query complexity
+- Learning the system
+- Mixed workflows
 
-### 3. Manage Context
+### Query Formulation
 
-- Clear context between unrelated analyses
-- Use sessions for related queries
-- Export important discoveries for future reference
+**Good**: "Find perovskites with band gaps 1.2-1.6 eV"
+- Specific properties
+- Clear constraints
 
-### 4. Handle Errors Gracefully
+**Better**: "Design lead-free perovskite solar cell materials"
+- Application context
+- Material class specified
 
-```python
-try:
-    result = agent.analyse(smiles)
-except InvalidStructureError:
-    print("Invalid molecular structure")
-except ToolError as e:
-    print(f"Tool error: {e.tool_name} - {e.message}")
+**Best**: "Find environmentally friendly perovskite alternatives to MAPbI3 for tandem solar cells"
+- Complete context
+- Performance requirements
+- Design constraints
+
+### Session Management
+
+**For exploration**:
+```bash
+crystalyse discover "Quick query"  # No session persistence
 ```
+
+**For research projects**:
+```bash
+crystalyse chat -u researcher -s project_name  # Full persistence
+```
+
+### Error Handling
+
+The agent provides clear error messages:
+- MCP server connection failures
+- Invalid compositions
+- Tool execution errors
+- Timeout issues
+
+Errors are logged with full context for debugging.
 
 ## Advanced Features
 
-### Custom Tools
+### Custom Callbacks
 
-Extend agents with custom tools:
+For custom UIs or integrations:
+
 ```python
-from crystalyse.tools import Tool
+from crystalyse.ui.progress import PhaseAwareProgress
 
-class CustomTool(Tool):
-    def execute(self, molecule):
-        # Custom analysis logic
-        return results
+# Custom progress handler
+class CustomProgress(PhaseAwareProgress):
+    def update(self, phase, message):
+        # Custom progress display
+        print(f"[{phase}] {message}")
 
-agent.register_tool(CustomTool())
+# Use with agent
+agent.discover(query, trace_handler=CustomProgress())
 ```
 
-### Agent Composition
+### Workspace Integration
 
-Combine multiple agents:
+The agent uses workspace tools for file operations:
+
 ```python
-synthesis_agent = SynthesisAgent()
-property_agent = PropertyAgent()
+from crystalyse import workspace
 
-# Coordinate agents
-compound = "target_smiles"
-routes = synthesis_agent.plan_synthesis(compound)
-properties = property_agent.predict_properties(compound)
+# Set custom approval callback
+def approve_file_write(path, content):
+    print(f"About to write {len(content)} bytes to {path}")
+    return True  # or False to deny
+
+workspace.APPROVAL_CALLBACK = approve_file_write
 ```
 
-### Fine-tuning
+### Memory Access
 
-Customise agent behaviour:
+Access the memory system directly:
+
 ```python
-agent.fine_tune(
-    examples=[
-        {"input": "...", "output": "..."},
-        # More examples
-    ],
-    domain="medicinal_chemistry"
-)
+from crystalyse.memory import CrystaLyseMemory
+
+memory = CrystaLyseMemory(user_id="researcher")
+
+# Get context for agent
+context = memory.get_context_for_agent()
+
+# Store discoveries
+memory.store_discovery({
+    "material": "CsSnI3",
+    "formation_energy": -2.529,
+    "timestamp": "2025-01-01T12:00:00"
+})
 ```
 
 ## Performance Considerations
 
 ### Resource Usage
 
-- Agents consume API tokens for LLM calls
-- Chemistry tools may require significant computation
-- Memory usage scales with session history
+- **API Tokens**: ~1000-5000 tokens per query (model-dependent)
+- **Memory**: ~500MB baseline + structure data
+- **Disk**: Provenance output ~10-50MB per session
+- **Time**: 50s (creative) to 5min (rigorous)
 
-### Optimisation Tips
+### Optimisation
 
-1. **Cache Results**: Enable caching for repeated analyses
-2. **Batch Requests**: Process multiple molecules together
-3. **Limit Context**: Clear old context to reduce token usage
-4. **Tool Selection**: Disable unnecessary tools
+1. **Use creative mode** for initial screening
+2. **Enable caching** to avoid redundant computations
+3. **Batch similar queries** in single sessions
+4. **Clean old provenance data** periodically
 
 ### Monitoring
 
-Track agent performance:
 ```python
-stats = agent.get_statistics()
-print(f"Total queries: {stats.query_count}")
-print(f"Average response time: {stats.avg_response_time}")
-print(f"Tool usage: {stats.tool_usage}")
+# Check agent statistics
+result = await agent.discover(query)
+
+print(result["metadata"]["duration"])     # Execution time
+print(result["metadata"]["tool_calls"])   # Number of tool invocations
+print(result["metadata"]["model_used"])   # LLM model
 ```
 
 ## Next Steps
 
-- Learn about [Memory Systems](memory.md) for context management
-- Explore [Session Management](sessions.md) for persistent analysis
-- Understand [Tool Integration](tools.md) for extending capabilities
-- See [API Reference](../reference/agents/) for detailed documentation
+- Learn about [Analysis Modes](analysis_modes.md) for mode selection
+- Explore [Clarification System](clarification_system.md) for adaptive UX
+- Understand [Provenance System](provenance_system.md) for computational integrity
+- See [Memory System](memory.md) for persistence details

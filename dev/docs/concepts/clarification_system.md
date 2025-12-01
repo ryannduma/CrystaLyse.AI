@@ -1,8 +1,8 @@
-# Enhanced Clarification System - CrystaLyse.AI v2.0-alpha
+# Enhanced Clarification System - CrystaLyse.AI v1.0.0
 
 ## Overview
 
-CrystaLyse.AI 2.0-alpha features an adaptive clarification system that transforms user interaction from static question-answer sessions into intelligent, expertise-aware conversations. The system automatically adapts its clarification approach based on detected user expertise and query complexity.
+CrystaLyse.AI v1.0.0 features an adaptive clarification system that transforms user interaction from static question-answer sessions into intelligent, expertise-aware conversations. The system automatically adapts its clarification approach based on detected user expertise and query complexity.
 
 ## Architecture
 

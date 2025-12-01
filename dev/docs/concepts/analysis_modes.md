@@ -1,16 +1,16 @@
-# Analysis Modes - CrystaLyse.AI v2.0-alpha
+# Analysis Modes - CrystaLyse.AI v1.0.0
 
-CrystaLyse.AI 2.0 provides three intelligent analysis modes powered by multi-agent orchestration and enhanced UX, allowing you to balance speed, accuracy, and user experience based on your research needs.
+CrystaLyse.AI v1.0.0 provides three intelligent analysis modes powered by multi-agent orchestration and enhanced UX, allowing you to balance speed, accuracy, and user experience based on your research needs.
 
 ## Overview
 
-| Mode | Speed | Tools Used | Use Case | v2.0-alpha Features |
+| Mode | Speed | Tools Used | Use Case | v1.0.0 Features |
 |------|-------|------------|----------|---------------------|
 | **Adaptive** (Default) | Variable | Context-aware selection | General research, learning preferences | Enhanced clarification, workspace management |
 | **Creative** | ~50 seconds | Chemeleon + MACE + Basic Viz | Fast exploration, initial screening | Multi-agent coordination, transparent operations |
 | **Rigorous** | 2-5 minutes | SMACT + Chemeleon + MACE + Advanced Viz + Analysis | Complete validation, publication-ready | Specialized agent validation, anti-hallucination |
 
-## Adaptive Mode (Default) - NEW in v2.0-alpha
+## Adaptive Mode (Default) - NEW in v1.0.0
 
 ### Purpose
 Intelligent balance of speed and accuracy with enhanced user experience. Features:
@@ -41,7 +41,7 @@ System: "For single-junction or tandem cells? Any specific efficiency targets?"
 ## Creative Mode
 
 ### Purpose
-Fast materials exploration with multi-agent coordination. Enhanced in v2.0-alpha for:
+Fast materials exploration with multi-agent coordination. Enhanced in v1.0.0 for:
 - Initial concept exploration with transparent operations
 - Rapid prototyping with workspace management
 - Interactive sessions with real-time progress visualization
@@ -92,7 +92,7 @@ Creative Mode Results:
 ## Rigorous Mode
 
 ### Purpose
-Complete materials validation with specialized agent validation. Enhanced in v2.0-alpha for:
+Complete materials validation with specialized agent validation. Enhanced in v1.0.0 for:
 - Publication-quality research with anti-hallucination safeguards
 - Detailed materials characterisation with multi-agent cross-validation
 - Validation of creative/adaptive mode results with specialized agents

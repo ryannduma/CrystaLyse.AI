@@ -1,8 +1,7 @@
 # CrystaLyse.AI Provenance System - Complete Technical Documentation
 
-**Version**: 2.0-alpha
-**Date**: 8 October 2025
-**Status**: Production-Ready
+**Version**: v1.0.0
+
 
 ---
 
@@ -1297,7 +1296,7 @@ Total Tool Calls │ 0
 
 **Cause**: Key mismatch between summary dict and display method.
 
-**Solution**: Fixed in v2.0-alpha (commit: fix(provenance): enable provenance capture)
+**Solution**: Fixed in v1.0.0 (commit: fix(provenance): enable provenance capture)
 
 **Verify Fix**:
 ```bash
@@ -1362,7 +1361,7 @@ Expected letters, numbers, underscores, or dashes
 
 **Cause**: ChatExperience was using basic ToolTraceHandler.
 
-**Solution**: Fixed in v2.0-alpha (ChatExperience now creates CrystaLyseProvenanceHandler).
+**Solution**: Fixed in v1.0.0 (ChatExperience now creates CrystaLyseProvenanceHandler).
 
 **Verify**:
 ```bash
@@ -1376,18 +1375,3 @@ crystalyse
 ## Summary
 
 The CrystaLyse.AI provenance system provides comprehensive, always-on audit trails for all materials discovery operations. It captures complete event streams, materials data, MCP tool calls, and performance metrics in a structured format suitable for reproducibility, debugging, and analysis.
-
-**Key Achievements**:
-- ✅ Production-ready with 100% coverage (discover + interactive chat)
-- ✅ Complete data capture (events, materials, tools, metrics)
-- ✅ No technical blockers (all import/path/SDK issues resolved)
-- ✅ User-friendly (summary display, CLI analysis, clear paths)
-
-**Known Limitation**:
-- Energy extraction (non-critical): Formation energies not extracted into materials catalog, but available in all output files
-
-**Recommendation**: System is production-ready as-is. Energy extraction can be added as enhancement if users request better energy-based filtering/analysis.
-
----
-
-**End of Technical Documentation**

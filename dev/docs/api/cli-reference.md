@@ -1,4 +1,4 @@
-# CLI Reference - CrystaLyse.AI 2.0
+# CLI Reference - CrystaLyse.AI v1.0.0
 
 ## Command Overview
 

@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-CrystaLyse.AI v1.2 Research Preview implements a production-ready materials discovery platform built on the OpenAI Agents SDK with Model Context Protocol (MCP) integration.
+CrystaLyse.AI v1.0.0 implements a  materials discovery platform built on the OpenAI Agents SDK with Model Context Protocol (MCP) integration.
 
 ### Core Components
 

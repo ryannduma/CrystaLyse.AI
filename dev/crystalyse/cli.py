@@ -1,6 +1,6 @@
 
 """
-CrystaLyse.AI 2.0 - Enhanced Materials Discovery
+CrystaLyse.AI v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
 """
 
 import asyncio
@@ -40,7 +40,7 @@ from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
 # --- Setup ---
 app = typer.Typer(
     name="crystalyse",
-    help="CrystaLyse.AI 2.0 - Enhanced Materials Discovery",
+    help="CrystaLyse.AI v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design",
     add_completion=False,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -510,11 +510,11 @@ def main_callback(
     project: str = typer.Option("crystalyse_session", "-p", "--project", help="Project name for workspace."),
     mode: AgentMode = typer.Option(AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False),
     model: Optional[str] = typer.Option(None, "--model", help="Language model to use."),
-    version: Optional[bool] = typer.Option(None, "--version", help="Show version and exit.", callback=lambda v: (console.print("CrystaLyse.AI 2.0"), exit(0)) if v else None, is_eager=True),
+    version: Optional[bool] = typer.Option(None, "--version", help="Show version and exit.", callback=lambda v: (console.print("CrystaLyse.AI v1.0.0-dev"), exit(0)) if v else None, is_eager=True),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """
-    CrystaLyse.AI 2.0: Enhanced Materials Discovery
+    CrystaLyse.AI v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
     """
     state["project"] = project
     state["mode"] = mode

@@ -1,8 +1,8 @@
-# Autonomous Mode Switching - CrystaLyse.AI v2.0-alpha
+# Autonomous Mode Switching - CrystaLyse.AI v1.0.0
 
 ## Overview
 
-CrystaLyse.AI v2.0-alpha features dynamic mode adaptation that allows the system to intelligently switch between analysis modes (creative, rigorous, adaptive) during execution based on user feedback, query context, and system performance. This creates a truly responsive research experience.
+CrystaLyse.AI v1.0.0 features dynamic mode adaptation that allows the system to intelligently switch between analysis modes (creative, rigorous, adaptive) during execution based on user feedback, query context, and system performance. This creates a truly responsive research experience.
 
 ## Architecture
 

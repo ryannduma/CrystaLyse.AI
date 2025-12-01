@@ -1,251 +1,288 @@
 # CrystaLyse.AI Status & Roadmap
 
-CrystaLyse.AI is an autonomous AI agent for accelerated inorganic materials design that lets materials scientists delegate substantial computational materials design tasks directly from their terminal. In early testing, CrystaLyse completed materials design workflows in minutes that would normally take a few days of manual computational work.
+**Current Status**: Version 1.0.0
+**PyPI Release**: v1.0.1 (stable)
+**Development**: v1.0.0-dev (this repository)
+**Date**: 2025-12-01
 
-This document outlines our current status and approach to the CrystaLyse.AI roadmap. Here, you'll find our guiding principles, current capabilities, and a breakdown of the key areas we are focused on for development. Our roadmap is not a static list but a dynamic set of priorities that evolve with the materials science community's needs.
+## Project Status
 
-**Current Status**: Research Preview v2.0.0-alpha  
-**Date**: 2025-07-29
+Crystalyse is a provenance-enforced scientific agent for computational materials design. Version 1.0 represents a stable release suitable for research applications, with active development continuing in this repository.
 
-## Vision & Mission
+The system has been validated through:
+- Component integration testing (SMACT, Chemeleon, MACE, PyMatGen)
+- Materials design task demonstrations (quaternary oxides, battery cathodes, photovoltaics)
+- Adversarial testing suite (86% pass rate across safety, robustness, sustainability)
+- Shadow validation confirming zero material-property hallucinations
 
-**Our Mission**: Transform materials design from a slow, expensive process into an interactive, AI-accelerated research partnership that maintains the highest standards of scientific rigor while enabling unprecedented creative exploration of chemical space.
+## Core Capabilities (v1.0.0)
 
-## Disclaimer
+### Computational Tools
 
-This roadmap represents our current thinking and is for informational purposes only. It is not a commitment or guarantee of future delivery. The development, release, and timing of any features are subject to change, and we may update the roadmap based on community discussions as well as when our priorities evolve.
+**SMACT Integration**
+- Compositional screening via charge balance and electronegativity
+- Oxidation state assignment
+- Chemical validity checks (<10ms per composition on CPU)
 
-## Guiding Principles
+**Chemeleon Integration**
+- Crystal structure generation from composition
+- Multiple candidate structures (mode-dependent: 3-30 structures)
+- Denoising diffusion model with pre-loaded checkpoints
+- Auto-download on first run (~600 MB, cached)
 
-Our development is guided by the following principles:
+**MACE Integration**
+- Formation energy calculation via ML force field
+- Structure relaxation and optimisation
+- MACE-MP0 foundation model pre-trained on Materials Project
+- Computational cost: 1-2s single-point, ~1h molecular dynamics (GPU)
 
-- **Scientific Integrity**: Maintain 100% computational honesty with complete traceability of all numerical results to actual tool calls.
-- **Workflow Acceleration**: Enable researchers to delegate substantial computational materials design tasks, focusing their energy on challenging design frontiers.
-- **Adaptive Intelligence**: Learn user expertise levels and adapt questioning and analysis depth accordingly.
-- **Professional Experience**: Provide a rich terminal interface that rivals commercial software in usability and visual appeal.
-- **Extensibility**: Support integration with existing laboratory informatics pipelines and custom analysis tools.
+**PyMatGen Integration**
+- Energy above hull calculations (271,617 Materials Project entries)
+- Phase diagram construction
+- Space group analysis and symmetry operations
+- Crystallographic analysis (coordination, bond valence)
+- Auto-download phase diagrams (~170 MB, one-time)
 
-## Current Capabilities (Research Preview v2.0-alpha)
+### Operational Modes
 
-### ✅ Enhanced Agent Architecture
-- **Single sophisticated agent**: `EnhancedCrystaLyseAgent` provides "multi-agent-like" behavior through intelligent tool coordination
-- **Dynamic mode switching**: Autonomous switching between creative/rigorous/adaptive modes based on user feedback, performance monitoring, and context analysis
-- **OpenAI Agents SDK integration**: Production-ready agent framework with workspace management
-- **Intelligent tool selection**: Automatically chooses optimal MCP servers based on mode and query complexity
-- **Mode-aware processing**: Adaptive, creative, and rigorous analysis modes with different tool combinations
+| Mode | Duration | Candidate Structures | Validation Depth |
+|------|----------|---------------------|------------------|
+| Creative | ~50s | 3 per composition | Fast exploration |
+| Rigorous | 2-5min | 30+ per composition | Comprehensive |
+| Adaptive | Variable | Context-dependent | Dynamic routing |
 
-### ✅ Three-Mode Analysis System
+Mode selection adapts computational strategy to query demands, balancing speed against validation thoroughness.
 
-**Adaptive Mode (Default)**:
-- **Enhanced clarification**: LLM-powered adaptive questioning based on detected user expertise
-- **Context-aware tool selection**: Automatically chooses optimal tools for each query
-- **Learning preferences**: Adapts behavior based on user patterns and feedback
-- **Workspace management**: Transparent file operations with preview/approval
+### Provenance System
 
-**Creative Mode (~50 seconds)**:
-- **Chemistry Creative Server**: Chemeleon + MACE + basic visualization
-- **Fast exploration**: Initial concept exploration with transparent operations
-- **Real-time progress**: Interactive sessions with live progress visualization
+Three-layer enforcement:
+1. **Prompt guidance** - Instructs compute-or-decline behaviour
+2. **Runtime tracking** - Tuple-based provenance (value, unit, source_tool, artifact_hash, timestamp)
+3. **Render gate** - Blocks unprovenanced material properties
 
-**Rigorous Mode (2-5 minutes)**:
-- **Chemistry Unified Server**: SMACT + Chemeleon + MACE + advanced analysis + visualization
-- **Complete validation**: Publication-ready results with comprehensive analysis
-- **Anti-hallucination validation**: Specialized agent validation ensures computational honesty
+All numerical outputs undergo regex validation. Material properties must trace to explicit tool invocations. JSONL audit trails enable complete reproducibility.
 
-### ✅ Professional Terminal Interface
-- **Rich CLI experience**: Professional displays with ASCII art branding and progress visualization
-- **Multi-command structure**: `discover` (non-interactive), `chat` (interactive sessions), `user-stats`
-- **In-session commands**: `/help`, `/history`, `/clear`, `/undo`, `/exit` for interactive control
-- **Real-time tool tracing**: Transparent visibility into computational steps through trace handler
+### Memory Architecture
 
-### ✅ Adaptive Clarification System
-- **Expertise detection**: Automatically detects user expertise level (expert, intermediate, novice)
-- **Dynamic questioning**: Adapts clarification strategy based on detected expertise
-- **Smart assumptions**: Presents intelligent assumptions for expert users to confirm quickly
-- **Learning system**: User preference memory tracks patterns and improves future interactions
+Four specialised layers:
+- **Session memory** - Conversation history, tool traces, timing metrics
+- **Discovery cache** - Computed materials, formation energies (24hr TTL)
+- **User preference memory** - Expertise level, clarification depth, vocabulary patterns
+- **Cross-session context** - Research themes, recurring systems, strategy patterns
 
-### ✅ Session & Memory Management
-- **Persistent sessions**: SQLite-based conversation storage for multi-day research projects
-- **Multi-user support**: Isolated sessions per user with comprehensive user statistics
-- **4-layer memory system**: Session memory, discovery cache, user memory, cross-session context
-- **Session commands**: Resume previous sessions, list all sessions, demo mode for exploration
+SQLite persistence enables multi-day research continuity.
 
-### ✅ Comprehensive Tool Integration
-**MCP Server Architecture**:
-- **Chemistry Creative Server**: Chemeleon + MACE + basic visualization (creative mode)
-- **Chemistry Unified Server**: SMACT + Chemeleon + MACE + advanced analysis (rigorous mode)
-- **Visualization Server**: 3D structure rendering, XRD patterns, RDF analysis, coordination studies
+### Safety Filtering
 
-**Tool Capabilities**:
-- **SMACT**: Composition validation through electronegativity and oxidation state analysis
-- **Chemeleon**: AI-powered crystal structure prediction with multiple candidate generation
-- **MACE**: Machine learning force fields for formation energy calculations
-- **Advanced Visualization**: Interactive 3D structures, professional analysis plots
+Three-tier classification:
+- **Tier 1** (Automatic refusal) - Explosive materials, toxic heavy metals, chemical weapons
+- **Tier 2** (Context review) - Ambiguous requests requiring clarification
+- **Tier 3** (Safe execution) - Legitimate safety applications (fire-resistant ceramics, biocompatible implants)
 
-## Focus Areas
+Current vulnerabilities: 25% failure rate on disguised toxic requests and high-energy material ambiguity.
 
-To better organize our development efforts, we categorize our work into several key feature areas:
+### Interface
 
-- **Core Engine**: Fundamental materials design capabilities and tool coordination
-- **User Experience**: CLI usability, adaptive interfaces, and visualization enhancements
-- **Scientific Integrity**: Anti-hallucination systems, validation protocols, and traceability
-- **Integration**: SDK APIs, and MCP informatics connectivity
-- **Extensibility**: Custom tools, Jupyter integration, and multimodal interfaces
-- **Performance**: Speed optimization, batch processing, and scalability
-- **Platform**: Installation, deployment, and multi-environment support
+**CLI** (Typer + Rich):
+- Non-interactive: `crystalyse analyse` for scripted single-shot analyses
+- Interactive: `crystalyse chat` for multi-turn sessions
+- Adaptive clarification based on expertise detection
+- Dynamic mode switching with context preservation
+
+**Session Management**:
+- Persistent sessions across computational runs
+- User preference tracking with temporal decay
+- Cross-session pattern recognition
+
+## Performance Benchmarks
+
+**Hardware**: Intel i7, 16GB RAM, no GPU
+
+| Operation | Creative Mode | Rigorous Mode |
+|-----------|---------------|---------------|
+| Simple query (single material) | ~50s | 2-3min |
+| Complex analysis (multiple candidates) | 1-2min | 3-5min |
+| Batch screening (10 materials) | 5-10min | 15-30min |
+
+**Resource Requirements**:
+- Python 3.11+
+- RAM: 8GB minimum, 16GB recommended
+- Storage: ~2GB (installation + cache)
+- Network: Required for first-run downloads
+- GPU: Optional (MACE acceleration)
 
 ## Development Roadmap
 
-### 🔌 Plugin Interface for Custom Tools
-**Priority**: High | **Target**: v2.1
+### Near-Term (v1.1-v1.2)
 
-Let users plug in their own ML models, crystal generators, or custom analysis steps.
+**Workspace Management Integration**
+- Complete integration of file operation system (`crystalyse/workspace/`)
+- Enhanced approval workflows with preview capabilities
+- Improved clarification system integration
+- Context-aware file suggestions
 
-- **Benefits**: Extensibility for specialized research needs, community contributions
-- **Implementation**: MCP-compatible plugin architecture with standardized interfaces
-- **Use Cases**: Custom ML models, specialized property calculators, experimental data integration
+**Enhanced Memory System**
+- Production-ready cross-session context (`crystalyse/memory/`)
+- Refined user preference learning algorithms
+- Temporal decay models for preference weighting
+- Multi-user collaboration support
 
-### 📓 JupyterLab Kernel / Notebook Support
-**Priority**: High | **Target**: v2.2
+**Plugin Interface for Custom Tools**
+- MCP-compatible plugin architecture
+- Standardised tool interfaces
+- Custom ML model integration
+- Experimental data connectors
 
-Many computational chemists live in Jupyter — embedding this as a Jupyter-aware kernel could expand usability dramatically.
+**Enhanced Provenance Classifier**
+- ML-based semantic classification
+- Replace rule-based system with transformer model (BERT/RoBERTa)
+- Training on shadow-mode logs
+- Improved precision for paraphrasing and novel phrasings
 
-- **Benefits**: Native integration with existing computational workflows
-- **Implementation**: Jupyter kernel protocol with rich display capabilities
-- **Use Cases**: Interactive notebooks, educational materials, research documentation
+**Jupyter Kernel Integration**
+- Native Jupyter protocol support
+- Rich display capabilities
+- Interactive notebook workflows
 
-### 🔗 OpenAPI + Python Client
-**Priority**: High | **Target**: v2.2
+### Medium-Term (v1.3-v2.0)
 
-Having a REST API and Python client SDK would make this embeddable into other lab informatics pipelines or robotic workflows.
+**OpenAPI + Python Client SDK**
+- FastAPI-based REST service
+- Async task handling
+- Laboratory automation integration
+- Pipeline orchestration
 
-- **Benefits**: Integration with laboratory automation, pipeline orchestration
-- **Implementation**: FastAPI-based REST service with async task handling
-- **Use Cases**: Automated screening pipelines, robotic synthesis integration, batch processing
+**Literature Contextualization**
+- Materials database integration (Materials Project, PubChem)
+- Property extraction from literature
+- NLP processing for context enhancement
 
-### 📚 Automated Literature Contextualization
-**Priority**: Medium | **Target**: v2.3
+**Extended Property Coverage**
+- Electronic structure surrogates
+- Optical property predictors
+- Magnetic property calculators
+- OPTIMADE database connectivity
 
-Integrate materials literature summarization or property extraction (e.g. from Materials Project or PubChem) during analysis.
+### Long-Term (v2.1+)
 
-- **Benefits**: Enhanced context for design decisions, literature-backed recommendations
-- **Implementation**: API integration with materials databases and NLP processing
-- **Use Cases**: Literature-guided design, property prediction validation, research contextualization
+**Multimodal Interface**
+- VScode extension interface with enhanced visual feedback
+- Visual workflow management
+- Educational environments
 
-### 🖥️ Multimodal UI Option
-**Priority**: Medium | **Target**: v3.0
+**Experimental Integration**
+- Direct synthesis agent integration (Sky) and perhaps equipment connectivity
+- Multimodal data feedback via file upload/reading
 
-Add optional web or VS Code interface for onboarding less CLI-experienced users.
 
-- **Benefits**: Broader accessibility, visual workflow management, collaborative features
-- **Implementation**: Web interface with real-time collaboration capabilities
-- **Use Cases**: Educational environments, collaborative research, visual pipeline management
+**Advanced Safety**
+- Semantic safety classifiers
+- Real-time toxicity assessment
+- Life-cycle analysis integration
 
-### 🚀 Additional Future Enhancements
+## Known Limitations
 
-- **Batch Processing**: High-throughput screening capabilities for large-scale materials exploration
-- **Experimental Integration**: Direct connection to synthesis and characterization equipment
-- **Cloud Deployment**: Scalable cloud-native deployment options for institutional use
-- **Organic Materials**: Expand beyond inorganic materials to organic and hybrid systems
-- **Custom Model Training**: Pipeline for training specialized models on user data
-- **Advanced Visualization**: Interactive 3D environments and augmented reality interfaces
+**Tool Coverage**
+- Electronic, optical, magnetic properties require additional surrogates
+- Limited to inorganic crystals (organic/hybrid systems not supported)
+- Database-bounded discovery scope
 
-## Performance Standards
 
-### Scientific Integrity (Non-Negotiable)
-- **100%** computational honesty - every numerical result traces to actual tool calls
-- **0%** tolerance for fabricated energies, structures, or properties
-- **Complete transparency** in tool usage and failure reporting
-- **Clear distinction** between AI reasoning and computational validation
+**Safety Vulnerabilities**
+- 25% failure rate on disguised toxic requests
+- High-energy material ambiguity (battery vs explosive)
+- Semantic framing bypasses
 
-### Design Efficiency
-- **2-5 minutes** per materials design workflow
-- **Minutes vs days** improvement over manual computational work
-- **>90%** uptime for computational tool pipeline
-- **Comprehensive coverage** of earth-abundant element combinations
+**Model Capabilities**
+- Point estimates only (per-calculation uncertainty not exposed)
+- Format sensitivity in composition validity (training corpus bias)
+- Tool hallucination risks without runtime validation
 
-## Architecture
+**Computational Constraints**
+- Consumer hardware limits throughput
+- ML force fields provide approximate energies
+- No direct DFT validation
 
-### Creative + Rigorous Philosophy
+**Experimental Features**
+- Workspace management (`crystalyse/workspace/`) is scaffolded with basic file operations and clarification callbacks; full integration pending
+- Enhanced memory features (`crystalyse/memory/`) provide four-layer architecture but cross-session context and user preference learning are experimental; improved integration planned for near-term releases
 
-The dual-mode system embodies a fundamental insight about research methodology:
+## Architecture Principles
 
-**Creative Phase**: Unconventional Exploration
-- Explore chemical spaces without computational constraints
-- Generate novel compositions using AI chemical intuition
-- Rapid iteration and broad exploration
+**Single-Agent Design**
+- Avoids multi-agent coordination overhead
+- Reduced brittleness and failure modes
+- Lower token consumption versus multi-agent frameworks
+- Runtime tool discovery via MCP
 
-**Validation Phase**: Rigorous Screening
-- Apply computational screening to promising candidates
-- Use SMACT, Chemeleon, and MACE for comprehensive validation
-- Provide quantitative stability and property assessments
+**Database Grounding**
+- Mandatory for composition validity
+- Materials Project phase diagrams (271,617 entries)
+- Execution-time validation with hash-based provenance
 
-**Iterative Refinement**: Continuous Learning
-- Use validated results to guide further creative exploration
-- Build cumulative knowledge base of promising chemical spaces
-- Refine search strategies based on experimental feedback
+**Modular Extensibility**
+- MCP servers as thin wrappers
+- Tool implementations in `crystalyse.tools.*`
+- Clean Python packaging (no PYTHONPATH manipulation)
 
-### Technical Foundation
+## Contributing
 
-**Model Context Protocol (MCP)**:
-- Seamless integration of computational chemistry tools
-- Standardized interfaces across SMACT, Chemeleon, MACE
-- Robust error handling and graceful degradation
+The project welcomes contributions in several areas:
 
-**Agent Framework**:
-- Production-grade implementation using OpenAI Agents SDK
-- Persistent session management and memory systems
-- Anti-hallucination safeguards at every computational step
+**Tool Integration**
+- Additional calculators (tight-binding, property-specific)
+- Database connectors (OPTIMADE, COD, ICSD)
+- Experimental data sources
 
-## How to Get Involved
+**Safety & Validation**
+- Adversarial test cases
+- Semantic classifiers
+- Toxicity databases
 
-CrystaLyse.AI is in active development, and we welcome engagement from the materials science community:
+**Performance Optimisation**
+- Batch processing improvements
+- GPU utilisation
+- Caching strategies
 
-- **Try the Research Preview**: Install and test v2.0-alpha with your materials design workflows
-- **Share Feedback**: Report issues, suggest features, or share use cases
-- **Contribute Ideas**: Help shape the roadmap by discussing priority features
-- **Academic Collaboration**: Partner with us on research applications and validation studies
+**Documentation**
+- Use case tutorials
+- Educational materials
+- API documentation
 
-## Installation & Quick Start
+See [CLAUDE.md](CLAUDE.md) for development setup.
 
-```bash
-# Clone repository
-git clone https://github.com/ryannduma/CrystaLyse.AI.git
-cd CrystaLyse.AI/dev
+## Citation
 
-# Create conda environment
-conda create -n crystalyse python=3.11
-conda activate crystalyse
+If you use Crystalyse in your research, please cite:
 
-# Install core package
-pip install -e .
-
-# Install individual tool servers (required dependencies)
-pip install -e ./oldmcpservers/smact-mcp-server
-pip install -e ./oldmcpservers/chemeleon-mcp-server  
-pip install -e ./oldmcpservers/mace-mcp-server
-
-# Install unified MCP servers
-pip install -e ./chemistry-unified-server
-pip install -e ./chemistry-creative-server
-pip install -e ./visualization-mcp-server
-
-# Set OpenAI API key
-export OPENAI_API_KEY="your-key-here"
-
-# Verify installation
-crystalyse --help
-
-# Quick analysis (non-interactive)
-crystalyse discover "Find stable perovskite materials for solar cells"
-
-# Interactive chat session
-crystalyse chat -u researcher -s project_name
-
-# View user statistics
-crystalyse user-stats -u researcher
+```bibtex
+@article{nduma2025crystalyse,
+  title={Crystalyse: a multi-tool agent for materials design},
+  author={Nduma, Ryan and Park, Hyunsoo and Walsh, Aron},
+  journal={In preparation},
+  year={2025}
+}
 ```
+
+And the underlying tools:
+- SMACT: Davies et al., JOSS 4, 1361 (2019)
+- Chemeleon: Park et al., Nat. Commun. (2025)
+- MACE: Batatia et al., NeurIPS (2022)
+- PyMatgen: Ong et al. (2013)
+
+## Acknowledgements
+
+This work was supported by:
+- EPSRC project EP/X037754/1
+- AIchemy hub (grants EP/Y028775/1, EP/Y028759/1)
+
+We thank the developers of SMACT, Chemeleon, MACE, PyMatGen, Pymatviz, and the OpenAI Agents SDK, as well as the Materials Project and ICSD for providing materials data.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Research Preview v2.0.0-alpha - Autonomous materials design through intelligent agent coordination** 🧪
+**Ryan Nduma, Hyunsoo Park, and Aron Walsh**
+Department of Materials, Imperial College London
