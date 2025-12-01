@@ -222,8 +222,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Issues**: [GitHub Issues](https://github.com/ryannduma/CrystaLyse.AI/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/ryannduma/CrystaLyse.AI/discussions)
-- **Email**: ryannduma@gmail.com
+- **Email**: napo.nduma22@imperial.ac.uk
 
 ---
 
-**Built by Ryan Nduma, Hyunsoo Park, and Aron Walsh at Imperial College London.**
+**Built by Ryan Nduma, Hyunsoo Park, and Aron Walsh with support and inspiration from the AI4SCIENCE community and especially the Materials Design Group at Imperial College London**
