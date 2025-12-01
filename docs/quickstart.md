@@ -16,7 +16,7 @@ Get up and running with Crystalyse in minutes. This guide covers installation, c
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/ryannduma/Crystalyse.git
+   git clone https://github.com/ryannduma/CrystaLyse.AI.git
    cd Crystalyse
    ```
 
