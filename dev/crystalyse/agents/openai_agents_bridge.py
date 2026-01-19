@@ -190,6 +190,10 @@ class EnhancedCrystaLyseAgent:
                 logger.warning(f"Failed to create provenance handler: {e} - proceeding without provenance")
                 trace_handler = None
 
+        # Record the user's query in provenance (for both auto-created and provided handlers)
+        if trace_handler is not None and hasattr(trace_handler, 'set_user_query'):
+            trace_handler.set_user_query(query)
+
         async with self._managed_mcp_servers() as mcp_servers:
             try:
                 # Use persistent session created in __init__

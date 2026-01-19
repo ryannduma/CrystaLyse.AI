@@ -216,16 +216,17 @@ async def calculate_formation_energy(
             prefer_gpu=prefer_gpu
         )
 
+        # result is a dict from MACECalculator.calculate_energy()
         return make_json_serializable({
-            "success": result.success,
-            "formula": result.formula,
-            "formation_energy_per_atom": result.formation_energy_per_atom,
-            "total_energy": result.total_energy,
-            "num_atoms": result.num_atoms,
-            "uncertainty": result.uncertainty,
-            "computation_time": result.computation_time,
-            "model_used": result.model_used,
-            "error": result.error
+            "success": result["success"],
+            "formula": result.get("formula"),
+            "formation_energy_per_atom": result.get("formation_energy_per_atom"),
+            "total_energy": result.get("total_energy"),
+            "num_atoms": result.get("num_atoms", 0),
+            "uncertainty": result.get("uncertainty"),
+            "computation_time": result.get("computation_time"),
+            "model_used": result.get("model_used"),
+            "error": result.get("error")
         })
     except Exception as e:
         logger.error(f"MACE energy calculation failed: {e}")

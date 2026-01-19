@@ -131,6 +131,11 @@ class ProvenanceTraceHandler(ToolTraceHandler):
             self.run_start_time = time.time()
             self.first_token_time: Optional[float] = None
             self.assistant_buffer: List[str] = []
+
+            # Conversation tracking (user queries, clarifications, responses)
+            self.conversation_log: List[Dict[str, Any]] = []
+            self.user_query: Optional[str] = None
+            self.clarification_exchanges: List[Dict[str, Any]] = []
             
             # Log session start
             self.event_logger.log_session_start(
@@ -345,7 +350,7 @@ class ProvenanceTraceHandler(ToolTraceHandler):
         """Save raw tool output for debugging."""
         try:
             raw_file = self.output_dir / f"raw_output_{call_id[:8]}.json"
-            
+
             if isinstance(output, str):
                 with open(raw_file, 'w') as f:
                     f.write(output)
@@ -354,24 +359,216 @@ class ProvenanceTraceHandler(ToolTraceHandler):
                     json.dump(output, f, indent=2)
         except Exception as e:
             logger.debug(f"Failed to save raw output: {e}")
+
+    def set_user_query(self, query: str):
+        """
+        Record the user's original query.
+
+        Args:
+            query: The user's original query text
+        """
+        if not self.enable_provenance:
+            return
+
+        # Avoid duplicate entries if query already set
+        if self.user_query is not None:
+            return
+
+        self.user_query = query
+        self.conversation_log.append({
+            "role": "user",
+            "content": query,
+            "timestamp": datetime.now().isoformat(),
+            "type": "query"
+        })
+
+        if self.event_logger:
+            self.event_logger.log("user_query", {
+                "query": query,
+                "timestamp": datetime.now().isoformat()
+            })
+
+    def add_clarification_exchange(
+        self,
+        question: str,
+        answer: str,
+        question_id: Optional[str] = None,
+        options: Optional[List[str]] = None
+    ):
+        """
+        Record a clarification question and answer.
+
+        Args:
+            question: The clarification question asked
+            answer: The user's response
+            question_id: Optional identifier for the question
+            options: Optional list of options presented to user
+        """
+        if not self.enable_provenance:
+            return
+
+        exchange = {
+            "question": question,
+            "answer": answer,
+            "question_id": question_id,
+            "options": options,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.clarification_exchanges.append(exchange)
+
+        # Add to conversation log
+        self.conversation_log.append({
+            "role": "assistant",
+            "content": question,
+            "timestamp": datetime.now().isoformat(),
+            "type": "clarification_question",
+            "options": options
+        })
+        self.conversation_log.append({
+            "role": "user",
+            "content": answer,
+            "timestamp": datetime.now().isoformat(),
+            "type": "clarification_answer",
+            "question_id": question_id
+        })
+
+        if self.event_logger:
+            self.event_logger.log("clarification", exchange)
+
+    def add_enriched_query(self, enriched_query: str):
+        """
+        Record the enriched/processed query sent to the agent.
+
+        Args:
+            enriched_query: The processed query with context
+        """
+        if not self.enable_provenance:
+            return
+
+        self.conversation_log.append({
+            "role": "system",
+            "content": enriched_query,
+            "timestamp": datetime.now().isoformat(),
+            "type": "enriched_query"
+        })
+
+        if self.event_logger:
+            self.event_logger.log("enriched_query", {
+                "query": enriched_query,
+                "timestamp": datetime.now().isoformat()
+            })
+
+    def _save_conversation_log(self):
+        """Save the complete conversation as a formatted markdown file."""
+        if not self.conversation_log and not self.user_query:
+            return
+
+        conv_file = self.output_dir / "conversation_full.md"
+
+        lines = [
+            f"# Crystalyse Conversation Log",
+            f"",
+            f"**Session ID:** {self.session_id}",
+            f"**Timestamp:** {datetime.now().isoformat()}",
+            f"",
+            f"---",
+            f""
+        ]
+
+        for entry in self.conversation_log:
+            role = entry.get("role", "unknown")
+            content = entry.get("content", "")
+            entry_type = entry.get("type", "message")
+            timestamp = entry.get("timestamp", "")
+
+            if entry_type == "query":
+                lines.append(f"## User Query")
+                lines.append(f"")
+                lines.append(f"> {content}")
+                lines.append(f"")
+            elif entry_type == "clarification_question":
+                lines.append(f"### Clarification Question")
+                lines.append(f"")
+                lines.append(f"**Crystalyse:** {content}")
+                options = entry.get("options")
+                if options:
+                    lines.append(f"")
+                    lines.append(f"*Options: {', '.join(options)}*")
+                lines.append(f"")
+            elif entry_type == "clarification_answer":
+                lines.append(f"**User:** {content}")
+                lines.append(f"")
+            elif entry_type == "enriched_query":
+                lines.append(f"### Processed Query (sent to agent)")
+                lines.append(f"")
+                lines.append(f"```")
+                lines.append(content)
+                lines.append(f"```")
+                lines.append(f"")
+            elif entry_type == "response":
+                lines.append(f"## Crystalyse Response")
+                lines.append(f"")
+                lines.append(content)
+                lines.append(f"")
+            else:
+                # Generic message
+                if role == "user":
+                    lines.append(f"**User:** {content}")
+                elif role == "assistant":
+                    lines.append(f"**Crystalyse:** {content}")
+                else:
+                    lines.append(f"**{role}:** {content}")
+                lines.append(f"")
+
+        lines.append(f"---")
+        lines.append(f"")
+        lines.append(f"*End of conversation log*")
+
+        with open(conv_file, 'w') as f:
+            f.write("\n".join(lines))
     
     def finalize(self) -> Dict[str, Any]:
         """Generate final summary and save outputs."""
         if not self.enable_provenance or not self.event_logger:
             return {}
-        
-        # Save assistant response
+
+        # Save assistant response (legacy file for backwards compatibility)
+        full_response = ""
         if self.assistant_buffer:
             full_response = "".join(self.assistant_buffer)
             response_file = self.output_dir / "assistant_full.md"
             with open(response_file, 'w') as f:
                 f.write(full_response)
-            
+
             self.event_logger.log("assistant_output", {
                 "length": len(full_response),
                 "timestamp": datetime.now().isoformat(),
                 "session_id": self.session_id
             })
+
+        # Add assistant response to conversation log (avoid duplicates)
+        if full_response:
+            # Check if response already exists in conversation log
+            has_response = any(
+                entry.get("type") == "response" and entry.get("role") == "assistant"
+                for entry in self.conversation_log
+            )
+            if not has_response:
+                self.conversation_log.append({
+                    "role": "assistant",
+                    "content": full_response,
+                    "timestamp": datetime.now().isoformat(),
+                    "type": "response"
+                })
+
+        # Save complete conversation log as markdown
+        self._save_conversation_log()
+
+        # Save conversation log as JSON for programmatic access
+        if self.conversation_log:
+            conv_json_file = self.output_dir / "conversation.json"
+            with open(conv_json_file, 'w') as f:
+                json.dump(self.conversation_log, f, indent=2)
         
         # Save materials catalog with enhanced metadata
         self.materials_tracker.save_catalog(

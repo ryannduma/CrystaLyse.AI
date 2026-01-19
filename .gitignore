@@ -240,3 +240,11 @@ server_old_backup.py
 codex/
 readthedocs.org/
 
+# Research papers and preprints (not for version control)
+papers for inspo/
+Crystalyse V13 Resource (1).pdf
+RIGOROUS_ASSESSMENT.md
+
+# External/experimental agents (not part of main project)
+synthesis-agent/
+

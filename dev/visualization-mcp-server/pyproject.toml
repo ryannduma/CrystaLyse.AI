@@ -11,7 +11,7 @@ dependencies = [
     "python-multipart",
     # Visualization libraries
     "pymatgen",
-    "pymatviz",
+    "pymatviz<0.17.0",
     "plotly",
     "kaleido",
 ]

@@ -298,6 +298,11 @@ class ChatExperience:
                         mode=self.mode
                     )
                     self.provenance_handler = trace_handler
+                    # Record the user's original query
+                    trace_handler.set_user_query(query)
+                    # Record enriched query if different from original
+                    if enriched_query != query:
+                        trace_handler.add_enriched_query(enriched_query)
                 else:
                     trace_handler = ToolTraceHandler(self.console)
 
@@ -437,21 +442,49 @@ INSTRUCTIONS: This request has been pre-processed and clarified. You can proceed
                 # Smart response matching
                 matched_answer = self._smart_match_response(raw_answer, question.options, question.id)
 
+                final_answer = None
                 if matched_answer:
                     answers[question.id] = matched_answer
+                    final_answer = matched_answer
                 elif self._is_exit_signal(raw_answer):
                     self.console.print("[yellow]Understood - let's proceed with what you've provided.[/yellow]")
+                    # Record the skip in provenance
+                    if PROVENANCE_AVAILABLE and self.provenance_handler:
+                        self.provenance_handler.add_clarification_exchange(
+                            question=question.text,
+                            answer="[skipped]",
+                            question_id=question.id,
+                            options=question.options
+                        )
                     break
                 else:
                     # Accept the custom response and continue
                     self.console.print(f"[green]Got it: {raw_answer}[/green]")
                     answers[question.id] = raw_answer
                     answers[f"{question.id}_custom"] = True
+                    final_answer = raw_answer
+
+                # Record clarification exchange in provenance
+                if final_answer and PROVENANCE_AVAILABLE and self.provenance_handler:
+                    self.provenance_handler.add_clarification_exchange(
+                        question=question.text,
+                        answer=final_answer,
+                        question_id=question.id,
+                        options=question.options
+                    )
             else:
                 answer = Prompt.ask(f"[bold]{question.text}[/bold]")
                 if self._is_exit_signal(answer):
                     break
                 answers[question.id] = answer
+                # Record clarification exchange in provenance
+                if PROVENANCE_AVAILABLE and self.provenance_handler:
+                    self.provenance_handler.add_clarification_exchange(
+                        question=question.text,
+                        answer=answer,
+                        question_id=question.id,
+                        options=None
+                    )
 
         return answers
 

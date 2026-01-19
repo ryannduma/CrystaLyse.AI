@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "openai>=1.0.0",
-    "openai-agents>=0.0.16",
+    "openai-agents>=0.6.0",
 
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
-    "numpy>=1.24.0",
+    "numpy>=1.24.0,<2.0.0",
     "pandas>=2.0.0",
     "typing-extensions>=4.5.0",
     "pydantic>=2.0.0",
@@ -42,7 +42,7 @@ visualization = [
     "plotly>=5.18.0",
     "py3Dmol>=2.0.4",
     "kaleido>=0.2.1",
-    "pymatviz>=0.8.5",
+    "pymatviz>=0.8.5,<0.17.0",
 ]
 
 docs = [
