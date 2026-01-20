@@ -19,7 +19,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 # Figshare download URL for the checkpoint tar.gz file (523 MB)
-FIGSHARE_URL = "https://figshare.com/ndownloader/files/54966305"
+FIGSHARE_URL = "https://ndownloader.figshare.com/files/54966305"
 
 # Default cache directory following XDG Base Directory specification
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "crystalyse" / "chemeleon_checkpoints"
