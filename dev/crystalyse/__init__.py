@@ -1,7 +1,7 @@
 """
 CrystaLyse.AI - Unified Materials Discovery with OpenAI Agents SDK
 
-CrystaLyse.AI enables researchers to discover and design materials using a unified 
+CrystaLyse.AI enables researchers to discover and design materials using a unified
 agent architecture powered by OpenAI o4-mini model with true agentic behaviour.
 
 Key Features:
@@ -21,14 +21,12 @@ try:
     from .agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 except ImportError as e:
     import warnings
-    warnings.warn(f"Agent functionality not available: {e}")
+
+    warnings.warn(f"Agent functionality not available: {e}", stacklevel=2)
     EnhancedCrystaLyseAgent = None
 
 # Configuration
 from .config import CrystaLyseConfig
 
 # Define exports
-__all__ = [
-    "EnhancedCrystaLyseAgent",
-    "CrystaLyseConfig"
-]
+__all__ = ["EnhancedCrystaLyseAgent", "CrystaLyseConfig"]

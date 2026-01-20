@@ -401,9 +401,9 @@ def assert_valid_structure(structure: dict[str, Any]) -> None:
     assert "numbers" in structure, "Structure missing 'numbers'"
     assert "positions" in structure, "Structure missing 'positions'"
     assert "cell" in structure, "Structure missing 'cell'"
-    assert len(structure["numbers"]) == len(
-        structure["positions"]
-    ), "Mismatch between numbers and positions"
+    assert len(structure["numbers"]) == len(structure["positions"]), (
+        "Mismatch between numbers and positions"
+    )
     assert len(structure["cell"]) == 3, "Cell must have 3 lattice vectors"
 
 

@@ -4,56 +4,56 @@ MACE Stress/Strain Calculations
 Provides stress tensor calculations for mechanical property prediction.
 """
 
-from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
 import logging
+from typing import Any
+
 import numpy as np
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
 class StressResult(BaseModel):
     """Stress calculation result."""
+
     success: bool = True
     formula: str
-    stress_tensor_3x3: Optional[List[List[float]]] = Field(
+    stress_tensor_3x3: list[list[float]] | None = Field(
         None, description="Full 3x3 stress tensor in eV/Å³"
     )
-    stress_voigt: Optional[List[float]] = Field(
+    stress_voigt: list[float] | None = Field(
         None, description="Voigt 6-component stress [xx, yy, zz, yz, xz, xy] in eV/Å³"
     )
-    pressure: Optional[float] = Field(
+    pressure: float | None = Field(
         None, description="Hydrostatic pressure (GPa), negative = tensile"
     )
-    von_mises_stress: Optional[float] = Field(
-        None, description="Von Mises equivalent stress (GPa)"
-    )
-    max_shear_stress: Optional[float] = Field(
-        None, description="Maximum shear stress (GPa)"
-    )
+    von_mises_stress: float | None = Field(None, description="Von Mises equivalent stress (GPa)")
+    max_shear_stress: float | None = Field(None, description="Maximum shear stress (GPa)")
     unit: str = "eV/Å³ for stress, GPa for pressure"
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class EOSResult(BaseModel):
     """Equation of state fitting result."""
+
     success: bool = True
     formula: str
     eos_type: str = Field(description="EOS type (e.g., 'birchmurnaghan')")
-    v0: Optional[float] = Field(None, description="Equilibrium volume (Å³)")
-    e0: Optional[float] = Field(None, description="Minimum energy (eV)")
-    b0: Optional[float] = Field(None, description="Bulk modulus (GPa)")
-    b0_prime: Optional[float] = Field(None, description="Pressure derivative of bulk modulus")
-    volumes: Optional[List[float]] = Field(None, description="Volumes sampled (Å³)")
-    energies: Optional[List[float]] = Field(None, description="Energies calculated (eV)")
-    error: Optional[str] = None
+    v0: float | None = Field(None, description="Equilibrium volume (Å³)")
+    e0: float | None = Field(None, description="Minimum energy (eV)")
+    b0: float | None = Field(None, description="Bulk modulus (GPa)")
+    b0_prime: float | None = Field(None, description="Pressure derivative of bulk modulus")
+    volumes: list[float] | None = Field(None, description="Volumes sampled (Å³)")
+    energies: list[float] | None = Field(None, description="Energies calculated (eV)")
+    error: str | None = None
 
 
 try:
-    import torch
+    import torch  # noqa: F401 - needed for MACE/ASE availability check
     from ase import Atoms
     from ase.eos import EquationOfState
-    from ase.stress import voigt_6_to_full_3x3_stress, full_3x3_to_voigt_6_stress
+    from ase.stress import voigt_6_to_full_3x3_stress
+
     ASE_AVAILABLE = True
 except ImportError:
     ASE_AVAILABLE = False
@@ -61,7 +61,9 @@ except ImportError:
     EquationOfState = None
 
 try:
-    from mace.calculators import mace_mp, mace_off, MACECalculator as MACECalc
+    from mace.calculators import MACECalculator as MACECalc
+    from mace.calculators import mace_mp, mace_off
+
     MACE_AVAILABLE = True
 except ImportError:
     MACE_AVAILABLE = False
@@ -72,7 +74,7 @@ except ImportError:
 
 # Import from local energy module
 try:
-    from .energy import get_mace_calculator, dict_to_atoms, atoms_to_dict, validate_structure
+    from .energy import atoms_to_dict, dict_to_atoms, get_mace_calculator, validate_structure
 except ImportError:
     get_mace_calculator = None
     dict_to_atoms = None
@@ -92,22 +94,17 @@ class MACEStressCalculator:
     - Equation of state fitting
     """
 
-    def __init__(
-        self,
-        model_type: str = "mace_mp",
-        size: str = "medium",
-        device: str = "auto"
-    ):
+    def __init__(self, model_type: str = "mace_mp", size: str = "medium", device: str = "auto"):
         self.model_type = model_type
         self.size = size
         self.device = device
 
     @staticmethod
     def calculate_stress(
-        structure: Dict[str, Any],
+        structure: dict[str, Any],
         model_type: str = "mace_mp",
         size: str = "medium",
-        device: str = "auto"
+        device: str = "auto",
     ) -> StressResult:
         """
         Calculate stress tensor for a structure.
@@ -125,7 +122,7 @@ class MACEStressCalculator:
             return StressResult(
                 success=False,
                 formula="unknown",
-                error="ASE or MACE not available - install required packages"
+                error="ASE or MACE not available - install required packages",
             )
 
         try:
@@ -133,9 +130,7 @@ class MACEStressCalculator:
             valid, msg = validate_structure(structure)
             if not valid:
                 return StressResult(
-                    success=False,
-                    formula="unknown",
-                    error=f"Validation failed: {msg}"
+                    success=False, formula="unknown", error=f"Validation failed: {msg}"
                 )
 
             # Convert to atoms
@@ -143,11 +138,7 @@ class MACEStressCalculator:
             formula = atoms.get_chemical_formula()
 
             # Get MACE calculator
-            calc = get_mace_calculator(
-                model_type=model_type,
-                size=size,
-                device=device
-            )
+            calc = get_mace_calculator(model_type=model_type, size=size, device=device)
             atoms.calc = calc
 
             # Calculate stress tensor (ASE returns Voigt form in eV/Å³)
@@ -165,8 +156,13 @@ class MACEStressCalculator:
             s12, s13, s23 = stress_3x3[0, 1], stress_3x3[0, 2], stress_3x3[1, 2]
 
             von_mises_ev_ang3 = np.sqrt(
-                0.5 * ((s11 - s22)**2 + (s22 - s33)**2 + (s33 - s11)**2 +
-                       6 * (s12**2 + s13**2 + s23**2))
+                0.5
+                * (
+                    (s11 - s22) ** 2
+                    + (s22 - s33) ** 2
+                    + (s33 - s11) ** 2
+                    + 6 * (s12**2 + s13**2 + s23**2)
+                )
             )
             von_mises_gpa = von_mises_ev_ang3 * 160.21766208
 
@@ -183,7 +179,7 @@ class MACEStressCalculator:
                 stress_voigt=stress_voigt.tolist(),
                 pressure=float(pressure_gpa),
                 von_mises_stress=float(von_mises_gpa),
-                max_shear_stress=float(max_shear_gpa)
+                max_shear_stress=float(max_shear_gpa),
             )
 
         except Exception as e:
@@ -191,18 +187,18 @@ class MACEStressCalculator:
             return StressResult(
                 success=False,
                 formula=structure.get("formula", "unknown"),
-                error=f"Stress calculation failed: {str(e)}"
+                error=f"Stress calculation failed: {str(e)}",
             )
 
     @staticmethod
     def fit_equation_of_state(
-        structure: Dict[str, Any],
+        structure: dict[str, Any],
         eos_type: str = "birchmurnaghan",
         strain_range: float = 0.05,
         n_points: int = 7,
         model_type: str = "mace_mp",
         size: str = "medium",
-        device: str = "auto"
+        device: str = "auto",
     ) -> EOSResult:
         """
         Fit equation of state by calculating energy at multiple volumes.
@@ -224,7 +220,7 @@ class MACEStressCalculator:
                 success=False,
                 formula="unknown",
                 eos_type=eos_type,
-                error="ASE or MACE not available"
+                error="ASE or MACE not available",
             )
 
         try:
@@ -235,7 +231,7 @@ class MACEStressCalculator:
                     success=False,
                     formula="unknown",
                     eos_type=eos_type,
-                    error=f"Validation failed: {msg}"
+                    error=f"Validation failed: {msg}",
                 )
 
             # Convert to atoms
@@ -243,11 +239,7 @@ class MACEStressCalculator:
             formula = atoms.get_chemical_formula()
 
             # Get MACE calculator
-            calc = get_mace_calculator(
-                model_type=model_type,
-                size=size,
-                device=device
-            )
+            calc = get_mace_calculator(model_type=model_type, size=size, device=device)
 
             # Generate volume points
             v0 = atoms.get_volume()
@@ -256,7 +248,7 @@ class MACEStressCalculator:
 
             for vol in volumes:
                 # Scale cell to target volume
-                scale_factor = (vol / v0) ** (1/3)
+                scale_factor = (vol / v0) ** (1 / 3)
                 scaled_atoms = atoms.copy()
                 scaled_atoms.set_cell(atoms.get_cell() * scale_factor, scale_atoms=True)
                 scaled_atoms.calc = calc
@@ -274,7 +266,7 @@ class MACEStressCalculator:
             # Get B' (pressure derivative) if available
             try:
                 b0_prime = eos.eos_parameters[3] if len(eos.eos_parameters) > 3 else None
-            except:
+            except Exception:
                 b0_prime = None
 
             return EOSResult(
@@ -286,7 +278,7 @@ class MACEStressCalculator:
                 b0=float(B_gpa),
                 b0_prime=float(b0_prime) if b0_prime is not None else None,
                 volumes=volumes.tolist(),
-                energies=energies
+                energies=energies,
             )
 
         except Exception as e:
@@ -295,5 +287,5 @@ class MACEStressCalculator:
                 success=False,
                 formula=structure.get("formula", "unknown"),
                 eos_type=eos_type,
-                error=f"EOS fitting failed: {str(e)}"
+                error=f"EOS fitting failed: {str(e)}",
             )

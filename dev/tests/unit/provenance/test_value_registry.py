@@ -8,15 +8,13 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
+from crystalyse.provenance.artifact_tracker import ArtifactTracker
 from crystalyse.provenance.value_registry import (
     ProvenancedValue,
     ProvenanceValueRegistry,
     get_global_registry,
     reset_global_registry,
 )
-from crystalyse.provenance.artifact_tracker import ArtifactTracker
 
 
 class TestProvenancedValue:
@@ -300,7 +298,7 @@ class TestProvenanceLookupEdgeCases:
         )
 
         # Should handle zero values specially
-        provenance = registry.lookup_provenance(0.0)
+        registry.lookup_provenance(0.0)
         # May or may not find depending on extraction
 
     def test_lookup_negative_values(self) -> None:
@@ -329,7 +327,7 @@ class TestProvenanceLookupEdgeCases:
         )
 
         # Should not match with tiny tolerance
-        provenance = registry.lookup_provenance(1.234, tolerance=0.0001)
+        registry.lookup_provenance(1.234, tolerance=0.0001)
         # Might or might not match depending on exact value
 
     def test_multiple_values_same_output(self) -> None:

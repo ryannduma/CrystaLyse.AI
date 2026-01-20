@@ -2,12 +2,14 @@
 """
 Universal CIF Visualization Demo for Crystalyse
 
-This script demonstrates how to use the integrated universal CIF visualizer 
+This script demonstrates how to use the integrated universal CIF visualizer
 capabilities in your Crystalyse workflow.
 """
 
 from pathlib import Path
+
 from crystalyse.output.universal_cif_visualizer import UniversalCIFVisualizer
+
 
 def main():
     print("🔬 Universal CIF Visualizer Demo for Crystalyse")
@@ -27,10 +29,7 @@ def main():
     print("\n2️⃣ Looking for CIF files to demonstrate individual conversion...")
 
     # Check recent query results
-    query_results_dirs = [
-        "/home/ryan/crystalyseai/test_perovskite",
-        "/tmp"
-    ]
+    query_results_dirs = ["/home/ryan/crystalyseai/test_perovskite", "/tmp"]
 
     cif_files_found = []
     for base_dir in query_results_dirs:
@@ -68,7 +67,7 @@ def main():
 
     print("\\n🎯 Summary of Available Capabilities:")
     print("   • Universal HTML viewer (load any CIF file)")
-    print("   • Individual CIF → HTML conversion") 
+    print("   • Individual CIF → HTML conversion")
     print("   • Batch processing of CIF directories")
     print("   • Gallery generation with search functionality")
     print("   • Enhanced visualization with 3Dmol.js")
@@ -84,6 +83,7 @@ def main():
     print("   ")
     print("   # Create gallery")
     print("   python -m crystalyse.output.universal_cif_visualizer gallery /path/to/cif/files")
+
 
 if __name__ == "__main__":
     main()

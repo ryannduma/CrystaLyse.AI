@@ -4,15 +4,15 @@ Core agent logic for CrystaLyse.AI.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
-from contextlib import asynccontextmanager, AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Any
 
 try:
     from agents import Agent, Runner
+    from agents.items import ItemHelpers
     from agents.mcp import MCPServerStdio
     from agents.model_settings import ModelSettings
-    from agents.items import ItemHelpers
-    
+
     # Try to import SQLiteSession from different locations
     SQLiteSession = None
     try:
@@ -25,7 +25,7 @@ try:
                 from agents.memory.session import SQLiteSession
             except ImportError:
                 logging.warning("SQLiteSession not available - sessions will use in-memory storage")
-    
+
     SDK_AVAILABLE = True
 except ImportError as e:
     SDK_AVAILABLE = False
@@ -35,30 +35,35 @@ except ImportError as e:
 from ..config import Config
 from ..ui.trace_handler import ToolTraceHandler
 from ..workspace import workspace_tools
-from .mode_injector import GlobalModeManager, inject_mode_into_mcp_servers, create_mode_aware_instructions
+from .mode_injector import (
+    GlobalModeManager,
+    create_mode_aware_instructions,
+    inject_mode_into_mcp_servers,
+)
 
 logger = logging.getLogger(__name__)
 
 # Import provenance handler
 try:
-    from ..ui.provenance_bridge import CrystaLyseProvenanceHandler, PROVENANCE_AVAILABLE
+    from ..ui.provenance_bridge import PROVENANCE_AVAILABLE, CrystaLyseProvenanceHandler
 except ImportError:
     PROVENANCE_AVAILABLE = False
     CrystaLyseProvenanceHandler = None
     logger.warning("Provenance bridge not available - discovery will proceed without provenance")
+
 
 class EnhancedCrystaLyseAgent:
     """
     The backend of CrystaLyse.AI. It processes requests, manages MCP servers,
     and uses tools to fulfill user queries. It is completely UI-agnostic.
     """
-    
+
     def __init__(
         self,
-        config: Optional[Config] = None,
+        config: Config | None = None,
         project_name: str = "crystalyse_session",
         mode: str = "adaptive",
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         self.config = config or Config.load()
         self.project_name = project_name
@@ -71,6 +76,7 @@ class EnhancedCrystaLyseAgent:
         # For interactive chat mode, this persists across multiple discover() calls
         if SQLiteSession:
             from pathlib import Path
+
             session_dir = Path.home() / ".crystalyse" / "sessions"
             session_dir.mkdir(parents=True, exist_ok=True)
             session_db = session_dir / f"{self.session_id}.db"
@@ -89,6 +95,7 @@ class EnhancedCrystaLyseAgent:
         if self.session and SQLiteSession:
             try:
                 from pathlib import Path
+
                 session_dir = Path.home() / ".crystalyse" / "sessions"
                 session_db = session_dir / f"{self.session_id}.db"
 
@@ -97,7 +104,8 @@ class EnhancedCrystaLyseAgent:
 
                 # Delete the database files
                 import os
-                for ext in ['', '-shm', '-wal']:
+
+                for ext in ["", "-shm", "-wal"]:
                     db_file = str(session_db) + ext
                     if os.path.exists(db_file):
                         os.remove(db_file)
@@ -120,7 +128,7 @@ class EnhancedCrystaLyseAgent:
         if not SDK_AVAILABLE:
             yield []
             return
-        
+
         servers = []
         stack = AsyncExitStack()
         try:
@@ -130,16 +138,18 @@ class EnhancedCrystaLyseAgent:
                 "adaptive": "chemistry_unified",
             }
             chem_server_name = server_configs.get(self.mode, "chemistry_unified")
-            
+
             # Start Servers
             for server_name in [chem_server_name, "visualization"]:
                 try:
                     config = self.config.get_server_config(server_name)
-                    server = await stack.enter_async_context(MCPServerStdio(
-                        name=server_name.replace("_", "").title(),
-                        params=config,
-                        client_session_timeout_seconds=300
-                    ))
+                    server = await stack.enter_async_context(
+                        MCPServerStdio(
+                            name=server_name.replace("_", "").title(),
+                            params=config,
+                            client_session_timeout_seconds=300,
+                        )
+                    )
                     servers.append(server)
                     logger.info(f"✅ Connected to {server_name} server.")
                 except Exception as e:
@@ -155,9 +165,9 @@ class EnhancedCrystaLyseAgent:
     async def discover(
         self,
         query: str,
-        history: Optional[List[Dict[str, Any]]] = None,
-        trace_handler: Optional[ToolTraceHandler] = None
-    ) -> Dict[str, Any]:
+        history: list[dict[str, Any]] | None = None,
+        trace_handler: ToolTraceHandler | None = None,
+    ) -> dict[str, Any]:
         """
         Processes a single discovery request with automatic provenance capture.
 
@@ -180,18 +190,19 @@ class EnhancedCrystaLyseAgent:
         if trace_handler is None and PROVENANCE_AVAILABLE and CrystaLyseProvenanceHandler:
             try:
                 from rich.console import Console
+
                 trace_handler = CrystaLyseProvenanceHandler(
-                    config=self.config,
-                    mode=self.mode,
-                    console=Console()
+                    config=self.config, mode=self.mode, console=Console()
                 )
                 logger.info("Provenance handler auto-created for discovery session")
             except Exception as e:
-                logger.warning(f"Failed to create provenance handler: {e} - proceeding without provenance")
+                logger.warning(
+                    f"Failed to create provenance handler: {e} - proceeding without provenance"
+                )
                 trace_handler = None
 
         # Record the user's query in provenance (for both auto-created and provided handlers)
-        if trace_handler is not None and hasattr(trace_handler, 'set_user_query'):
+        if trace_handler is not None and hasattr(trace_handler, "set_user_query"):
             trace_handler.set_user_query(query)
 
         async with self._managed_mcp_servers() as mcp_servers:
@@ -200,11 +211,13 @@ class EnhancedCrystaLyseAgent:
                 # This ensures conversation continuity across multiple discover() calls (interactive chat)
                 session = self.session
                 selected_model = self.model or self._select_model_for_mode(self.mode)
-                
+
                 # Create mode-aware instructions
                 base_instructions = self._create_enhanced_instructions(self.mode, history)
-                mode_aware_instructions = create_mode_aware_instructions(base_instructions, self.mode)
-                
+                mode_aware_instructions = create_mode_aware_instructions(
+                    base_instructions, self.mode
+                )
+
                 sdk_agent = Agent(
                     name="CrystaLyse",
                     model=selected_model,
@@ -216,17 +229,18 @@ class EnhancedCrystaLyseAgent:
                         # NOTE: request_user_clarification removed - queries are pre-processed
                     ],
                     model_settings=ModelSettings(tool_choice="auto"),
-                    mcp_servers=mcp_servers
+                    mcp_servers=mcp_servers,
                 )
-                
+
                 timeout_seconds = self.config.mode_timeouts.get(self.mode, 180)
-                
+
                 # Create run config with MDG API key for o3 access
                 try:
-                    from agents import RunConfig
-                    from agents.models.openai_provider import OpenAIProvider
                     import os
                     import time
+
+                    from agents import RunConfig
+                    from agents.models.openai_provider import OpenAIProvider
 
                     # Use integer timestamp to avoid dots in trace_id (SDK requirement)
                     # IMPORTANT: trace_id MUST start with 'trace_' per OpenAI API requirements
@@ -236,19 +250,18 @@ class EnhancedCrystaLyseAgent:
                     mdg_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
                     if mdg_api_key:
                         model_provider = OpenAIProvider(api_key=mdg_api_key)
-                        run_config = RunConfig(
-                            trace_id=trace_id,
-                            model_provider=model_provider
-                        )
+                        run_config = RunConfig(trace_id=trace_id, model_provider=model_provider)
                     else:
                         run_config = RunConfig(trace_id=trace_id)
                 except (ImportError, TypeError) as e:
                     # SDK compatibility fallback
                     run_config = None
                     logger.warning(f"Could not create RunConfig with API key: {e}")
-                
+
                 final_response = "No response generated."
-                logger.info(f"Selected model: {selected_model}, trace_handler: {trace_handler is not None}, session: {session is not None}")
+                logger.info(
+                    f"Selected model: {selected_model}, trace_handler: {trace_handler is not None}, session: {session is not None}"
+                )
                 async with asyncio.timeout(timeout_seconds):
                     # Always use streaming mode to ensure provenance capture works for all models
                     if False:  # Disabled non-streaming path - now all models use streaming
@@ -259,12 +272,14 @@ class EnhancedCrystaLyseAgent:
                             "starting_agent": sdk_agent,
                             "input": query,
                             "session": session,  # Session memory for conversation continuity
-                            "max_turns": 1000
+                            "max_turns": 1000,
                         }
                         if run_config:
                             stream_args["run_config"] = run_config
 
-                        logger.info(f"Using streaming mode, trace_handler present: {trace_handler is not None}")
+                        logger.info(
+                            f"Using streaming mode, trace_handler present: {trace_handler is not None}"
+                        )
                         result = Runner.run_streamed(**stream_args)
 
                         event_count = 0
@@ -275,7 +290,7 @@ class EnhancedCrystaLyseAgent:
                                 trace_handler.on_event(event)
 
                             # Capture any message output (more comprehensive)
-                            if hasattr(event, 'item') and hasattr(event.item, 'type'):
+                            if hasattr(event, "item") and hasattr(event.item, "type"):
                                 if event.item.type == "message_output_item":
                                     text = ItemHelpers.text_message_output(event.item)
                                     if text:
@@ -283,28 +298,30 @@ class EnhancedCrystaLyseAgent:
                                         final_response = text  # Keep updating with latest
                                 elif event.item.type == "reasoning_item":
                                     # Optionally capture reasoning as potential final output
-                                    reasoning_content = getattr(event.item, 'content', '')
+                                    reasoning_content = getattr(event.item, "content", "")
                                     if reasoning_content and len(reasoning_content) > 50:
                                         # Only use reasoning if we haven't seen message outputs
                                         if not message_outputs:
                                             final_response = reasoning_content
 
-                        logger.info(f"Processed {event_count} events, captured {len(message_outputs)} message outputs")
+                        logger.info(
+                            f"Processed {event_count} events, captured {len(message_outputs)} message outputs"
+                        )
 
                         # Also try to get the final result after streaming
                         try:
                             final_result = await result
                             # Try multiple attributes to extract final output
-                            if hasattr(final_result, 'final_output') and final_result.final_output:
+                            if hasattr(final_result, "final_output") and final_result.final_output:
                                 final_response = final_result.final_output
                                 logger.debug("Extracted from final_result.final_output")
-                            elif hasattr(final_result, 'output') and final_result.output:
+                            elif hasattr(final_result, "output") and final_result.output:
                                 final_response = final_result.output
                                 logger.debug("Extracted from final_result.output")
-                            elif hasattr(final_result, 'items') and final_result.items:
+                            elif hasattr(final_result, "items") and final_result.items:
                                 # Extract text from the last item
                                 for item in reversed(final_result.items):
-                                    if hasattr(item, 'content') and item.content:
+                                    if hasattr(item, "content") and item.content:
                                         final_response = item.content
                                         logger.debug("Extracted from final_result.items")
                                         break
@@ -324,7 +341,7 @@ class EnhancedCrystaLyseAgent:
                     )
 
                     if has_violations and self.config.render_gate.get("log_violations", True):
-                        logger.warning(f"Render gate detected unprovenanced material properties")
+                        logger.warning("Render gate detected unprovenanced material properties")
 
                     # Update response with processed version
                     final_response = processed_response
@@ -334,7 +351,7 @@ class EnhancedCrystaLyseAgent:
                         "enabled": True,
                         "violations_detected": has_violations,
                         "blocked_count": gate.blocked_count,
-                        "allowed_count": gate.allowed_count
+                        "allowed_count": gate.allowed_count,
                     }
                 else:
                     render_gate_stats = {"enabled": False}
@@ -353,23 +370,31 @@ class EnhancedCrystaLyseAgent:
                         provenance_summary = trace_handler.finalize()
                         result["provenance"] = {
                             "session_id": trace_handler.session_id,
-                            "output_dir": str(trace_handler.output_dir) if hasattr(trace_handler, 'output_dir') else None,
+                            "output_dir": str(trace_handler.output_dir)
+                            if hasattr(trace_handler, "output_dir")
+                            else None,
                             "summary": provenance_summary,
-                            "materials_catalogue": str(trace_handler.get_materials_catalogue_path()) if trace_handler.get_materials_catalogue_path() else None,
-                            "summary_file": str(trace_handler.get_summary_path()) if trace_handler.get_summary_path() else None,
-                            "events_file": str(trace_handler.get_events_path()) if trace_handler.get_events_path() else None
+                            "materials_catalogue": str(trace_handler.get_materials_catalogue_path())
+                            if trace_handler.get_materials_catalogue_path()
+                            else None,
+                            "summary_file": str(trace_handler.get_summary_path())
+                            if trace_handler.get_summary_path()
+                            else None,
+                            "events_file": str(trace_handler.get_events_path())
+                            if trace_handler.get_events_path()
+                            else None,
                         }
                         logger.info(f"Provenance captured: {trace_handler.session_id}")
                     except Exception as e:
                         logger.error(f"Error finalising provenance: {e}")
                         result["provenance"] = {
                             "error": str(e),
-                            "session_id": getattr(trace_handler, 'session_id', None)
+                            "session_id": getattr(trace_handler, "session_id", None),
                         }
 
                 return result
-            
-            except asyncio.TimeoutError:
+
+            except TimeoutError:
                 logger.error(f"Discovery timed out after {timeout_seconds} seconds.")
                 return {"status": "failed", "error": "The operation timed out.", "query": query}
             except Exception as e:
@@ -379,22 +404,26 @@ class EnhancedCrystaLyseAgent:
     def _select_model_for_mode(self, mode: str) -> str:
         return {"creative": "o4-mini", "rigorous": "o3", "adaptive": "o4-mini"}.get(mode, "o4-mini")
 
-    def _create_enhanced_instructions(self, mode: str, history: Optional[List[Dict[str, Any]]]) -> str:
+    def _create_enhanced_instructions(self, mode: str, history: list[dict[str, Any]] | None) -> str:
         """Creates enhanced system instructions, now including conversation history."""
         try:
-            prompt_path = self.config.base_dir / "crystalyse" / "prompts" / "unified_agent_prompt.md"
-            with open(prompt_path, 'r') as f:
+            prompt_path = (
+                self.config.base_dir / "crystalyse" / "prompts" / "unified_agent_prompt.md"
+            )
+            with open(prompt_path) as f:
                 base_instructions = f.read()
         except Exception as e:
             logger.warning(f"Could not load unified prompt: {e}, using fallback")
-            base_instructions = "You are CrystaLyse, an advanced autonomous materials discovery agent."
-        
+            base_instructions = (
+                "You are CrystaLyse, an advanced autonomous materials discovery agent."
+            )
+
         mode_enhancements = {
-            "creative": f"\n## Creative Mode: Focus on rapid exploration and novel ideas.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"creative\" - the tool will FAIL without it!",
-            "rigorous": f"\n## Rigorous Mode: Focus on comprehensive validation and accuracy.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"rigorous\" - the tool will FAIL without it!",
-            "adaptive": f"\n## Adaptive Mode: Balance exploration and validation based on context.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode=\"adaptive\" - the tool will FAIL without it!"
+            "creative": '\n## Creative Mode: Focus on rapid exploration and novel ideas.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="creative" - the tool will FAIL without it!',
+            "rigorous": '\n## Rigorous Mode: Focus on comprehensive validation and accuracy.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="rigorous" - the tool will FAIL without it!',
+            "adaptive": '\n## Adaptive Mode: Balance exploration and validation based on context.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="adaptive" - the tool will FAIL without it!',
         }
-        
+
         if history:
             history_str = "\n\n## Conversation History\n"
             for msg in history:

@@ -5,10 +5,10 @@ Enhanced for Phase 1.5 with Pydantic model support.
 """
 
 import json
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict, field
-from datetime import datetime
 import logging
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,35 +18,36 @@ class Material:
     """
     Represents a discovered material with enhanced Phase 1.5 metadata.
     """
+
     composition: str
-    formula: Optional[str] = None
-    formation_energy: Optional[float] = None
+    formula: str | None = None
+    formation_energy: float | None = None
     energy_unit: str = "eV/atom"
-    structure_id: Optional[str] = None
-    space_group: Optional[str] = None
-    lattice_params: Optional[Dict] = None
+    structure_id: str | None = None
+    space_group: str | None = None
+    lattice_params: dict | None = None
     cif_saved: bool = False
-    cif_path: Optional[str] = None
-    source_tool: Optional[str] = None
-    timestamp: Optional[str] = None
+    cif_path: str | None = None
+    source_tool: str | None = None
+    timestamp: str | None = None
 
     # Phase 1.5 additions
-    energy_above_hull: Optional[float] = None
-    is_stable: Optional[bool] = None
-    band_gap: Optional[float] = None
-    bulk_modulus: Optional[float] = None
-    stress_tensor: Optional[List[List[float]]] = None
-    dopants: Optional[Dict[str, List[str]]] = None
-    oxidation_states: Optional[Dict[str, float]] = None
-    coordination_environments: Optional[List[Dict]] = None
-    confidence: Optional[float] = None
-    method: Optional[str] = None  # e.g., "mace-mp-0", "chemeleon"
-    
-    def to_dict(self) -> Dict:
+    energy_above_hull: float | None = None
+    is_stable: bool | None = None
+    band_gap: float | None = None
+    bulk_modulus: float | None = None
+    stress_tensor: list[list[float]] | None = None
+    dopants: dict[str, list[str]] | None = None
+    oxidation_states: dict[str, float] | None = None
+    coordination_environments: list[dict] | None = None
+    confidence: float | None = None
+    method: str | None = None  # e.g., "mace-mp-0", "chemeleon"
+
+    def to_dict(self) -> dict:
         """Convert to dictionary, excluding None values."""
         data = asdict(self)
         return {k: v for k, v in data.items() if v is not None}
-    
+
     @property
     def has_energy(self) -> bool:
         """Check if material has energy data."""
@@ -58,12 +59,12 @@ class MaterialsTracker:
     Extracts and tracks materials from MCP tool outputs.
     Handles various output formats from different tools.
     """
-    
+
     def __init__(self):
-        self.materials: List[Material] = []
+        self.materials: list[Material] = []
         self._compositions_seen = set()
         # Track unique materials by composition for deduplication
-        self._unique_materials: Dict[str, Material] = {}
+        self._unique_materials: dict[str, Material] = {}
         # Store orphaned energy data when composition is unknown
         self._orphaned_energy_data = None
 
@@ -77,7 +78,7 @@ class MaterialsTracker:
         # Parse elements and their counts from the formula
         elements = {}
         # Match element symbols followed by optional numbers
-        pattern = r'([A-Z][a-z]?)(\d*)'
+        pattern = r"([A-Z][a-z]?)(\d*)"
         matches = re.findall(pattern, composition)
 
         for element, count in matches:
@@ -99,26 +100,26 @@ class MaterialsTracker:
 
         return normalized
 
-    def extract_from_output(self, output: Any, tool_name: Optional[str] = None) -> List[Material]:
+    def extract_from_output(self, output: Any, tool_name: str | None = None) -> list[Material]:
         """
         Extract materials from tool output.
-        
+
         Args:
             output: Raw tool output (may be wrapped)
             tool_name: Name of the MCP tool
-            
+
         Returns:
             List of extracted materials
         """
         materials = []
-        
+
         try:
             # Parse the output
             data = self._parse_output(output)
-            
+
             if not isinstance(data, dict):
                 return materials
-            
+
             # Extract based on tool type
             if tool_name in ["comprehensive_materials_analysis", "creative_discovery_pipeline"]:
                 materials = self._extract_from_comprehensive(data)
@@ -157,7 +158,7 @@ class MaterialsTracker:
             if not materials:
                 # Try generic extraction as fallback
                 materials = self._extract_generic(data)
-            
+
             # Add source tool and timestamp
             for material in materials:
                 if tool_name:
@@ -192,10 +193,10 @@ class MaterialsTracker:
                     mat.composition = normalized_comp
                     mat.formula = normalized_comp if mat.formula else None
                     self._unique_materials[normalized_comp] = mat
-            
+
         except Exception as e:
             logger.error(f"Failed to extract materials: {e}")
-        
+
         return materials
 
     def _merge_materials(self, existing: Material, new: Material) -> None:
@@ -234,21 +235,23 @@ class MaterialsTracker:
             existing.oxidation_states = new.oxidation_states
 
         # Update confidence if higher
-        if new.confidence is not None and (existing.confidence is None or new.confidence > existing.confidence):
+        if new.confidence is not None and (
+            existing.confidence is None or new.confidence > existing.confidence
+        ):
             existing.confidence = new.confidence
 
         # Track multiple source tools
         if new.source_tool and new.source_tool != existing.source_tool:
-            if not hasattr(existing, 'all_source_tools'):
+            if not hasattr(existing, "all_source_tools"):
                 existing.all_source_tools = [existing.source_tool]
             if new.source_tool not in existing.all_source_tools:
                 existing.all_source_tools.append(new.source_tool)
 
-    def _parse_output(self, output: Any) -> Dict:
+    def _parse_output(self, output: Any) -> dict:
         """Parse and unwrap output."""
         if not output:
             return {}
-        
+
         # Handle SDK wrapper
         if isinstance(output, dict):
             if output.get("type") == "text" and "text" in output:
@@ -256,11 +259,11 @@ class MaterialsTracker:
                 if isinstance(content, str):
                     try:
                         return json.loads(content)
-                    except:
+                    except Exception:
                         return {}
                 return content
             return output
-        
+
         # Handle string
         if isinstance(output, str):
             try:
@@ -269,15 +272,15 @@ class MaterialsTracker:
                 if isinstance(parsed, dict) and parsed.get("type") == "text":
                     return self._parse_output(parsed)
                 return parsed
-            except:
+            except Exception:
                 return {}
-        
+
         return {}
-    
-    def _extract_from_comprehensive(self, data: Dict) -> List[Material]:
+
+    def _extract_from_comprehensive(self, data: dict) -> list[Material]:
         """Extract from comprehensive_materials_analysis output."""
         materials = []
-        
+
         # Build energy lookup from energy_calculations
         energy_lookup = {}
         if "energy_calculations" in data:
@@ -285,23 +288,23 @@ class MaterialsTracker:
                 struct_id = calc.get("structure_id")
                 if struct_id:
                     energy_lookup[struct_id] = calc.get("formation_energy")
-        
+
         # Extract structures
         if "generated_structures" in data:
             for comp_data in data["generated_structures"]:
                 composition = comp_data.get("composition", "")
-                
+
                 for idx, struct in enumerate(comp_data.get("structures", [])):
                     # Generate structure ID if not present
-                    struct_id = struct.get("structure_id") or f"{composition}_struct_{idx+1}"
-                    
+                    struct_id = struct.get("structure_id") or f"{composition}_struct_{idx + 1}"
+
                     # Get energy from lookup or structure
                     formation_energy = (
-                        energy_lookup.get(struct_id) or 
-                        struct.get("formation_energy") or
-                        struct.get("energy")
+                        energy_lookup.get(struct_id)
+                        or struct.get("formation_energy")
+                        or struct.get("energy")
                     )
-                    
+
                     material = Material(
                         composition=composition,
                         formula=struct.get("formula", composition),
@@ -309,10 +312,10 @@ class MaterialsTracker:
                         structure_id=struct_id,
                         space_group=struct.get("space_group"),
                         cif_saved=struct.get("cif_saved", False),
-                        lattice_params=struct.get("lattice")
+                        lattice_params=struct.get("lattice"),
                     )
                     materials.append(material)
-        
+
         # Also check for direct materials list
         if "materials" in data:
             for mat_data in data["materials"]:
@@ -321,43 +324,43 @@ class MaterialsTracker:
                     formula=mat_data.get("formula"),
                     formation_energy=mat_data.get("formation_energy"),
                     structure_id=mat_data.get("structure_id"),
-                    space_group=mat_data.get("space_group")
+                    space_group=mat_data.get("space_group"),
                 )
                 materials.append(material)
-        
+
         return materials
-    
-    def _extract_from_mace(self, data: Dict) -> List[Material]:
+
+    def _extract_from_mace(self, data: dict) -> list[Material]:
         """Extract from MACE energy calculation."""
         materials = []
-        
+
         if "formation_energy" in data:
             material = Material(
                 composition=data.get("composition", "unknown"),
                 formation_energy=data["formation_energy"],
-                structure_id=data.get("structure_id")
+                structure_id=data.get("structure_id"),
             )
             materials.append(material)
-        
+
         return materials
-    
-    def _extract_from_generation(self, data: Dict) -> List[Material]:
+
+    def _extract_from_generation(self, data: dict) -> list[Material]:
         """Extract from structure generation output."""
         materials = []
-        
+
         if "structures" in data:
             for struct in data["structures"]:
                 material = Material(
                     composition=struct.get("composition", ""),
                     formula=struct.get("formula"),
                     space_group=struct.get("space_group"),
-                    lattice_params=struct.get("lattice")
+                    lattice_params=struct.get("lattice"),
                 )
                 materials.append(material)
-        
+
         return materials
-    
-    def _extract_generic(self, data: Dict) -> List[Material]:
+
+    def _extract_generic(self, data: dict) -> list[Material]:
         """Generic extraction for unknown formats - enhanced to catch more patterns."""
         materials = []
 
@@ -374,44 +377,48 @@ class MaterialsTracker:
                 band_gap=data.get("band_gap") or data.get("band_gap_ev"),
                 space_group=data.get("space_group") or data.get("space_group_symbol"),
                 method="generic",
-                confidence=data.get("confidence")
+                confidence=data.get("confidence"),
             )
 
             # Only add if we have meaningful data beyond just composition
             # or if it's explicitly marked as valid/stable
-            if (material.formation_energy is not None or
-                material.is_stable is not None or
-                material.band_gap is not None or
-                material.space_group is not None or
-                data.get("smact_valid") or
-                data.get("is_valid")):
+            if (
+                material.formation_energy is not None
+                or material.is_stable is not None
+                or material.band_gap is not None
+                or material.space_group is not None
+                or data.get("smact_valid")
+                or data.get("is_valid")
+            ):
                 materials.append(material)
 
         return materials
 
     # Phase 1.5 extraction methods
-    def _extract_from_phase15_mace_energy(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_mace_energy(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 MACE energy calculation."""
         materials = []
         if "formation_energy" in data:
             # Try multiple fields to find composition
             composition = (
-                data.get("composition") or
-                data.get("formula") or
-                data.get("material") or
-                data.get("structure_formula")
+                data.get("composition")
+                or data.get("formula")
+                or data.get("material")
+                or data.get("structure_formula")
             )
 
             # Don't create a material if we don't know the composition
             # This prevents creating orphaned "unknown" materials
             if not composition:
-                logger.warning("MACE energy calculation missing composition - energy will be merged when composition known")
+                logger.warning(
+                    "MACE energy calculation missing composition - energy will be merged when composition known"
+                )
                 # Store the energy data temporarily (could be picked up later)
                 self._orphaned_energy_data = {
                     "formation_energy": data["formation_energy"],
                     "energy_unit": data.get("unit", "eV/atom"),
                     "method": "mace",
-                    "confidence": data.get("confidence", 1.0)
+                    "confidence": data.get("confidence", 1.0),
                 }
                 return materials
 
@@ -421,12 +428,12 @@ class MaterialsTracker:
                 formation_energy=data["formation_energy"],
                 energy_unit=data.get("unit", "eV/atom"),
                 method="mace",
-                confidence=data.get("confidence", 1.0)
+                confidence=data.get("confidence", 1.0),
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_chemeleon(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_chemeleon(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 Chemeleon CSP generation."""
         materials = []
         if data.get("success") and "predicted_structures" in data:
@@ -440,12 +447,12 @@ class MaterialsTracker:
                     confidence=struct.get("confidence", 1.0),
                     method="chemeleon",
                     cif_saved=struct.get("cif_saved", False),
-                    cif_path=struct.get("cif_path")
+                    cif_path=struct.get("cif_path"),
                 )
                 materials.append(material)
         return materials
 
-    def _extract_from_phase15_pymatgen_hull(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_pymatgen_hull(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 PyMatgen hull analysis."""
         materials = []
         if "composition" in data:
@@ -453,12 +460,12 @@ class MaterialsTracker:
                 composition=data["composition"],
                 energy_above_hull=data.get("energy_above_hull"),
                 is_stable=data.get("is_stable", False),
-                method="pymatgen_hull"
+                method="pymatgen_hull",
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_space_group(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_space_group(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 space group analysis."""
         materials = []
         if "space_group" in data:
@@ -468,14 +475,14 @@ class MaterialsTracker:
                 lattice_params={
                     "crystal_system": data.get("crystal_system"),
                     "point_group": data.get("point_group"),
-                    "number": data.get("number")
+                    "number": data.get("number"),
                 },
-                method="pymatgen_symmetry"
+                method="pymatgen_symmetry",
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_dopants(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_dopants(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 dopant prediction."""
         materials = []
         if "composition" in data:
@@ -483,14 +490,14 @@ class MaterialsTracker:
                 composition=data["composition"],
                 dopants={
                     "n_type": data.get("n_type_dopants", [])[:5],
-                    "p_type": data.get("p_type_dopants", [])[:5]
+                    "p_type": data.get("p_type_dopants", [])[:5],
                 },
-                method="smact_dopants"
+                method="smact_dopants",
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_band_gap(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_band_gap(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 band gap estimation."""
         materials = []
         if "band_gap" in data:
@@ -498,37 +505,37 @@ class MaterialsTracker:
                 composition=data.get("composition", "unknown"),
                 band_gap=data["band_gap"],
                 confidence=data.get("confidence"),
-                method="smact_band_gap"
+                method="smact_band_gap",
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_stress(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_stress(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 stress calculation."""
         materials = []
         if "stress_tensor" in data:
             material = Material(
                 composition=data.get("composition", "unknown"),
                 stress_tensor=data["stress_tensor"],
-                method="mace_stress"
+                method="mace_stress",
             )
             materials.append(material)
         return materials
 
-    def _extract_from_phase15_eos(self, data: Dict) -> List[Material]:
+    def _extract_from_phase15_eos(self, data: dict) -> list[Material]:
         """Extract from Phase 1.5 EOS fitting."""
         materials = []
         if "bulk_modulus" in data:
             material = Material(
                 composition=data.get("composition", "unknown"),
                 bulk_modulus=data["bulk_modulus"],
-                method="mace_eos"
+                method="mace_eos",
             )
             materials.append(material)
         return materials
 
     # Additional SMACT extraction methods for Phase 1.5
-    def _extract_from_smact_validate_fast(self, data: Dict) -> List[Material]:
+    def _extract_from_smact_validate_fast(self, data: dict) -> list[Material]:
         """Extract from SMACT fast validation tool."""
         materials = []
         formula = data.get("formula")
@@ -539,18 +546,20 @@ class MaterialsTracker:
                 formula=formula,
                 is_stable=data.get("stable"),
                 method="smact_validation",
-                confidence=1.0 if data.get("smact_valid") else 0.5
+                confidence=1.0 if data.get("smact_valid") else 0.5,
             )
 
             # Add additional fields if present
             if "electronegativity_difference" in data:
-                material.oxidation_states = {"electronegativity_diff": data["electronegativity_difference"]}
+                material.oxidation_states = {
+                    "electronegativity_diff": data["electronegativity_difference"]
+                }
 
             materials.append(material)
 
         return materials
 
-    def _extract_from_validate_composition(self, data: Dict) -> List[Material]:
+    def _extract_from_validate_composition(self, data: dict) -> list[Material]:
         """Extract from validate_composition tool."""
         materials = []
         composition = data.get("composition")
@@ -561,13 +570,13 @@ class MaterialsTracker:
                 formula=composition,
                 is_stable=data.get("charge_balanced"),
                 method="smact_validation",
-                confidence=1.0 if data.get("is_valid") else 0.0
+                confidence=1.0 if data.get("is_valid") else 0.0,
             )
             materials.append(material)
 
         return materials
 
-    def _extract_from_filter_compositions(self, data: Dict) -> List[Material]:
+    def _extract_from_filter_compositions(self, data: dict) -> list[Material]:
         """Extract from filter_compositions tool."""
         materials = []
 
@@ -578,13 +587,13 @@ class MaterialsTracker:
                     composition=comp,
                     formula=comp,
                     is_stable=True,  # Marked as valid by filter
-                    method="smact_filter"
+                    method="smact_filter",
                 )
                 materials.append(material)
 
         return materials
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get summary statistics of tracked materials - reports unique materials."""
         # Use unique materials for accurate counts
         unique_materials = list(self._unique_materials.values())
@@ -598,23 +607,25 @@ class MaterialsTracker:
             "unique_compositions": len(self._compositions_seen),
             "materials_with_energy": with_energy,
             "energy_coverage": (with_energy / max(total, 1)) * 100,
-            "total_observations": len(self.materials)  # Track total including duplicates
+            "total_observations": len(self.materials),  # Track total including duplicates
         }
 
         if energies:
-            summary.update({
-                "min_energy": min(energies),
-                "max_energy": max(energies),
-                "avg_energy": sum(energies) / len(energies)
-            })
+            summary.update(
+                {
+                    "min_energy": min(energies),
+                    "max_energy": max(energies),
+                    "avg_energy": sum(energies) / len(energies),
+                }
+            )
 
         return summary
-    
-    def to_catalog(self) -> List[Dict]:
+
+    def to_catalog(self) -> list[dict]:
         """Export unique materials as catalog."""
         return [m.to_dict() for m in self._unique_materials.values()]
 
-    def to_enhanced_catalog(self) -> Dict[str, Any]:
+    def to_enhanced_catalog(self) -> dict[str, Any]:
         """
         Export materials as an enhanced catalog with metadata and statistics.
 
@@ -640,12 +651,8 @@ class MaterialsTracker:
         stats["materials_with_band_gap"] = sum(
             1 for m in unique_materials if m.band_gap is not None
         )
-        stats["materials_with_dopants"] = sum(
-            1 for m in unique_materials if m.dopants
-        )
-        stats["stable_materials"] = sum(
-            1 for m in unique_materials if m.is_stable is True
-        )
+        stats["materials_with_dopants"] = sum(1 for m in unique_materials if m.dopants)
+        stats["stable_materials"] = sum(1 for m in unique_materials if m.is_stable is True)
         stats["materials_with_stress"] = sum(
             1 for m in unique_materials if m.stress_tensor is not None
         )
@@ -657,7 +664,7 @@ class MaterialsTracker:
             "materials": self.to_catalog(),
             "materials_by_method": by_method,
             "statistics": stats,
-            "unique_compositions": list(self._compositions_seen)
+            "unique_compositions": list(self._compositions_seen),
         }
 
     def save_catalog(self, path: str, enhanced: bool = True) -> None:
@@ -679,5 +686,5 @@ class MaterialsTracker:
         else:
             catalog_data = self.to_catalog()
 
-        with open(catalog_path, 'w') as f:
+        with open(catalog_path, "w") as f:
             json.dump(catalog_data, f, indent=2, default=str)

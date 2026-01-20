@@ -10,52 +10,46 @@ Total Tools: 20 MCP endpoints
 """
 
 import logging
-import json
-from typing import List, Dict, Any, Union, Optional
-import numpy as np
-import re
 import warnings
+from typing import Any
+
+import numpy as np
 from mcp.server.fastmcp import FastMCP
-from pathlib import Path
-from datetime import datetime
 
 # Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
 # This warning appears when MACE loads e3nn components
-warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
-                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
+)
 
 # CLEAN IMPORTS - No sys.path manipulation!
+from crystalyse.tools.chemeleon import ChemeleonPredictor
+from crystalyse.tools.mace import MACECalculator, MACEFoundationModels, MACEStressCalculator
+from crystalyse.tools.models import (
+    BandGapResult,
+    CompositionFilterResult,
+    CompositionValidityResult,
+    DopantPredictionResult,
+    EnergyAboveHullResult,
+    EnergyResult,
+    EOSResult,
+    FoundationModelListResult,
+    MLRepresentationResult,
+    PredictionResult,
+    SpaceGroupResult,
+    StabilityResult,
+    StressResult,
+    ValidationResult,
+    VisualizationResult,
+)
+from crystalyse.tools.pymatgen import PhaseDiagramAnalyzer, PyMatgenAnalyzer
 from crystalyse.tools.smact import (
-    SMACTValidator,
     SMACTCalculator,
     SMACTDopantPredictor,
-    SMACTScreener
+    SMACTScreener,
+    SMACTValidator,
 )
-from crystalyse.tools.chemeleon import ChemeleonPredictor
-from crystalyse.tools.mace import (
-    MACECalculator,
-    MACEStressCalculator,
-    MACEFoundationModels
-)
-from crystalyse.tools.pymatgen import PyMatgenAnalyzer, PhaseDiagramAnalyzer
 from crystalyse.tools.visualization import CrystaLyseVisualizer
-from crystalyse.tools.models import (
-    ValidationResult,
-    PredictionResult,
-    EnergyResult,
-    StabilityResult,
-    BandGapResult,
-    SpaceGroupResult,
-    EnergyAboveHullResult,
-    VisualizationResult,
-    DopantPredictionResult,
-    CompositionValidityResult,
-    MLRepresentationResult,
-    CompositionFilterResult,
-    StressResult,
-    EOSResult,
-    FoundationModelListResult
-)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -78,28 +72,29 @@ visualizer = CrystaLyseVisualizer()
 
 # --- Core Utility Functions ---
 
+
 def make_json_serializable(obj: Any) -> Any:
     """Convert objects to JSON-serializable format."""
     if isinstance(obj, dict):
         return {k: make_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, list | tuple):
         return [make_json_serializable(item) for item in obj]
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+    elif isinstance(obj, np.integer | np.int64 | np.int32):
         return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+    elif isinstance(obj, np.floating | np.float64 | np.float32):
         return float(obj)
     elif isinstance(obj, np.bool_):
         return bool(obj)
-    elif hasattr(obj, 'tolist'):
+    elif hasattr(obj, "tolist"):
         return obj.tolist()
-    elif obj is None or isinstance(obj, (str, int, float, bool)):
+    elif obj is None or isinstance(obj, str | int | float | bool):
         return obj
     else:
         try:
             return str(obj)
-        except:
+        except Exception:
             return f"<non-serializable: {type(obj).__name__}>"
 
 
@@ -107,12 +102,15 @@ def make_json_serializable(obj: Any) -> Any:
 # SMACT TOOLS - Now using modular implementation
 # ===================================================================
 
-@mcp.tool(description="Check if a chemical formula is valid - Use this FIRST before any other analysis to ensure the composition makes chemical sense")
+
+@mcp.tool(
+    description="Check if a chemical formula is valid - Use this FIRST before any other analysis to ensure the composition makes chemical sense"
+)
 def validate_composition(
     composition: str,
     use_pauling_test: bool = True,
     include_alloys: bool = True,
-    oxidation_states_set: str = "icsd24"
+    oxidation_states_set: str = "icsd24",
 ) -> ValidationResult:
     """
     Validate chemical composition with structured output.
@@ -136,16 +134,14 @@ def validate_composition(
         composition,
         use_pauling_test=use_pauling_test,
         include_alloys=include_alloys,
-        oxidation_states_set=oxidation_states_set
+        oxidation_states_set=oxidation_states_set,
     )
     return result
 
 
 @mcp.tool(description="Comprehensive stability analysis using SMACT")
 def analyze_stability(
-    composition: str,
-    check_electronegativity: bool = True,
-    electronegativity_threshold: float = 0.5
+    composition: str, check_electronegativity: bool = True, electronegativity_threshold: float = 0.5
 ) -> StabilityResult:
     """
     Comprehensive stability analysis with robust electronegativity handling.
@@ -162,7 +158,7 @@ def analyze_stability(
     result = smact_validator.analyze_stability(
         composition,
         check_electronegativity=check_electronegativity,
-        electronegativity_threshold=electronegativity_threshold
+        electronegativity_threshold=electronegativity_threshold,
     )
     return result
 
@@ -187,11 +183,12 @@ def predict_band_gap(composition: str) -> BandGapResult:
 # CHEMELEON TOOLS - Now using modular implementation
 # ===================================================================
 
-@mcp.tool(description="Generate crystal structure for a composition - Use AFTER validation to predict the most likely crystal structure and space group")
+
+@mcp.tool(
+    description="Generate crystal structure for a composition - Use AFTER validation to predict the most likely crystal structure and space group"
+)
 async def generate_crystal_csp(
-    formulas: Union[str, List[str]],
-    num_samples: int = 1,
-    prefer_gpu: bool = True
+    formulas: str | list[str], num_samples: int = 1, prefer_gpu: bool = True
 ) -> PredictionResult:
     """
     Generate crystal structures using Chemeleon diffusion model (CSP - Crystal Structure Prediction).
@@ -229,9 +226,7 @@ async def generate_crystal_csp(
     # For simplicity, process first formula
     formula = formulas_list[0]
     result = await chemeleon_predictor.predict_structure(
-        formula=formula,
-        num_samples=num_samples,
-        prefer_gpu=prefer_gpu
+        formula=formula, num_samples=num_samples, prefer_gpu=prefer_gpu
     )
 
     return result
@@ -241,11 +236,10 @@ async def generate_crystal_csp(
 # MACE TOOLS - Now using modular implementation
 # ===================================================================
 
+
 @mcp.tool(description="Calculate formation energy using MACE machine learning force field")
 async def calculate_formation_energy(
-    structure_dict: Dict[str, Any],
-    model_type: str = "mace_mp",
-    size: str = "medium"
+    structure_dict: dict[str, Any], model_type: str = "mace_mp", size: str = "medium"
 ) -> EnergyResult:
     """
     Calculate formation energy of a crystal from its constituent elements.
@@ -262,14 +256,14 @@ async def calculate_formation_energy(
     Returns:
         Structured energy calculation result with formation_energy, total_energy, etc.
     """
-    logger.info(f"Calculating formation energy for structure")
+    logger.info("Calculating formation energy for structure")
 
     # Normalize structure_dict to only required fields (remove extra fields like 'formula', 'symbols', etc.)
     normalized_structure = {
         "numbers": structure_dict["numbers"],
         "positions": structure_dict["positions"],
         "cell": structure_dict["cell"],
-        "pbc": structure_dict.get("pbc", [True, True, True])
+        "pbc": structure_dict.get("pbc", [True, True, True]),
     }
 
     result = await mace_calculator.calculate_formation_energy(normalized_structure)
@@ -278,10 +272,7 @@ async def calculate_formation_energy(
 
 @mcp.tool(description="Relax crystal structure to minimize energy using MACE forces")
 async def relax_structure(
-    structure_dict: Dict[str, Any],
-    fmax: float = 0.01,
-    steps: int = 500,
-    optimizer: str = "BFGS"
+    structure_dict: dict[str, Any], fmax: float = 0.01, steps: int = 500, optimizer: str = "BFGS"
 ) -> dict:
     """
     Relax structure to local energy minimum using MACE forces.
@@ -306,14 +297,11 @@ async def relax_structure(
         "numbers": structure_dict["numbers"],
         "positions": structure_dict["positions"],
         "cell": structure_dict["cell"],
-        "pbc": structure_dict.get("pbc", [True, True, True])
+        "pbc": structure_dict.get("pbc", [True, True, True]),
     }
 
     result = await mace_calculator.relax_structure(
-        structure=normalized_structure,
-        fmax=fmax,
-        steps=steps,
-        optimizer=optimizer
+        structure=normalized_structure, fmax=fmax, steps=steps, optimizer=optimizer
     )
     return result.dict()
 
@@ -322,11 +310,10 @@ async def relax_structure(
 # PYMATGEN TOOLS - Now using modular implementation
 # ===================================================================
 
+
 @mcp.tool(description="Analyze space group and symmetry of crystal structure")
 def analyze_space_group(
-    structure_input: Union[str, Dict[str, Any]],
-    symprec: float = 0.1,
-    angle_tolerance: float = 5.0
+    structure_input: str | dict[str, Any], symprec: float = 0.1, angle_tolerance: float = 5.0
 ) -> SpaceGroupResult:
     """
     Analyze space group and crystallographic symmetry.
@@ -339,20 +326,15 @@ def analyze_space_group(
     Returns:
         Structured space group analysis result
     """
-    logger.info(f"Analyzing space group")
+    logger.info("Analyzing space group")
     result = pymatgen_analyzer.analyze_space_group(
-        structure_input=structure_input,
-        symprec=symprec,
-        angle_tolerance=angle_tolerance
+        structure_input=structure_input, symprec=symprec, angle_tolerance=angle_tolerance
     )
     return result
 
 
 @mcp.tool(description="Calculate energy above hull for thermodynamic stability")
-def calculate_energy_above_hull(
-    composition: str,
-    total_energy: float
-) -> EnergyAboveHullResult:
+def calculate_energy_above_hull(composition: str, total_energy: float) -> EnergyAboveHullResult:
     """
     Calculate energy above hull using Materials Project phase diagram.
 
@@ -374,20 +356,19 @@ def calculate_energy_above_hull(
     Returns:
         Structured energy above hull result with stability assessment
     """
-    logger.info(f"Calculating energy above hull for: {composition} with total_energy={total_energy} eV")
+    logger.info(
+        f"Calculating energy above hull for: {composition} with total_energy={total_energy} eV"
+    )
     result = phase_diagram_analyzer.calculate_energy_above_hull(
         composition=composition,
         energy=total_energy,  # Critical: use total energy!
-        per_atom=False  # total_energy is already total, not per-atom
+        per_atom=False,  # total_energy is already total, not per-atom
     )
     return result
 
 
 @mcp.tool(description="Analyze coordination environment of atoms")
-def analyze_coordination(
-    structure_input: Union[str, Dict[str, Any]],
-    method: str = "voronoi"
-) -> dict:
+def analyze_coordination(structure_input: str | dict[str, Any], method: str = "voronoi") -> dict:
     """
     Analyze coordination environment using Voronoi nearest neighbors.
 
@@ -398,18 +379,13 @@ def analyze_coordination(
     Returns:
         Coordination analysis result
     """
-    logger.info(f"Analyzing coordination environment")
-    result = pymatgen_analyzer.analyze_coordination(
-        structure_input=structure_input,
-        method=method
-    )
+    logger.info("Analyzing coordination environment")
+    result = pymatgen_analyzer.analyze_coordination(structure_input=structure_input, method=method)
     return result.dict()
 
 
 @mcp.tool(description="Validate oxidation states using bond valence analysis")
-def validate_oxidation_states(
-    structure_input: Union[str, Dict[str, Any]]
-) -> dict:
+def validate_oxidation_states(structure_input: str | dict[str, Any]) -> dict:
     """
     Validate oxidation states using bond valence sum analysis.
 
@@ -419,10 +395,8 @@ def validate_oxidation_states(
     Returns:
         Oxidation state validation result
     """
-    logger.info(f"Validating oxidation states")
-    result = pymatgen_analyzer.validate_oxidation_states(
-        structure_input=structure_input
-    )
+    logger.info("Validating oxidation states")
+    result = pymatgen_analyzer.validate_oxidation_states(structure_input=structure_input)
     return result.dict()
 
 
@@ -430,12 +404,10 @@ def validate_oxidation_states(
 # VISUALIZATION TOOLS - Now using modular implementation
 # ===================================================================
 
+
 @mcp.tool(description="Save crystal structure as CIF file")
 def save_cif_file(
-    cif_content: str,
-    formula: str,
-    output_dir: str,
-    title: str = "Crystal Structure"
+    cif_content: str, formula: str, output_dir: str, title: str = "Crystal Structure"
 ) -> VisualizationResult:
     """
     Save CIF file to output directory with caching.
@@ -451,10 +423,7 @@ def save_cif_file(
     """
     logger.info(f"Saving CIF file for {formula}")
     result = visualizer.save_cif_file(
-        cif_content=cif_content,
-        formula=formula,
-        output_dir=output_dir,
-        title=title
+        cif_content=cif_content, formula=formula, output_dir=output_dir, title=title
     )
     return result
 
@@ -465,7 +434,7 @@ def create_analysis_suite(
     formula: str,
     output_dir: str,
     title: str = "Crystal Structure Analysis",
-    color_scheme: str = "vesta"
+    color_scheme: str = "vesta",
 ) -> VisualizationResult:
     """
     Create analysis directory (full visualization via pymatviz server).
@@ -486,7 +455,7 @@ def create_analysis_suite(
         formula=formula,
         output_dir=output_dir,
         title=title,
-        color_scheme=color_scheme
+        color_scheme=color_scheme,
     )
     return result
 
@@ -495,6 +464,7 @@ def create_analysis_suite(
 # SMACT ADVANCED SCREENING - Phase 1.5
 # ===================================================================
 
+
 @mcp.tool(description="Fast SMACT validity check with metallicity and alloy support")
 def smact_validate_fast(
     composition: str,
@@ -502,7 +472,7 @@ def smact_validate_fast(
     include_alloys: bool = True,
     check_metallicity: bool = False,
     metallicity_threshold: float = 0.7,
-    oxidation_states_set: str = "icsd24"
+    oxidation_states_set: str = "icsd24",
 ) -> CompositionValidityResult:
     """
     Fast SMACT validity check for compositions.
@@ -525,15 +495,13 @@ def smact_validate_fast(
         include_alloys=include_alloys,
         check_metallicity=check_metallicity,
         metallicity_threshold=metallicity_threshold,
-        oxidation_states_set=oxidation_states_set
+        oxidation_states_set=oxidation_states_set,
     )
     return result
 
 
 @mcp.tool(description="Generate ML-compatible composition vector (103 elements)")
-def generate_ml_representation(
-    composition: str
-) -> MLRepresentationResult:
+def generate_ml_representation(composition: str) -> MLRepresentationResult:
     """
     Generate 103-element ML vector for a composition.
 
@@ -547,17 +515,13 @@ def generate_ml_representation(
         Structured ML representation with 103-element vector
     """
     logger.info(f"Generating ML representation for: {composition}")
-    result = SMACTScreener.generate_ml_representation(
-        composition=composition
-    )
+    result = SMACTScreener.generate_ml_representation(composition=composition)
     return result
 
 
 @mcp.tool(description="Filter and enumerate valid compositions for elements")
 def filter_compositions(
-    elements: List[str],
-    threshold: int = 8,
-    oxidation_states_set: str = "icsd24"
+    elements: list[str], threshold: int = 8, oxidation_states_set: str = "icsd24"
 ) -> CompositionFilterResult:
     """
     Generate all valid compositions for a set of elements.
@@ -572,9 +536,7 @@ def filter_compositions(
     """
     logger.info(f"Filtering compositions for: {elements}")
     result = SMACTScreener.filter_compositions(
-        elements=elements,
-        threshold=threshold,
-        oxidation_states_set=oxidation_states_set
+        elements=elements, threshold=threshold, oxidation_states_set=oxidation_states_set
     )
     return result
 
@@ -583,12 +545,10 @@ def filter_compositions(
 # SMACT DOPANT PREDICTION - Phase 1.5
 # ===================================================================
 
+
 @mcp.tool(description="Predict n-type and p-type dopants for materials")
 def predict_dopants(
-    species: List[str],
-    composition: str,
-    num_dopants: int = 5,
-    embedding: str = "skipspecies"
+    species: list[str], composition: str, num_dopants: int = 5, embedding: str = "skipspecies"
 ) -> DopantPredictionResult:
     """
     Predict dopants for semiconductor design and property tuning.
@@ -605,10 +565,7 @@ def predict_dopants(
     """
     logger.info(f"Predicting dopants for: {composition}")
     result = SMACTDopantPredictor.predict_dopants(
-        species=species,
-        composition=composition,
-        num_dopants=num_dopants,
-        embedding=embedding
+        species=species, composition=composition, num_dopants=num_dopants, embedding=embedding
     )
     return result
 
@@ -617,12 +574,13 @@ def predict_dopants(
 # MACE STRESS/STRAIN - Phase 1.5
 # ===================================================================
 
+
 @mcp.tool(description="Calculate stress tensor for mechanical property prediction")
 def calculate_stress(
-    structure: Dict[str, Any],
+    structure: dict[str, Any],
     model_type: str = "mace_mp",
     size: str = "medium",
-    device: str = "auto"
+    device: str = "auto",
 ) -> StressResult:
     """
     Calculate full stress tensor and derived mechanical properties.
@@ -636,24 +594,21 @@ def calculate_stress(
     Returns:
         Stress tensor, pressure, von Mises stress, max shear stress
     """
-    logger.info(f"Calculating stress tensor")
+    logger.info("Calculating stress tensor")
     result = MACEStressCalculator.calculate_stress(
-        structure=structure,
-        model_type=model_type,
-        size=size,
-        device=device
+        structure=structure, model_type=model_type, size=size, device=device
     )
     return result
 
 
 @mcp.tool(description="Fit equation of state for bulk modulus calculation")
 def fit_equation_of_state(
-    structure: Dict[str, Any],
+    structure: dict[str, Any],
     eos_type: str = "birchmurnaghan",
     strain_range: float = 0.05,
     n_points: int = 7,
     model_type: str = "mace_mp",
-    size: str = "medium"
+    size: str = "medium",
 ) -> EOSResult:
     """
     Fit equation of state by calculating energy at multiple volumes.
@@ -676,7 +631,7 @@ def fit_equation_of_state(
         strain_range=strain_range,
         n_points=n_points,
         model_type=model_type,
-        size=size
+        size=size,
     )
     return result
 
@@ -684,6 +639,7 @@ def fit_equation_of_state(
 # ===================================================================
 # MACE FOUNDATION MODELS - Phase 1.5
 # ===================================================================
+
 
 @mcp.tool(description="List available MACE foundation models")
 def list_foundation_models() -> FoundationModelListResult:
@@ -702,8 +658,9 @@ def list_foundation_models() -> FoundationModelListResult:
 # SERVER INFO
 # ===================================================================
 
+
 @mcp.tool(description="Get information about the unified server")
-def get_server_info() -> Dict[str, Any]:
+def get_server_info() -> dict[str, Any]:
     """
     Get information about available tools and server status.
 
@@ -728,13 +685,10 @@ def get_server_info() -> Dict[str, Any]:
                     "smact_validate_fast",
                     "generate_ml_representation",
                     "filter_compositions",
-                    "predict_dopants"
-                ]
+                    "predict_dopants",
+                ],
             },
-            "chemeleon": {
-                "enabled": True,
-                "tools": ["generate_crystal_csp"]
-            },
+            "chemeleon": {"enabled": True, "tools": ["generate_crystal_csp"]},
             "mace": {
                 "enabled": True,
                 "tools": [
@@ -742,8 +696,8 @@ def get_server_info() -> Dict[str, Any]:
                     "relax_structure",
                     "calculate_stress",
                     "fit_equation_of_state",
-                    "list_foundation_models"
-                ]
+                    "list_foundation_models",
+                ],
             },
             "pymatgen": {
                 "enabled": True,
@@ -751,13 +705,10 @@ def get_server_info() -> Dict[str, Any]:
                     "analyze_space_group",
                     "calculate_energy_above_hull",
                     "analyze_coordination",
-                    "validate_oxidation_states"
-                ]
+                    "validate_oxidation_states",
+                ],
             },
-            "visualization": {
-                "enabled": True,
-                "tools": ["save_cif_file", "create_analysis_suite"]
-            }
+            "visualization": {"enabled": True, "tools": ["save_cif_file", "create_analysis_suite"]},
         },
         "capabilities": {
             "smact_validation": True,
@@ -770,7 +721,7 @@ def get_server_info() -> Dict[str, Any]:
             "mace_eos": True,
             "mace_foundation_models": True,
             "pymatgen_analysis": True,
-            "visualization": True
+            "visualization": True,
         },
         "phase_1_5_features": [
             "Dopant prediction (n-type/p-type)",
@@ -779,7 +730,7 @@ def get_server_info() -> Dict[str, Any]:
             "Composition filtering",
             "Stress tensor calculations",
             "Equation of state fitting",
-            "Foundation model support (8 pre-trained models)"
+            "Foundation model support (8 pre-trained models)",
         ],
         "improvements": [
             "No sys.path manipulation",
@@ -787,8 +738,8 @@ def get_server_info() -> Dict[str, Any]:
             "Comprehensive error handling",
             "Modular architecture",
             "Type-safe interfaces",
-            "All 5 tool categories + advanced features integrated"
-        ]
+            "All 5 tool categories + advanced features integrated",
+        ],
     }
 
 

@@ -1,20 +1,22 @@
 """PyMatgen analysis tools - space group, coordination, oxidation states."""
-from typing import Dict, Any, List, Optional, Union
-from pydantic import BaseModel, Field
-import logging
-import numpy as np
 
-from pymatgen.core import Structure, Composition
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+import logging
+from typing import Any
+
+import numpy as np
+from pydantic import BaseModel, Field
 from pymatgen.analysis.bond_valence import BVAnalyzer
 from pymatgen.analysis.local_env import VoronoiNN
+from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 logger = logging.getLogger(__name__)
 
 
 class SpaceGroupResult(BaseModel):
     """Space group analysis result."""
+
     success: bool = True
     space_group_symbol: str
     space_group_number: int
@@ -33,37 +35,40 @@ class SpaceGroupResult(BaseModel):
     lattice_beta: float
     lattice_gamma: float
     volume: float
-    symmetrized_cif: Optional[str] = None
-    primitive_cif: Optional[str] = None
-    error: Optional[str] = None
+    symmetrized_cif: str | None = None
+    primitive_cif: str | None = None
+    error: str | None = None
 
 
 class CoordinationResult(BaseModel):
     """Coordination analysis result."""
+
     success: bool = True
     formula: str
     num_sites: int
     sites_analyzed: int
     average_coordination: float
-    coordination_data: List[Dict[str, Any]] = Field(default_factory=list)
-    error: Optional[str] = None
+    coordination_data: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None
 
 
 class OxidationStateResult(BaseModel):
     """Oxidation state validation result."""
+
     success: bool = True
     formula: str
     oxidation_states_guessed: bool
     structure_is_valid: bool
-    site_analysis: List[Dict[str, Any]] = Field(default_factory=list)
+    site_analysis: list[dict[str, Any]] = Field(default_factory=list)
     validity_percentage: float
-    error: Optional[str] = None
+    error: str | None = None
 
 
-def _parse_structure(structure_input: Union[str, Dict[str, Any]]) -> Structure:
+def _parse_structure(structure_input: str | dict[str, Any]) -> Structure:
     """Parse structure from various input formats."""
     if isinstance(structure_input, str):
         from io import StringIO
+
         parser = CifParser(StringIO(structure_input))
         structure = parser.parse_structures()[0]
     elif isinstance(structure_input, dict):
@@ -89,10 +94,7 @@ def _parse_structure(structure_input: Union[str, Dict[str, Any]]) -> Structure:
             # Create PyMatGen lattice and structure
             lattice = Lattice(cell)
             structure = Structure(
-                lattice=lattice,
-                species=species,
-                coords=positions,
-                coords_are_cartesian=True
+                lattice=lattice, species=species, coords=positions, coords_are_cartesian=True
             )
         else:
             raise ValueError(
@@ -116,7 +118,7 @@ def _guess_coordination_geometry(cn: int) -> str:
         7: "pentagonal bipyramidal or capped octahedral",
         8: "cubic or square antiprismatic",
         9: "tricapped trigonal prismatic",
-        12: "cuboctahedral or anticuboctahedral"
+        12: "cuboctahedral or anticuboctahedral",
     }
     return geometries.get(cn, f"{cn}-coordinate")
 
@@ -126,9 +128,9 @@ class PyMatgenAnalyzer:
 
     @staticmethod
     def analyze_space_group(
-        structure_input: Union[str, Dict[str, Any]],
+        structure_input: str | dict[str, Any],
         symprec: float = 0.1,
-        angle_tolerance: float = 5.0
+        angle_tolerance: float = 5.0,
     ) -> SpaceGroupResult:
         """
         Analyze the space group and symmetry of a crystal structure.
@@ -144,7 +146,9 @@ class PyMatgenAnalyzer:
         try:
             structure = _parse_structure(structure_input)
 
-            analyzer = SpacegroupAnalyzer(structure, symprec=symprec, angle_tolerance=angle_tolerance)
+            analyzer = SpacegroupAnalyzer(
+                structure, symprec=symprec, angle_tolerance=angle_tolerance
+            )
 
             space_group_symbol = analyzer.get_space_group_symbol()
             space_group_number = analyzer.get_space_group_number()
@@ -176,7 +180,7 @@ class PyMatgenAnalyzer:
                 lattice_gamma=conventional_structure.lattice.gamma,
                 volume=conventional_structure.lattice.volume,
                 symmetrized_cif=conventional_structure.to(fmt="cif"),
-                primitive_cif=primitive_structure.to(fmt="cif")
+                primitive_cif=primitive_structure.to(fmt="cif"),
             )
 
         except Exception as e:
@@ -200,13 +204,12 @@ class PyMatgenAnalyzer:
                 lattice_beta=0.0,
                 lattice_gamma=0.0,
                 volume=0.0,
-                error=str(e)
+                error=str(e),
             )
 
     @staticmethod
     def analyze_coordination(
-        structure_input: Union[str, Dict[str, Any]],
-        site_index: Optional[int] = None
+        structure_input: str | dict[str, Any], site_index: int | None = None
     ) -> CoordinationResult:
         """
         Analyze coordination environment of sites in a structure.
@@ -234,7 +237,7 @@ class PyMatgenAnalyzer:
                 nn_info = voronoi_nn.get_nn_info(structure, idx)
                 cn = len(nn_info)
 
-                coordinated_sites = [info['site'] for info in nn_info]
+                coordinated_sites = [info["site"] for info in nn_info]
                 bond_lengths = []
                 coordinating_elements = {}
 
@@ -252,20 +255,22 @@ class PyMatgenAnalyzer:
                     for elem, distances in coordinating_elements.items()
                 }
 
-                coordination_data.append({
-                    "site_index": idx,
-                    "element": site.specie.symbol,
-                    "fractional_coords": site.frac_coords.tolist(),
-                    "coordination_number": cn,
-                    "bond_lengths": {
-                        "min": float(min(bond_lengths)) if bond_lengths else 0,
-                        "max": float(max(bond_lengths)) if bond_lengths else 0,
-                        "mean": float(np.mean(bond_lengths)) if bond_lengths else 0,
-                        "by_element": avg_bond_lengths
-                    },
-                    "coordinating_elements": list(coordinating_elements.keys()),
-                    "geometry": _guess_coordination_geometry(cn)
-                })
+                coordination_data.append(
+                    {
+                        "site_index": idx,
+                        "element": site.specie.symbol,
+                        "fractional_coords": site.frac_coords.tolist(),
+                        "coordination_number": cn,
+                        "bond_lengths": {
+                            "min": float(min(bond_lengths)) if bond_lengths else 0,
+                            "max": float(max(bond_lengths)) if bond_lengths else 0,
+                            "mean": float(np.mean(bond_lengths)) if bond_lengths else 0,
+                            "by_element": avg_bond_lengths,
+                        },
+                        "coordinating_elements": list(coordinating_elements.keys()),
+                        "geometry": _guess_coordination_geometry(cn),
+                    }
+                )
 
             all_cns = [d["coordination_number"] for d in coordination_data]
 
@@ -275,7 +280,7 @@ class PyMatgenAnalyzer:
                 num_sites=len(structure),
                 sites_analyzed=len(coordination_data),
                 average_coordination=float(np.mean(all_cns)) if all_cns else 0.0,
-                coordination_data=coordination_data
+                coordination_data=coordination_data,
             )
 
         except Exception as e:
@@ -286,13 +291,13 @@ class PyMatgenAnalyzer:
                 num_sites=0,
                 sites_analyzed=0,
                 average_coordination=0.0,
-                error=str(e)
+                error=str(e),
             )
 
     @staticmethod
     def validate_oxidation_states(
-        structure_input: Union[str, Dict[str, Any]],
-        oxidation_states: Optional[Dict[str, float]] = None
+        structure_input: str | dict[str, Any],
+        oxidation_states: dict[str, float] | None = None,
     ) -> OxidationStateResult:
         """
         Validate oxidation states using bond valence analysis.
@@ -321,7 +326,7 @@ class PyMatgenAnalyzer:
                         oxidation_states_guessed=False,
                         structure_is_valid=False,
                         validity_percentage=0.0,
-                        error="Could not determine oxidation states"
+                        error="Could not determine oxidation states",
                     )
             else:
                 guessed = False
@@ -341,14 +346,20 @@ class PyMatgenAnalyzer:
                 ox_state = getattr(site.specie, "oxi_state", None)
                 bv_value = bv_sum[i] if bv_sum is not None else None
 
-                site_results.append({
-                    "site_index": i,
-                    "element": site.specie.element.symbol,
-                    "assigned_oxidation_state": ox_state,
-                    "bond_valence_sum": float(bv_value) if bv_value else None,
-                    "difference": float(abs(ox_state - bv_value)) if (ox_state and bv_value) else None,
-                    "is_reasonable": abs(ox_state - bv_value) < 0.5 if (ox_state and bv_value) else None
-                })
+                site_results.append(
+                    {
+                        "site_index": i,
+                        "element": site.specie.element.symbol,
+                        "assigned_oxidation_state": ox_state,
+                        "bond_valence_sum": float(bv_value) if bv_value else None,
+                        "difference": float(abs(ox_state - bv_value))
+                        if (ox_state and bv_value)
+                        else None,
+                        "is_reasonable": abs(ox_state - bv_value) < 0.5
+                        if (ox_state and bv_value)
+                        else None,
+                    }
+                )
 
             reasonable_sites = [s for s in site_results if s["is_reasonable"]]
             validity = (len(reasonable_sites) / len(site_results) * 100) if site_results else 0.0
@@ -359,7 +370,7 @@ class PyMatgenAnalyzer:
                 oxidation_states_guessed=guessed,
                 structure_is_valid=is_valid,
                 site_analysis=site_results,
-                validity_percentage=validity
+                validity_percentage=validity,
             )
 
         except Exception as e:
@@ -370,5 +381,5 @@ class PyMatgenAnalyzer:
                 oxidation_states_guessed=False,
                 structure_is_valid=False,
                 validity_percentage=0.0,
-                error=str(e)
+                error=str(e),
             )

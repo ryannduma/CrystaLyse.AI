@@ -186,6 +186,14 @@ class TestRequiredFiles:
     def test_claude_md_exists(self) -> None:
         """Test that CLAUDE.md exists for Claude Code guidance."""
         claude_path = PROJECT_ROOT / "CLAUDE.md"
+        gitignore_path = PROJECT_ROOT / ".gitignore"
+
+        # Skip if CLAUDE.md is gitignored (common for projects that keep it local)
+        if gitignore_path.exists():
+            gitignore_content = gitignore_path.read_text()
+            if "CLAUDE.md" in gitignore_content:
+                pytest.skip("CLAUDE.md is gitignored - skipping check")
+
         assert claude_path.exists(), f"CLAUDE.md not found at {claude_path}"
 
     def test_readme_exists(self) -> None:

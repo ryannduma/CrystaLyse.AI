@@ -1,19 +1,12 @@
 """OpenAI SDK tool wrappers with error handling."""
-from agents import function_tool
-from agents.tool_context import ToolContext
-from typing import Any
+
 import logging
 
-from crystalyse.tools.errors import (
-    CrystaLyseToolError,
-    ValidationError,
-    ComputationError
-)
-from crystalyse.tools.models import (
-    ValidationResult,
-    PredictionResult,
-    EnergyResult
-)
+from agents import function_tool
+from agents.tool_context import ToolContext
+
+from crystalyse.tools.errors import ComputationError, ValidationError
+from crystalyse.tools.models import EnergyResult, PredictionResult, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +37,7 @@ def crystalyse_error_handler(context: ToolContext, error: Exception) -> str:
 
 
 # Wrapped tools for OpenAI SDK
-@function_tool(
-    failure_error_function=crystalyse_error_handler,
-    name="validate_material"
-)
+@function_tool(failure_error_function=crystalyse_error_handler, name="validate_material")
 async def validate_material_wrapped(formula: str) -> ValidationResult:
     """
     Validate material composition with comprehensive error handling.
@@ -59,14 +49,12 @@ async def validate_material_wrapped(formula: str) -> ValidationResult:
         Structured validation result
     """
     from crystalyse.tools.smact import SMACTValidator
+
     validator = SMACTValidator()
     return await validator.validate_composition_async(formula)
 
 
-@function_tool(
-    failure_error_function=crystalyse_error_handler,
-    name="predict_structure"
-)
+@function_tool(failure_error_function=crystalyse_error_handler, name="predict_structure")
 async def predict_structure_wrapped(formula: str, num_samples: int = 1) -> PredictionResult:
     """
     Predict crystal structure with error handling.
@@ -79,14 +67,12 @@ async def predict_structure_wrapped(formula: str, num_samples: int = 1) -> Predi
         Structure prediction result
     """
     from crystalyse.tools.chemeleon import ChemeleonPredictor
+
     predictor = ChemeleonPredictor()
     return await predictor.predict_structure(formula, num_samples=num_samples)
 
 
-@function_tool(
-    failure_error_function=crystalyse_error_handler,
-    name="calculate_formation_energy"
-)
+@function_tool(failure_error_function=crystalyse_error_handler, name="calculate_formation_energy")
 async def calculate_formation_energy_wrapped(structure: dict) -> EnergyResult:
     """
     Calculate formation energy with error handling.
@@ -98,5 +84,6 @@ async def calculate_formation_energy_wrapped(structure: dict) -> EnergyResult:
         Energy calculation result
     """
     from crystalyse.tools.mace import MACECalculator
+
     calculator = MACECalculator()
     return await calculator.calculate_formation_energy(structure)

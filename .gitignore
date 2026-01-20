@@ -232,6 +232,7 @@ test_task1_all_modes.py
 /mace/
 /modelcontextprotocol/
 /python-sdk/
+/chemeleon2/
 
 # Backup files
 *.backup

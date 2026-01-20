@@ -1,0 +1,14 @@
+[
+  {
+    "role": "user",
+    "content": "Find stable thermoelectric",
+    "timestamp": "2026-01-20T01:54:44.452506",
+    "type": "query"
+  },
+  {
+    "role": "assistant",
+    "content": "Stability assessment for key thermoelectric classes (MACE_mp_medium):\n\nComposition  \u0394Ef/atom (eV)  \n\u2013 CoSb\u2083       avg \u20130.7445 (\u20130.741, \u20130.809, \u20130.683)  \n\u2013 FeVSb       avg \u20130.8607 (\u20130.8608, \u20130.8607, \u20130.8607)  \n\u2013 FeNbSb      avg \u20130.1097 (\u20130.1033, \u20130.1145, \u20130.1114)  \n\nAll three are thermodynamically stable (\u0394Ef\u2009<\u20090).  \n\u2022 Best candidates:  \n  \u2022 FeVSb (half\u2010Heusler, \u0394Ef\u2248\u20130.861\u2009eV/atom)  \n  \u2022 CoSb\u2083 (skutterudite, \u0394Ef\u2248\u20130.745\u2009eV/atom)  \n\n\u2022 FeNbSb also stable but less negative \u0394Ef (\u20130.11\u2009eV/atom).  \n\nSustainability:  \n\u2022 Co/Sb, Fe/V/Sb: moderately abundant, no critical elements.  \n\u2022 Sb use is a caution (criticality moderate); V and Co supply risk moderate.  \n\nRecommendation: FeVSb exhibits the most negative formation energy and is a prime stable half\u2010Heusler thermoelectric. CoSb\u2083 is also robust as a skutterudite.\n\nNext steps:  \n1. DFT electronic\u2010structure for bandgap and carrier effective masses.  \n2. Boltzmann transport modeling (Seebeck, \u03c3) at target temperatures.  \n3. Phonon dispersion for lattice thermal conductivity.\n\nCIFs in:  \n/home/ryan/.../session_20260120_015456/\n\nLet me know which follow\u2010up analysis to pursue.",
+    "timestamp": "2026-01-20T01:55:08.061174",
+    "type": "response"
+  }
+]

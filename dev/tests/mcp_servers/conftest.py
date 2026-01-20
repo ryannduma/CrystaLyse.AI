@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # =============================================================================
 # Stream Spy Pattern (from MCP SDK)
 # =============================================================================
@@ -42,7 +41,9 @@ class StreamSpyCollection:
     client_requests: list[MCPMessage] = field(default_factory=list)
     server_responses: list[MCPMessage] = field(default_factory=list)
 
-    def record_request(self, method: str, params: dict[str, Any] | None = None, message_id: str | None = None) -> None:
+    def record_request(
+        self, method: str, params: dict[str, Any] | None = None, message_id: str | None = None
+    ) -> None:
         """Record a client request.
 
         Args:
@@ -50,10 +51,16 @@ class StreamSpyCollection:
             params: Request parameters
             message_id: Optional message ID
         """
-        self.client_requests.append(MCPMessage(method=method, params=params, message_id=message_id, is_request=True))
+        self.client_requests.append(
+            MCPMessage(method=method, params=params, message_id=message_id, is_request=True)
+        )
 
     def record_response(
-        self, method: str, result: Any = None, error: dict[str, Any] | None = None, message_id: str | None = None
+        self,
+        method: str,
+        result: Any = None,
+        error: dict[str, Any] | None = None,
+        message_id: str | None = None,
     ) -> None:
         """Record a server response.
 
@@ -64,7 +71,9 @@ class StreamSpyCollection:
             message_id: Optional message ID
         """
         self.server_responses.append(
-            MCPMessage(method=method, result=result, error=error, message_id=message_id, is_request=False)
+            MCPMessage(
+                method=method, result=result, error=error, message_id=message_id, is_request=False
+            )
         )
 
     def get_client_requests(self, method: str | None = None) -> list[MCPMessage]:
@@ -130,7 +139,9 @@ class StreamSpyCollection:
         for call in tool_calls:
             if call.params and call.params.get("name") == tool_name:
                 return call
-        raise AssertionError(f"Tool '{tool_name}' was not called. Called tools: {[c.params.get('name') for c in tool_calls if c.params]}")
+        raise AssertionError(
+            f"Tool '{tool_name}' was not called. Called tools: {[c.params.get('name') for c in tool_calls if c.params]}"
+        )
 
     def assert_tool_not_called(self, tool_name: str) -> None:
         """Assert that a specific tool was NOT called.
@@ -189,7 +200,13 @@ def mock_chemistry_tool_responses() -> dict[str, Any]:
             "success": True,
             "formula": "CaTiO3",
             "numbers": [20, 22, 8, 8, 8],
-            "positions": [[0.0, 0.0, 0.0], [1.95, 1.95, 1.95], [1.95, 0.0, 1.95], [0.0, 1.95, 1.95], [1.95, 1.95, 0.0]],
+            "positions": [
+                [0.0, 0.0, 0.0],
+                [1.95, 1.95, 1.95],
+                [1.95, 0.0, 1.95],
+                [0.0, 1.95, 1.95],
+                [1.95, 1.95, 0.0],
+            ],
             "cell": [[3.9, 0.0, 0.0], [0.0, 3.9, 0.0], [0.0, 0.0, 3.9]],
             "confidence": 0.85,
         },

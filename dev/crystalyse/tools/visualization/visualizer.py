@@ -1,21 +1,23 @@
 """Visualization tools - CIF saving and analysis plots (simplified for Phase 1)."""
-from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+
 import logging
 from pathlib import Path
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
 class VisualizationResult(BaseModel):
     """Visualization result."""
+
     success: bool = True
     visualization_type: str
-    output_path: Optional[str] = None
+    output_path: str | None = None
     formula: str
     cached: bool = False
     description: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class CrystaLyseVisualizer:
@@ -23,10 +25,7 @@ class CrystaLyseVisualizer:
 
     @staticmethod
     def save_cif_file(
-        cif_content: str,
-        formula: str,
-        output_dir: str,
-        title: str = "Crystal Structure"
+        cif_content: str, formula: str, output_dir: str, _title: str = "Crystal Structure"
     ) -> VisualizationResult:
         """
         Save CIF file to output directory.
@@ -55,11 +54,11 @@ class CrystaLyseVisualizer:
                     output_path=str(cif_output_path),
                     formula=formula,
                     cached=True,
-                    description=f"CIF file for {formula} (cached)"
+                    description=f"CIF file for {formula} (cached)",
                 )
 
             # Write CIF content
-            with open(cif_output_path, 'w') as f:
+            with open(cif_output_path, "w") as f:
                 f.write(cif_content)
 
             logger.info(f"✅ CIF file saved: {cif_output_path}")
@@ -69,7 +68,7 @@ class CrystaLyseVisualizer:
                 output_path=str(cif_output_path),
                 formula=formula,
                 cached=False,
-                description=f"CIF file for {formula} saved"
+                description=f"CIF file for {formula} saved",
             )
 
         except Exception as e:
@@ -80,7 +79,7 @@ class CrystaLyseVisualizer:
                 formula=formula,
                 cached=False,
                 description="Failed to save CIF file",
-                error=str(e)
+                error=str(e),
             )
 
     @staticmethod
@@ -88,8 +87,8 @@ class CrystaLyseVisualizer:
         cif_content: str,
         formula: str,
         output_dir: str,
-        title: str = "Crystal Structure Analysis",
-        color_scheme: str = "vesta"
+        _title: str = "Crystal Structure Analysis",
+        _color_scheme: str = "vesta",
     ) -> VisualizationResult:
         """
         Create comprehensive analysis suite (placeholder for Phase 1).
@@ -112,7 +111,7 @@ class CrystaLyseVisualizer:
 
             cif_path = analysis_dir / f"{formula}.cif"
 
-            with open(cif_path, 'w') as f:
+            with open(cif_path, "w") as f:
                 f.write(cif_content)
 
             logger.info(f"✅ Analysis directory created: {analysis_dir}")
@@ -123,7 +122,7 @@ class CrystaLyseVisualizer:
                 output_path=str(analysis_dir),
                 formula=formula,
                 cached=False,
-                description=f"Analysis directory for {formula} created (full visualization via pymatviz server)"
+                description=f"Analysis directory for {formula} created (full visualization via pymatviz server)",
             )
 
         except Exception as e:
@@ -134,5 +133,5 @@ class CrystaLyseVisualizer:
                 formula=formula,
                 cached=False,
                 description="Failed to create analysis suite",
-                error=str(e)
+                error=str(e),
             )

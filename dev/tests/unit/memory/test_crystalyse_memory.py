@@ -13,11 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from crystalyse.memory.crystalyse_memory import CrystaLyseMemory
-from crystalyse.memory.session_memory import SessionMemory
 from crystalyse.memory.discovery_cache import DiscoveryCache
+from crystalyse.memory.session_memory import SessionMemory
 from crystalyse.memory.user_memory import UserMemory
 
 
@@ -140,7 +138,7 @@ class TestUserMemory:
         memory = UserMemory(temp_memory_dir, "test_user")
         prefs = memory.get_preferences()
         # Preferences can be a dict or list depending on implementation
-        assert isinstance(prefs, (dict, list))
+        assert isinstance(prefs, dict | list)
 
     def test_get_research_interests(self, temp_memory_dir: Path) -> None:
         """Test getting research interests."""
@@ -237,9 +235,7 @@ class TestCrystaLyseMemory:
 class TestMemoryExportImport:
     """Tests for memory export/import functionality."""
 
-    def test_export_memory(
-        self, temp_memory_dir: Path, sample_discovery: dict[str, Any]
-    ) -> None:
+    def test_export_memory(self, temp_memory_dir: Path, sample_discovery: dict[str, Any]) -> None:
         """Test exporting memory to directory."""
         memory = CrystaLyseMemory(user_id="test_user", memory_dir=temp_memory_dir)
         memory.save_discovery("CaTiO3", sample_discovery)
@@ -250,9 +246,7 @@ class TestMemoryExportImport:
         # Check export directory was created
         assert export_dir.exists()
 
-    def test_import_memory(
-        self, temp_memory_dir: Path, sample_discovery: dict[str, Any]
-    ) -> None:
+    def test_import_memory(self, temp_memory_dir: Path, sample_discovery: dict[str, Any]) -> None:
         """Test importing memory from directory."""
         # First export
         memory1 = CrystaLyseMemory(user_id="test_user", memory_dir=temp_memory_dir)
@@ -327,7 +321,12 @@ class TestMemoryEdgeCases:
         memory = CrystaLyseMemory(user_id="test_user", memory_dir=temp_memory_dir)
         large_discovery = {
             "formula": "TestCompound",
-            "positions": [[float(i), float(j), float(k)] for i in range(10) for j in range(10) for k in range(10)],
+            "positions": [
+                [float(i), float(j), float(k)]
+                for i in range(10)
+                for j in range(10)
+                for k in range(10)
+            ],
             "data": "x" * 10000,  # Large string
         }
         memory.save_discovery("TestCompound", large_discovery)

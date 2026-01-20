@@ -11,25 +11,24 @@ The render gate uses semantic analysis to distinguish between:
 4. Literature references with attribution
 """
 
-import re
-import hashlib
-from typing import Dict, List, Optional, Tuple, Any, Set
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
 import logging
+import re
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class NumberType(Enum):
     """Classification of numerical values in LLM output."""
+
     MATERIAL_PROPERTY = "material_property"  # Must have provenance
-    CONTEXTUAL = "contextual"                 # General explanatory numbers
-    DERIVED = "derived"                       # Calculated from provenanced values
-    LITERATURE = "literature"                 # Referenced from papers/databases
-    STATISTICAL = "statistical"               # Counts, percentages, summaries
-    UNKNOWN = "unknown"                       # Needs further analysis
+    CONTEXTUAL = "contextual"  # General explanatory numbers
+    DERIVED = "derived"  # Calculated from provenanced values
+    LITERATURE = "literature"  # Referenced from papers/databases
+    STATISTICAL = "statistical"  # Counts, percentages, summaries
+    UNKNOWN = "unknown"  # Needs further analysis
 
 
 @dataclass
@@ -38,35 +37,37 @@ class ProvenanceTuple:
     Tuple-based provenance as described in the paper.
     Every material property should have this.
     """
+
     value: Any
-    unit: Optional[str]
+    unit: str | None
     source_tool: str
     artifact_hash: str
     timestamp: str
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "value": self.value,
             "unit": self.unit,
             "source_tool": self.source_tool,
             "artifact_hash": self.artifact_hash,
             "timestamp": self.timestamp,
-            "confidence": self.confidence
+            "confidence": self.confidence,
         }
 
 
 @dataclass
 class DetectedNumber:
     """A numerical value detected in LLM output."""
+
     value: str  # Original string representation
     context: str  # Surrounding text (±50 chars)
     full_sentence: str  # Complete sentence containing the number
     number_type: NumberType = NumberType.UNKNOWN
-    provenance: Optional[ProvenanceTuple] = None
+    provenance: ProvenanceTuple | None = None
     confidence: float = 0.0  # Confidence in classification
-    position: Tuple[int, int] = (0, 0)  # Start, end position in text
-    flags: Set[str] = field(default_factory=set)  # Warning flags
+    position: tuple[int, int] = (0, 0)  # Start, end position in text
+    flags: set[str] = field(default_factory=set)  # Warning flags
 
 
 class IntelligentRenderGate:
@@ -79,71 +80,190 @@ class IntelligentRenderGate:
     # Material property keywords that REQUIRE provenance
     MATERIAL_PROPERTIES = {
         # Energy-related
-        'formation_energy', 'formation energy', 'binding_energy', 'binding energy',
-        'cohesive_energy', 'cohesive energy', 'total_energy', 'total energy',
-        'energy_above_hull', 'energy above hull', 'decomposition_energy',
-        'ev/atom', 'kj/mol', 'kcal/mol', 'hartree',
-
+        "formation_energy",
+        "formation energy",
+        "binding_energy",
+        "binding energy",
+        "cohesive_energy",
+        "cohesive energy",
+        "total_energy",
+        "total energy",
+        "energy_above_hull",
+        "energy above hull",
+        "decomposition_energy",
+        "ev/atom",
+        "kj/mol",
+        "kcal/mol",
+        "hartree",
         # Electronic properties
-        'band_gap', 'band gap', 'bandgap', 'homo', 'lumo', 'fermi_level',
-        'fermi level', 'work_function', 'work function', 'electron_affinity',
-
+        "band_gap",
+        "band gap",
+        "bandgap",
+        "homo",
+        "lumo",
+        "fermi_level",
+        "fermi level",
+        "work_function",
+        "work function",
+        "electron_affinity",
         # Structural properties
-        'lattice_parameter', 'lattice parameter', 'lattice_constant',
-        'space_group', 'space group', 'spacegroup', 'crystal_system',
-        'unit_cell', 'unit cell', 'cell_volume', 'density',
-
+        "lattice_parameter",
+        "lattice parameter",
+        "lattice_constant",
+        "space_group",
+        "space group",
+        "spacegroup",
+        "crystal_system",
+        "unit_cell",
+        "unit cell",
+        "cell_volume",
+        "density",
         # Mechanical properties
-        'bulk_modulus', 'bulk modulus', 'young_modulus', "young's modulus",
-        'shear_modulus', 'shear modulus', 'hardness', 'fracture_toughness',
-        'stress', 'strain', 'gpa', 'mpa',
-
+        "bulk_modulus",
+        "bulk modulus",
+        "young_modulus",
+        "young's modulus",
+        "shear_modulus",
+        "shear modulus",
+        "hardness",
+        "fracture_toughness",
+        "stress",
+        "strain",
+        "gpa",
+        "mpa",
         # Magnetic properties
-        'magnetic_moment', 'magnetic moment', 'magnetization',
-        'curie_temperature', 'curie temperature', 'néel_temperature',
-
+        "magnetic_moment",
+        "magnetic moment",
+        "magnetization",
+        "curie_temperature",
+        "curie temperature",
+        "néel_temperature",
         # Thermodynamic
-        'melting_point', 'melting point', 'boiling_point', 'boiling point',
-        'heat_capacity', 'heat capacity', 'entropy', 'enthalpy',
-        'gibbs_energy', 'gibbs energy', 'free_energy',
-
+        "melting_point",
+        "melting point",
+        "boiling_point",
+        "boiling point",
+        "heat_capacity",
+        "heat capacity",
+        "entropy",
+        "enthalpy",
+        "gibbs_energy",
+        "gibbs energy",
+        "free_energy",
         # Electrochemical
-        'voltage', 'capacity', 'mah/g', 'wh/kg', 'coulombic_efficiency',
-        'oxidation_state', 'oxidation state', 'redox_potential'
+        "voltage",
+        "capacity",
+        "mah/g",
+        "wh/kg",
+        "coulombic_efficiency",
+        "oxidation_state",
+        "oxidation state",
+        "redox_potential",
     }
 
     # Contextual indicators - suggests the number is explanatory
     CONTEXTUAL_INDICATORS = {
-        'typically', 'usually', 'generally', 'approximately', 'about',
-        'roughly', 'around', 'often', 'commonly', 'tend to', 'tends to',
-        'in the range', 'between', 'from', 'varies', 'can be',
-        'literature', 'reported', 'known', 'established', 'theoretical',
-        'experimental', 'measured', 'observed', 'found to be',
-        'according to', 'based on', 'ref', 'reference', 'study',
-        'paper', 'work', 'research', 'average', 'mean', 'typical'
+        "typically",
+        "usually",
+        "generally",
+        "approximately",
+        "about",
+        "roughly",
+        "around",
+        "often",
+        "commonly",
+        "tend to",
+        "tends to",
+        "in the range",
+        "between",
+        "from",
+        "varies",
+        "can be",
+        "literature",
+        "reported",
+        "known",
+        "established",
+        "theoretical",
+        "experimental",
+        "measured",
+        "observed",
+        "found to be",
+        "according to",
+        "based on",
+        "ref",
+        "reference",
+        "study",
+        "paper",
+        "work",
+        "research",
+        "average",
+        "mean",
+        "typical",
     }
 
     # Statistical/counting indicators
     STATISTICAL_INDICATORS = {
-        'out of', 'percent', '%', 'fraction', 'ratio', 'total',
-        'count', 'number of', 'materials', 'structures', 'candidates',
-        'passed', 'failed', 'stable', 'unstable', 'metastable'
+        "out of",
+        "percent",
+        "%",
+        "fraction",
+        "ratio",
+        "total",
+        "count",
+        "number of",
+        "materials",
+        "structures",
+        "candidates",
+        "passed",
+        "failed",
+        "stable",
+        "unstable",
+        "metastable",
     }
 
     # Derived value indicators - calculations from provenanced values
     DERIVED_INDICATORS = {
-        'calculated from', 'derived from', 'computed using', 'based on calculation',
-        'sum of', 'difference between', 'product of', 'divided by',
-        'multiplied by', 'times', 'plus', 'minus', 'equals',
-        'resulting in', 'gives', 'yields', 'therefore', 'thus'
+        "calculated from",
+        "derived from",
+        "computed using",
+        "based on calculation",
+        "sum of",
+        "difference between",
+        "product of",
+        "divided by",
+        "multiplied by",
+        "times",
+        "plus",
+        "minus",
+        "equals",
+        "resulting in",
+        "gives",
+        "yields",
+        "therefore",
+        "thus",
     }
 
     # Literature reference indicators
     LITERATURE_INDICATORS = {
-        'Materials Project', 'MP-', 'ICSD', 'COD', 'CSD', 'PubChem',
-        'according to', 'reported in', 'published', 'literature',
-        'paper', 'study', 'research', 'et al.', 'reference',
-        'database', 'repository', 'archive', 'journal'
+        "Materials Project",
+        "MP-",
+        "ICSD",
+        "COD",
+        "CSD",
+        "PubChem",
+        "according to",
+        "reported in",
+        "published",
+        "literature",
+        "paper",
+        "study",
+        "research",
+        "et al.",
+        "reference",
+        "database",
+        "repository",
+        "archive",
+        "journal",
     }
 
     def __init__(self, provenance_tracker=None):
@@ -159,10 +279,8 @@ class IntelligentRenderGate:
         self.blocked_values = []  # Track what was blocked
 
     def analyze_output(
-        self,
-        text: str,
-        provenance_data: Optional[Dict] = None
-    ) -> Tuple[str, List[DetectedNumber], bool]:
+        self, text: str, provenance_data: dict | None = None
+    ) -> tuple[str, list[DetectedNumber], bool]:
         """
         Analyze LLM output for numerical claims and verify provenance.
 
@@ -195,7 +313,7 @@ class IntelligentRenderGate:
 
         return processed_text, detected_numbers, has_violations
 
-    def _detect_numbers(self, text: str) -> List[DetectedNumber]:
+    def _detect_numbers(self, text: str) -> list[DetectedNumber]:
         """
         Detect all numerical values in the text with context.
         """
@@ -204,21 +322,21 @@ class IntelligentRenderGate:
         # Regex patterns for different number formats
         patterns = [
             # Scientific notation
-            r'-?\d+\.?\d*[eE][+-]?\d+',
+            r"-?\d+\.?\d*[eE][+-]?\d+",
             # Decimal numbers with units
-            r'-?\d+\.?\d*\s*(?:eV|keV|MeV|GeV|kJ|kcal|Å|Angstrom|nm|pm|'
-            r'GPa|MPa|kPa|Pa|K|°C|°F|V|mV|mAh|Wh|g/cm³|g/mol)',
+            r"-?\d+\.?\d*\s*(?:eV|keV|MeV|GeV|kJ|kcal|Å|Angstrom|nm|pm|"
+            r"GPa|MPa|kPa|Pa|K|°C|°F|V|mV|mAh|Wh|g/cm³|g/mol)",
             # Decimal numbers
-            r'-?\d+\.\d+',
+            r"-?\d+\.\d+",
             # Integers with potential units
-            r'-?\d+\s*(?:%|percent)?',
+            r"-?\d+\s*(?:%|percent)?",
             # Ranges
-            r'-?\d+\.?\d*\s*(?:to|-|–|—)\s*-?\d+\.?\d*'
+            r"-?\d+\.?\d*\s*(?:to|-|–|—)\s*-?\d+\.?\d*",
         ]
 
-        combined_pattern = '|'.join(f'({p})' for p in patterns)
+        combined_pattern = "|".join(f"({p})" for p in patterns)
 
-        sentences = text.split('.')
+        sentences = text.split(".")
 
         for sentence in sentences:
             for match in re.finditer(combined_pattern, sentence, re.IGNORECASE):
@@ -231,7 +349,7 @@ class IntelligentRenderGate:
                     value=match.group(),
                     context=context,
                     full_sentence=sentence.strip(),
-                    position=(match.start(), match.end())
+                    position=(match.start(), match.end()),
                 )
                 numbers.append(num)
 
@@ -246,38 +364,33 @@ class IntelligentRenderGate:
 
         # Check for material property keywords
         material_property_score = sum(
-            1 for keyword in self.MATERIAL_PROPERTIES
-            if keyword in context_lower
+            1 for keyword in self.MATERIAL_PROPERTIES if keyword in context_lower
         )
 
         # Check for contextual indicators
         contextual_score = sum(
-            1 for indicator in self.CONTEXTUAL_INDICATORS
-            if indicator in context_lower
+            1 for indicator in self.CONTEXTUAL_INDICATORS if indicator in context_lower
         )
 
         # Check for statistical indicators
         statistical_score = sum(
-            1 for indicator in self.STATISTICAL_INDICATORS
-            if indicator in context_lower
+            1 for indicator in self.STATISTICAL_INDICATORS if indicator in context_lower
         )
 
         # Check for derived value indicators
         derived_score = sum(
-            1 for indicator in self.DERIVED_INDICATORS
-            if indicator in context_lower
+            1 for indicator in self.DERIVED_INDICATORS if indicator in context_lower
         )
 
         # Check for literature indicators
         literature_score = sum(
-            1 for indicator in self.LITERATURE_INDICATORS
-            if indicator in context_lower
+            1 for indicator in self.LITERATURE_INDICATORS if indicator in context_lower
         )
 
         # Enhanced decision logic
 
         # First check for literature references
-        if literature_score >= 2 or any(db in context_lower for db in ['mp-', 'icsd-', 'cod-']):
+        if literature_score >= 2 or any(db in context_lower for db in ["mp-", "icsd-", "cod-"]):
             return NumberType.LITERATURE
 
         # Check for derived calculations
@@ -296,7 +409,9 @@ class IntelligentRenderGate:
                 return NumberType.LITERATURE
             elif "calculated" in context_lower or "computed" in context_lower:
                 # Explicitly mentions our calculation
-                if any(tool in context_lower for tool in ['mace', 'pymatgen', 'smact', 'chemeleon']):
+                if any(
+                    tool in context_lower for tool in ["mace", "pymatgen", "smact", "chemeleon"]
+                ):
                     return NumberType.MATERIAL_PROPERTY  # Our calculation
                 else:
                     return NumberType.DERIVED  # Derived from other sources
@@ -316,11 +431,11 @@ class IntelligentRenderGate:
         """
         # Look for mathematical operators and patterns
         math_patterns = [
-            r'\d+\s*[\+\-\*/]\s*\d+',  # Basic arithmetic
-            r'\d+\s*=\s*\d+',           # Equations
-            r'\(\s*\d+.*?\)',           # Parenthetical expressions
-            r'\d+\s*×\s*\d+',           # Multiplication symbol
-            r'∑|∏|∫',                   # Mathematical symbols
+            r"\d+\s*[\+\-\*/]\s*\d+",  # Basic arithmetic
+            r"\d+\s*=\s*\d+",  # Equations
+            r"\(\s*\d+.*?\)",  # Parenthetical expressions
+            r"\d+\s*×\s*\d+",  # Multiplication symbol
+            r"∑|∏|∫",  # Mathematical symbols
         ]
 
         for pattern in math_patterns:
@@ -328,27 +443,34 @@ class IntelligentRenderGate:
                 return True
 
         # Check for written mathematical operations
-        math_words = ['sum', 'product', 'difference', 'quotient', 'times', 'plus', 'minus', 'divided']
+        math_words = [
+            "sum",
+            "product",
+            "difference",
+            "quotient",
+            "times",
+            "plus",
+            "minus",
+            "divided",
+        ]
         return sum(1 for word in math_words if word in text.lower()) >= 2
 
-    def _extract_material_context(self, text: str) -> Optional[str]:
+    def _extract_material_context(self, text: str) -> str | None:
         """Extract material formula from text."""
         # Pattern for chemical formulas
-        pattern = r'\b([A-Z][a-z]?(?:\d+)?(?:[A-Z][a-z]?(?:\d+)?)+)\b'
+        pattern = r"\b([A-Z][a-z]?(?:\d+)?(?:[A-Z][a-z]?(?:\d+)?)+)\b"
         matches = re.findall(pattern, text)
 
         for match in matches:
             # Check if it looks like a chemical formula
-            elements = re.findall(r'[A-Z][a-z]?', match)
+            elements = re.findall(r"[A-Z][a-z]?", match)
             if len(elements) >= 2:  # At least 2 elements
                 return match
         return None
 
     def _find_provenance(
-        self,
-        num: DetectedNumber,
-        provenance_data: Optional[Dict]
-    ) -> Optional[ProvenanceTuple]:
+        self, num: DetectedNumber, provenance_data: dict | None
+    ) -> ProvenanceTuple | None:
         """
         Find provenance for a detected number.
         """
@@ -361,12 +483,17 @@ class IntelligentRenderGate:
             value_str = num.value.strip()
 
             # Remove units if present (more comprehensive pattern)
-            value_str = re.sub(r'\s*(eV|keV|MeV|GeV|kJ|kcal|Å|Angstrom|nm|pm|'
-                              r'GPa|MPa|kPa|Pa|K|°C|°F|V|mV|mAh|Wh|g/cm³|g/mol|'
-                              r'/atom|/mol|/unit).*$', '', value_str, flags=re.IGNORECASE).strip()
+            value_str = re.sub(
+                r"\s*(eV|keV|MeV|GeV|kJ|kcal|Å|Angstrom|nm|pm|"
+                r"GPa|MPa|kPa|Pa|K|°C|°F|V|mV|mAh|Wh|g/cm³|g/mol|"
+                r"/atom|/mol|/unit).*$",
+                "",
+                value_str,
+                flags=re.IGNORECASE,
+            ).strip()
 
             # Parse the number
-            value = float(value_str.replace(',', ''))
+            value = float(value_str.replace(",", ""))
 
             # Try to extract material context
             material = self._extract_material_context(num.full_sentence)
@@ -375,7 +502,7 @@ class IntelligentRenderGate:
             provenance = self.provenance_registry.lookup_provenance(
                 value=value,
                 tolerance=0.001,  # Tighter tolerance for better matching
-                material=material
+                material=material,
             )
 
             return provenance
@@ -384,11 +511,7 @@ class IntelligentRenderGate:
             logger.debug(f"Could not parse value from: {num.value}")
             return None
 
-    def _process_text(
-        self,
-        text: str,
-        detected_numbers: List[DetectedNumber]
-    ) -> Tuple[str, bool]:
+    def _process_text(self, text: str, detected_numbers: list[DetectedNumber]) -> tuple[str, bool]:
         """
         Process the text based on detected numbers and their provenance.
 
@@ -400,8 +523,7 @@ class IntelligentRenderGate:
 
         # Sort by position (reverse) to maintain indices when replacing
         flagged_numbers = [
-            num for num in detected_numbers
-            if "UNPROVENANCED_MATERIAL_PROPERTY" in num.flags
+            num for num in detected_numbers if "UNPROVENANCED_MATERIAL_PROPERTY" in num.flags
         ]
         flagged_numbers.sort(key=lambda x: x.position[0], reverse=True)
 
@@ -418,14 +540,14 @@ class IntelligentRenderGate:
 
         return processed_text, has_violations
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """
         Get statistics about render gate operations.
         """
         return {
             "blocked_count": self.blocked_count,
             "allowed_count": self.allowed_count,
-            "blocked_values": self.blocked_values
+            "blocked_values": self.blocked_values,
         }
 
 
@@ -439,11 +561,8 @@ class RenderGateValidator:
         self.validation_results = []
 
     def validate_response(
-        self,
-        response: str,
-        provenance_data: Dict,
-        expected_properties: Optional[List[Dict]] = None
-    ) -> Dict:
+        self, response: str, provenance_data: dict, expected_properties: list[dict] | None = None
+    ) -> dict:
         """
         Validate a response for proper provenance.
 
@@ -453,37 +572,23 @@ class RenderGateValidator:
         gate = IntelligentRenderGate()
         gate.shadow_mode = True  # Don't actually block
 
-        processed, detected, has_violations = gate.analyze_output(
-            response,
-            provenance_data
-        )
+        processed, detected, has_violations = gate.analyze_output(response, provenance_data)
 
-        material_properties = [
-            n for n in detected
-            if n.number_type == NumberType.MATERIAL_PROPERTY
-        ]
+        material_properties = [n for n in detected if n.number_type == NumberType.MATERIAL_PROPERTY]
 
-        unprovenanced = [
-            n for n in material_properties
-            if not n.provenance
-        ]
+        unprovenanced = [n for n in material_properties if not n.provenance]
 
         report = {
             "total_numbers": len(detected),
             "material_properties": len(material_properties),
             "unprovenanced_count": len(unprovenanced),
             "unprovenanced_rate": (
-                len(unprovenanced) / len(material_properties)
-                if material_properties else 0
+                len(unprovenanced) / len(material_properties) if material_properties else 0
             ),
             "violations": [
-                {
-                    "value": n.value,
-                    "context": n.context,
-                    "type": n.number_type.value
-                }
+                {"value": n.value, "context": n.context, "type": n.number_type.value}
                 for n in unprovenanced
-            ]
+            ],
         }
 
         self.validation_results.append(report)
@@ -502,7 +607,7 @@ def get_render_gate() -> IntelligentRenderGate:
     return _render_gate
 
 
-def intercept_llm_output(text: str, provenance_data: Optional[Dict] = None) -> str:
+def intercept_llm_output(text: str, provenance_data: dict | None = None) -> str:
     """
     Main entry point for render gate interception.
 
@@ -514,10 +619,7 @@ def intercept_llm_output(text: str, provenance_data: Optional[Dict] = None) -> s
         Processed text with unprovenanced material properties flagged or blocked
     """
     gate = get_render_gate()
-    processed_text, detected_numbers, has_violations = gate.analyze_output(
-        text,
-        provenance_data
-    )
+    processed_text, detected_numbers, has_violations = gate.analyze_output(text, provenance_data)
 
     if has_violations:
         logger.warning(

@@ -1,4 +1,3 @@
-
 """
 Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
 """
@@ -7,14 +6,14 @@ import asyncio
 import logging
 import sys
 import warnings
-from typing import Optional
 from enum import Enum
 from pathlib import Path
 
 # Suppress specific e3nn warning about weights_only parameter
 # This is a known issue with e3nn not explicitly passing weights_only to torch.load()
-warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
-                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
+)
 
 # Add provenance_system to path for installed package
 # This ensures provenance works when using 'crystalyse' command
@@ -27,15 +26,14 @@ if provenance_system_path.exists() and str(crystalyse_root) not in sys.path:
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.prompt import Confirm
+from rich.text import Text
 
-from crystalyse.config import Config
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
-from crystalyse.workspace import workspace_tools
-from crystalyse.ui.progress import PhaseAwareProgress
+from crystalyse.config import Config
 from crystalyse.ui.chat_ui import ChatExperience
 from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
+from crystalyse.workspace import workspace_tools
 
 # --- Setup ---
 app = typer.Typer(
@@ -48,11 +46,13 @@ app = typer.Typer(
 console = Console()
 logger = logging.getLogger(__name__)
 
+
 # --- Type Enums for CLI choices ---
 class AgentMode(str, Enum):
     creative = "creative"
     rigorous = "rigorous"
     adaptive = "adaptive"
+
 
 # --- State for global options ---
 state = {
@@ -62,21 +62,23 @@ state = {
     "query": "",
 }
 
+
 # --- Approval System (Safety Gate) ---
 def approval_callback(path: Path, content: str) -> bool:
     """Presents a file write operation to the user for approval."""
     console.print("\n")
     preview = content[:400] + "..." if len(content) > 400 else content
-    
+
     panel = Panel(
         Text(preview, overflow="fold"),
         title="[bold yellow]📝 Approval Required[/bold yellow]",
         subtitle=f"About to write {len(content)} bytes to [cyan]{path.relative_to(Path.cwd())}[/cyan]",
-        border_style="yellow"
+        border_style="yellow",
     )
     console.print(panel)
-    
+
     return Confirm.ask("Do you approve this file write operation?", default=True)
+
 
 # --- Non-Interactive Clarification Handler ---
 async def non_interactive_clarification(request: workspace_tools.ClarificationRequest) -> dict:
@@ -86,36 +88,38 @@ async def non_interactive_clarification(request: workspace_tools.ClarificationRe
     # Use the adaptive clarification system even in non-interactive mode
     system = IntegratedClarificationSystem(console, user_id="non_interactive")
     analysis = system._analyze_query(state["query"])
-    
+
     # Check if we should skip clarification entirely (high-confidence queries)
     should_skip = await system._should_skip_clarification(analysis, request)
-    
+
     if should_skip:
         # Skip clarification and return smart assumptions
         return await system._handle_high_confidence_skip(state["query"], request, analysis)
-    
+
     # For non-expert queries, use the adaptive clarification system
     # but simulate responses for non-interactive mode
     if analysis.expertise_level == "novice":
         # Show educational guidance and make reasonable choices
-        console.print(Panel(
-            "🔎 Discovery Mode: I'll help you explore battery materials!\n\n"
-            "Since this is non-interactive mode, I'm assuming you want:\n"
-            "• General exploration of battery technologies\n"
-            "• Focus on common, practical options\n"
-            "• Earth-abundant materials (cost-effective)",
-            title="[bold cyan]🎓 Educational Guidance[/bold cyan]",
-            border_style="cyan"
-        ))
-        
+        console.print(
+            Panel(
+                "🔎 Discovery Mode: I'll help you explore battery materials!\n\n"
+                "Since this is non-interactive mode, I'm assuming you want:\n"
+                "• General exploration of battery technologies\n"
+                "• Focus on common, practical options\n"
+                "• Earth-abundant materials (cost-effective)",
+                title="[bold cyan]🎓 Educational Guidance[/bold cyan]",
+                border_style="cyan",
+            )
+        )
+
         # Simulate guided discovery responses
         simulated_answers = {
             "approach_preference": "explore",
             "_mode": "creative",
             "_method": "guided_discovery_simulated",
-            "_user_type": "novice"
+            "_user_type": "novice",
         }
-        
+
         # Fill in reasonable defaults for any specific questions
         for question in request.questions:
             if question.options:
@@ -130,12 +134,12 @@ async def non_interactive_clarification(request: workspace_tools.ClarificationRe
                     simulated_answers[question.id] = question.options[0]
             else:
                 simulated_answers[question.id] = ""
-        
+
         return simulated_answers
-    
+
     # For intermediate/expert queries in non-interactive mode, use assumptions
     console.print("[dim]Making smart assumptions based on your technical query...[/dim]")
-    
+
     # Generate assumptions without asking for confirmation
     assumptions = await system._generate_smart_assumptions(request.questions, analysis)
     suggested_mode = system._suggest_initial_mode(analysis)
@@ -143,19 +147,22 @@ async def non_interactive_clarification(request: workspace_tools.ClarificationRe
     assumption_lines = "\n".join(
         f"• {q.text}: {assumptions.get(q.id, '[Not specified]')}" for q in request.questions
     )
-    
-    console.print(Panel(
-        f"Based on the query, the following assumptions were made:\n{assumption_lines}"
-        f"\n\n→ Proceeding with [bold]{suggested_mode}[/bold] mode.",
-        title="[bold blue]🤖 Auto-Clarification[/bold blue]",
-        border_style="blue"
-    ))
-    
+
+    console.print(
+        Panel(
+            f"Based on the query, the following assumptions were made:\n{assumption_lines}"
+            f"\n\n→ Proceeding with [bold]{suggested_mode}[/bold] mode.",
+            title="[bold blue]🤖 Auto-Clarification[/bold blue]",
+            border_style="blue",
+        )
+    )
+
     return {
         **assumptions,
         "_mode": suggested_mode,
         "_method": "assumed_in_non_interactive_mode",
     }
+
 
 # --- Helper Functions ---
 def display_results(results: dict, show_provenance_summary: bool = True):
@@ -167,20 +174,20 @@ def display_results(results: dict, show_provenance_summary: bool = True):
         show_provenance_summary: Whether to display provenance summary table
     """
     if results.get("status") == "failed":
-        console.print(Panel(
-            f"[bold red]Error:[/bold red] {results.get('error', 'Unknown error')}",
-            title="Discovery Failed",
-            border_style="red"
-        ))
+        console.print(
+            Panel(
+                f"[bold red]Error:[/bold red] {results.get('error', 'Unknown error')}",
+                title="Discovery Failed",
+                border_style="red",
+            )
+        )
         return
 
     # Display main response
     response = results.get("response", "No response from agent.")
-    console.print(Panel(
-        response,
-        title="[bold green]Discovery Report[/bold green]",
-        border_style="green"
-    ))
+    console.print(
+        Panel(response, title="[bold green]Discovery Report[/bold green]", border_style="green")
+    )
 
     # Display provenance summary if available and enabled
     if show_provenance_summary and "provenance" in results:
@@ -232,31 +239,28 @@ def display_provenance_summary(provenance: dict):
     console.print("\n")
     console.print(table)
 
+
 # --- Typer Commands ---
+
 
 @app.command()
 def discover(
-    query: str = typer.Argument(..., help="A non-interactive, single-shot materials discovery query."),
-    provenance_dir: Optional[str] = typer.Option(
+    query: str = typer.Argument(
+        ..., help="A non-interactive, single-shot materials discovery query."
+    ),
+    provenance_dir: str | None = typer.Option(
         None,
         "--provenance-dir",
-        help="Custom directory for provenance output (default: ./provenance_output)"
+        help="Custom directory for provenance output (default: ./provenance_output)",
     ),
     hide_summary: bool = typer.Option(
-        False,
-        "--hide-summary",
-        help="Hide provenance summary table (data still captured)"
+        False, "--hide-summary", help="Hide provenance summary table (data still captured)"
     ),
-    mode: Optional[AgentMode] = typer.Option(
-        None,
-        "--mode",
-        help="Agent operating mode (overrides global option)."
+    mode: AgentMode | None = typer.Option(
+        None, "--mode", help="Agent operating mode (overrides global option)."
     ),
-    project: Optional[str] = typer.Option(
-        None,
-        "--project",
-        "-p",
-        help="Project name for workspace (overrides global option)."
+    project: str | None = typer.Option(
+        None, "--project", "-p", help="Project name for workspace (overrides global option)."
     ),
 ):
     """
@@ -272,8 +276,8 @@ def discover(
         crystalyse discover "Analysis" --mode rigorous
     """
     # Determine effective mode and project (local overrides global)
-    effective_mode = mode if mode is not None else state['mode']
-    effective_project = project if project is not None else state['project']
+    effective_mode = mode if mode is not None else state["mode"]
+    effective_project = project if project is not None else state["project"]
 
     console.print(f"[cyan]Starting non-interactive discovery:[/cyan] {query}")
     console.print(f"[dim]Mode: {effective_mode.value} | Project: {effective_project}[/dim]\n")
@@ -287,13 +291,13 @@ def discover(
         # Load config and customise provenance settings if needed
         config = Config.load()
         if provenance_dir:
-            config.provenance['output_dir'] = Path(provenance_dir)
+            config.provenance["output_dir"] = Path(provenance_dir)
 
         agent = EnhancedCrystaLyseAgent(
             config=config,
             project_name=effective_project,
             mode=effective_mode.value,
-            model=state['model'],
+            model=state["model"],
         )
 
         # Discovery automatically creates provenance handler
@@ -301,10 +305,11 @@ def discover(
 
         if results:
             # Display results with optional provenance summary
-            show_summary = config.provenance['show_summary'] and not hide_summary
+            show_summary = config.provenance["show_summary"] and not hide_summary
             display_results(results, show_provenance_summary=show_summary)
 
     asyncio.run(_run())
+
 
 @app.command()
 def setup(
@@ -314,49 +319,54 @@ def setup(
     Download and set up required data files (e.g., phase diagrams).
     """
     from crystalyse.tools.downloader import ensure_phase_diagram_data
-    
+
     console.print("[cyan]Setting up Crystalyse data files...[/cyan]")
     try:
         path = ensure_phase_diagram_data(force=force)
         console.print(f"[green]✓ Phase diagram data ready at:[/green] {path}")
     except Exception as e:
         console.print(f"[red]✗ Failed to setup data:[/red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
+
 
 @app.command()
 def chat(
     user: str = typer.Option("default", "--user", "-u", help="User ID for personalized experience"),
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session name for organization"),
+    session: str | None = typer.Option(
+        None, "--session", "-s", help="Session name for organization"
+    ),
 ):
     """
     Start an interactive chat session for materials discovery.
-    
+
     Features:
-    • Adaptive clarification based on expertise level  
+    • Adaptive clarification based on expertise level
     • Cross-session learning and personalization
     • Mode switching and smart defaults
     """
     workspace_tools.APPROVAL_CALLBACK = approval_callback
-    
+
     # Create chat experience
     chat_experience = ChatExperience(
-        project=state['project'] + (f"_{session}" if session else ""),
-        mode=state['mode'].value,
-        model=state['model'],
-        user_id=user
+        project=state["project"] + (f"_{session}" if session else ""),
+        mode=state["mode"].value,
+        model=state["model"],
+        user_id=user,
     )
-    
+
     try:
         asyncio.run(chat_experience.run_loop())
     except KeyboardInterrupt:
-        console.print(f"\n[cyan]Session ended by user.[/cyan]")
+        console.print("\n[cyan]Session ended by user.[/cyan]")
 
 
 @app.command(name="analyse-provenance")
 def analyse_provenance(
-    session_id: Optional[str] = typer.Option(None, "--session", help="Specific session ID to analyse"),
+    session_id: str | None = typer.Option(None, "--session", help="Specific session ID to analyse"),
     latest: bool = typer.Option(False, "--latest", help="Analyse the most recent session"),
-    provenance_dir: str = typer.Option("./provenance_output", "--dir", help="Provenance directory to search"),
+    provenance_dir: str = typer.Option(
+        "./provenance_output", "--dir", help="Provenance directory to search"
+    ),
 ):
     """
     Analyse provenance data from previous discovery sessions.
@@ -367,6 +377,7 @@ def analyse_provenance(
         crystalyse analyse-provenance --dir ./my_research/provenance
     """
     import json
+
     from rich.table import Table
 
     base_dir = Path(provenance_dir) / "runs"
@@ -409,7 +420,7 @@ def analyse_provenance(
                     table.add_row(
                         session.name,
                         summary.get("timestamp", "N/A")[:19],  # Trim to datetime
-                        str(summary.get("materials_found", 0))
+                        str(summary.get("materials_found", 0)),
                     )
 
         console.print(table)
@@ -417,10 +428,7 @@ def analyse_provenance(
         return
 
     # Analyse the selected session
-    console.print(Panel(
-        f"[bold]Analysing Session:[/bold] {session_dir.name}",
-        border_style="cyan"
-    ))
+    console.print(Panel(f"[bold]Analysing Session:[/bold] {session_dir.name}", border_style="cyan"))
 
     # Load summary
     summary_file = session_dir / "summary.json"
@@ -438,9 +446,9 @@ def analyse_provenance(
     perf_table.add_column("Value", style="yellow")
 
     perf_table.add_row("Total Runtime", f"{summary.get('total_time_s', 0):.2f}s")
-    if summary.get('ttfb_ms'):
+    if summary.get("ttfb_ms"):
         perf_table.add_row("Time to First Byte", f"{summary['ttfb_ms']:.0f}ms")
-    perf_table.add_row("Total Tool Calls", str(summary.get('tool_calls_total', 0)))
+    perf_table.add_row("Total Tool Calls", str(summary.get("tool_calls_total", 0)))
 
     console.print(perf_table)
 
@@ -452,12 +460,14 @@ def analyse_provenance(
         mat_table.add_column("Metric", style="cyan")
         mat_table.add_column("Value", style="green")
 
-        mat_table.add_row("Total Found", str(mat_summary.get('total', 0)))
-        mat_table.add_row("With Energy Data", str(mat_summary.get('with_energy', 0)))
+        mat_table.add_row("Total Found", str(mat_summary.get("total", 0)))
+        mat_table.add_row("With Energy Data", str(mat_summary.get("with_energy", 0)))
 
-        if mat_summary.get('min_energy') is not None:
-            mat_table.add_row("Energy Range",
-                            f"{mat_summary['min_energy']:.3f} to {mat_summary['max_energy']:.3f} eV/atom")
+        if mat_summary.get("min_energy") is not None:
+            mat_table.add_row(
+                "Energy Range",
+                f"{mat_summary['min_energy']:.3f} to {mat_summary['max_energy']:.3f} eV/atom",
+            )
             mat_table.add_row("Average Energy", f"{mat_summary['avg_energy']:.3f} eV/atom")
 
         console.print(mat_table)
@@ -472,7 +482,7 @@ def analyse_provenance(
                 f"Average Time: {stats.get('avg_ms', 0):.1f}ms\n"
                 f"Materials Generated: {stats.get('materials', 0)}",
                 title=f"[bold]{tool_name}[/bold]",
-                border_style="blue"
+                border_style="blue",
             )
             console.print(tool_panel)
 
@@ -488,7 +498,7 @@ def analyse_provenance(
             # Sort by energy if available
             sorted_materials = sorted(
                 [m for m in materials if m.get("formation_energy") is not None],
-                key=lambda x: x["formation_energy"]
+                key=lambda x: x["formation_energy"],
             )
 
             for i, mat in enumerate(sorted_materials[:5], 1):
@@ -504,46 +514,74 @@ def analyse_provenance(
 
 
 @app.command()
-def user_stats(user: str = typer.Option("default", "--user", "-u", help="User ID to show stats for")):
+def user_stats(
+    user: str = typer.Option("default", "--user", "-u", help="User ID to show stats for"),
+):
     """
     Display learning statistics and preferences for a user.
     """
     from crystalyse.ui.user_preference_memory import UserPreferenceMemory
-    
+
     memory = UserPreferenceMemory()
     stats = memory.get_user_statistics(user)
-    
-    if stats['interaction_count'] == 0:
+
+    if stats["interaction_count"] == 0:
         console.print(f"[yellow]No interaction history found for user '{user}'[/yellow]")
         return
-    
-    console.print(Panel(
-        f"""[bold cyan]CrystaLyse Learning Profile[/bold cyan]
+
+    console.print(
+        Panel(
+            f"""[bold cyan]CrystaLyse Learning Profile[/bold cyan]
 
 """
-        f"User ID: {stats['user_id']}\n"
-        f"Total Interactions: {stats['interaction_count']}\n"
-        f"Detected Expertise: {stats['expertise_level']} ({stats['expertise_score']:.2f})\n"
-        f"Speed Preference: {stats['speed_preference']:.2f} (0=thorough, 1=fast)\n"
-        f"Preferred Mode: {stats['preferred_mode']}\n"
-        f"Days Since First Use: {stats['days_since_creation']}\n"
-        f"Personalization Active: {'Yes' if stats['personalization_active'] else 'No (need 3+ interactions)'}\n\n"
-        f"Domain Expertise:\n" + 
-        ("\n".join(f"  {domain}: {score:.2f}" for domain, score in stats['domain_expertise'].items()) if stats['domain_expertise'] else "  No domain-specific data yet\n") +
-        "\n\nSuccessful Mode Performance:\n" +
-        ("\n".join(f"  {mode}: {score:.2f} avg satisfaction" for mode, score in stats['successful_modes'].items()) if stats['successful_modes'] else "  No mode performance data yet"),
-        title="[bold green]📊 User Learning Statistics[/bold green]",
-        border_style="green"
-    ))
+            f"User ID: {stats['user_id']}\n"
+            f"Total Interactions: {stats['interaction_count']}\n"
+            f"Detected Expertise: {stats['expertise_level']} ({stats['expertise_score']:.2f})\n"
+            f"Speed Preference: {stats['speed_preference']:.2f} (0=thorough, 1=fast)\n"
+            f"Preferred Mode: {stats['preferred_mode']}\n"
+            f"Days Since First Use: {stats['days_since_creation']}\n"
+            f"Personalization Active: {'Yes' if stats['personalization_active'] else 'No (need 3+ interactions)'}\n\n"
+            f"Domain Expertise:\n"
+            + (
+                "\n".join(
+                    f"  {domain}: {score:.2f}"
+                    for domain, score in stats["domain_expertise"].items()
+                )
+                if stats["domain_expertise"]
+                else "  No domain-specific data yet\n"
+            )
+            + "\n\nSuccessful Mode Performance:\n"
+            + (
+                "\n".join(
+                    f"  {mode}: {score:.2f} avg satisfaction"
+                    for mode, score in stats["successful_modes"].items()
+                )
+                if stats["successful_modes"]
+                else "  No mode performance data yet"
+            ),
+            title="[bold green]📊 User Learning Statistics[/bold green]",
+            border_style="green",
+        )
+    )
 
 
 @app.callback()
 def main_callback(
     ctx: typer.Context,
-    project: str = typer.Option("crystalyse_session", "-p", "--project", help="Project name for workspace."),
-    mode: AgentMode = typer.Option(AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False),
-    model: Optional[str] = typer.Option(None, "--model", help="Language model to use."),
-    version: Optional[bool] = typer.Option(None, "--version", help="Show version and exit.", callback=lambda v: (console.print("Crystalyse v1.0.0-dev"), exit(0)) if v else None, is_eager=True),
+    project: str = typer.Option(
+        "crystalyse_session", "-p", "--project", help="Project name for workspace."
+    ),
+    mode: AgentMode = typer.Option(
+        AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False
+    ),
+    model: str | None = typer.Option(None, "--model", help="Language model to use."),
+    version: bool | None = typer.Option(
+        None,
+        "--version",
+        help="Show version and exit.",
+        callback=lambda v: (console.print("Crystalyse v1.0.0-dev"), exit(0)) if v else None,
+        is_eager=True,
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """
@@ -552,39 +590,42 @@ def main_callback(
     state["project"] = project
     state["mode"] = mode
     state["model"] = model
-    
+
     # Configure logging
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.WARNING)
 
+
 def main():
     """Main entry point for crystalyse command."""
     run()
+
 
 def run():
     """Main entry point."""
     # Setup logging
     logging.basicConfig(
         level=logging.WARNING,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.FileHandler('crystalyse.log')]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler("crystalyse.log")],
     )
-    
+
     # If no arguments or no command specified, insert 'chat' as default command
     if len(sys.argv) == 1:
-        sys.argv.append('chat')
+        sys.argv.append("chat")
 
     try:
         app()
     except KeyboardInterrupt:
-        console.print(f"\n[cyan]Crystalyse session ended.[/cyan]")
+        console.print("\n[cyan]Crystalyse session ended.[/cyan]")
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         console.print(f"\n[red]❌ An unexpected error occurred: {e}[/red]")
         console.print("[dim]Check crystalyse.log for details.[/dim]")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     run()

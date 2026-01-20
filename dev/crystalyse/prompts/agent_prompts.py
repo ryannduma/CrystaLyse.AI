@@ -6,13 +6,13 @@ scientific rigor and transparency.
 """
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 
 class AgentPrompts:
     """Collection of prompts for autonomous agent behavior"""
-    
-    def get_understanding_prompt(self, query: str, domain_context: Dict[str, Any]) -> str:
+
+    def get_understanding_prompt(self, query: str, domain_context: dict[str, Any]) -> str:
         """Generate prompt for understanding user query"""
         return f"""
 Analyze this materials science query deeply to understand the user's true intent:
@@ -41,12 +41,9 @@ Return as JSON with structure:
 
 Remember: Users often don't know exactly what to ask. Use your materials science expertise to identify what would truly help them.
 """
-    
+
     def get_clarification_prompt(
-        self, 
-        query: str,
-        understanding: Dict[str, Any],
-        domain_context: Dict[str, Any]
+        self, query: str, understanding: dict[str, Any], domain_context: dict[str, Any]
     ) -> str:
         """Generate prompt for creating clarification questions"""
         return f"""
@@ -81,13 +78,13 @@ Return as JSON:
 
 Focus on questions that distinguish between fundamentally different approaches or requirements.
 """
-    
+
     def get_planning_prompt(
         self,
         query: str,
-        clarifications: Dict[str, str],
-        constraints: Dict[str, Any],
-        available_tools: List[Dict[str, Any]]
+        clarifications: dict[str, str],
+        constraints: dict[str, Any],
+        available_tools: list[dict[str, Any]],
     ) -> str:
         """Generate prompt for strategic planning"""
         return f"""
@@ -136,28 +133,28 @@ Return as JSON:
 
 Think like an expert materials scientist planning an experimental campaign.
 """
-    
+
     def get_decision_prompt(
         self,
         context: Any,  # AgentContext
-        strategy: Dict[str, Any],
-        current_results: Dict[str, Any],
-        available_actions: List[str]
+        strategy: dict[str, Any],
+        current_results: dict[str, Any],
+        available_actions: list[str],
     ) -> str:
         """Generate prompt for next action decision"""
-        
+
         # Extract relevant context
         query = context.query
         iteration = context.iteration_count
         failed = context.failed_approaches
-        
+
         return f"""
 Decide the next action in this materials discovery workflow.
 
 Current situation:
 - Query: "{query}"
 - Iteration: {iteration}
-- Strategy: {strategy['description']}
+- Strategy: {strategy["description"]}
 - Failed approaches: {failed}
 
 Results so far:
@@ -187,19 +184,19 @@ Return as JSON:
 
 Be genuinely autonomous - make decisions based on scientific reasoning, not predetermined paths.
 """
-    
+
     def get_adaptation_prompt(
         self,
-        context: Any,  # AgentContext  
-        current_strategy: Dict[str, Any],
-        results: Dict[str, Any],
-        failed_approaches: List[str]
+        context: Any,  # AgentContext
+        current_strategy: dict[str, Any],
+        results: dict[str, Any],
+        failed_approaches: list[str],
     ) -> str:
         """Generate prompt for strategy adaptation"""
         return f"""
 The current strategy may need adaptation based on results.
 
-Original strategy: {current_strategy['description']}
+Original strategy: {current_strategy["description"]}
 
 Results obtained:
 {json.dumps(results, indent=2)}
@@ -228,8 +225,8 @@ Return as JSON:
 
 Think like a scientist adjusting their experimental plan based on preliminary results.
 """
-    
-    def get_validation_prompt(self, results: Dict[str, Any]) -> str:
+
+    def get_validation_prompt(self, results: dict[str, Any]) -> str:
         """Generate prompt for result validation"""
         return f"""
 Validate these computational results for scientific integrity.
@@ -251,12 +248,9 @@ For each result, assess:
 
 Return validation assessment with specific concerns highlighted.
 """
-    
+
     def get_synthesis_prompt(
-        self,
-        query: str,
-        context: Dict[str, Any],
-        validated_results: Dict[str, Any]
+        self, query: str, context: dict[str, Any], validated_results: dict[str, Any]
     ) -> str:
         """Generate prompt for final synthesis"""
         return f"""
@@ -288,7 +282,7 @@ Include:
 
 Be honest about what we found, what we didn't find, and what we're uncertain about.
 """
-    
+
     def get_failure_recovery_prompt(self, context: Any, error: str) -> str:
         """Generate prompt for handling failures gracefully"""
         return f"""
@@ -306,7 +300,7 @@ Provide:
 
 Remember: Failures are learning opportunities. Help the user understand the constraints and guide them toward a successful search.
 """
-    
+
     def get_domain_expertise_prompt(self, topic: str) -> str:
         """Generate prompt for domain-specific reasoning"""
         return f"""
@@ -314,15 +308,15 @@ Apply deep materials science expertise to this topic: {topic}
 
 Consider:
 1. Fundamental physical/chemical principles
-2. Known structure-property relationships  
+2. Known structure-property relationships
 3. Synthesis-structure correlations
 4. Practical/engineering constraints
 5. Recent advances in the field
 
 Provide insights that go beyond basic database queries - think like an expert materials scientist with years of experience.
 """
-    
-    def get_creativity_prompt(self, context: Dict[str, Any]) -> str:
+
+    def get_creativity_prompt(self, context: dict[str, Any]) -> str:
         """Generate prompt for creative/exploratory mode"""
         return f"""
 Engage creative materials discovery mode for: {context}
@@ -335,8 +329,8 @@ Think beyond conventional approaches:
 
 Balance creativity with scientific plausibility. Propose novel ideas that are ambitious but not impossible.
 """
-    
-    def get_rigorous_prompt(self, context: Dict[str, Any]) -> str:
+
+    def get_rigorous_prompt(self, context: dict[str, Any]) -> str:
         """Generate prompt for rigorous validation mode"""
         return f"""
 Apply rigorous scientific validation to: {context}

@@ -5,37 +5,42 @@ Provides easy access to pre-trained MACE foundation models with automatic
 checkpoint download and caching.
 """
 
-from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
 import logging
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
 class FoundationModelInfo(BaseModel):
     """Information about available foundation models."""
+
     success: bool = True
     model_name: str = Field(description="Model identifier")
     model_type: str = Field(description="Model family (mace_mp, mace_omat, mace_matpes)")
     size: str = Field(description="Model size (small, medium, large)")
     description: str = Field(description="Model description")
     training_data: str = Field(description="Training dataset description")
-    functional: Optional[str] = Field(None, description="DFT functional if applicable")
+    functional: str | None = Field(None, description="DFT functional if applicable")
     license: str = Field(description="License type (MIT or ASL)")
     url: str = Field(description="Download URL")
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class FoundationModelListResult(BaseModel):
     """List of available foundation models."""
+
     success: bool = True
-    models: List[FoundationModelInfo] = Field(default_factory=list)
-    error_message: Optional[str] = None
+    models: list[FoundationModelInfo] = Field(default_factory=list)
+    error_message: str | None = None
 
 
 try:
-    from mace.calculators import mace_mp, mace_off, MACECalculator as MACECalc
+    from mace.calculators import MACECalculator as MACECalc
+    from mace.calculators import mace_mp, mace_off
     from mace.calculators.foundations_models import download_mace_mp_checkpoint, mace_mp_urls
+
     MACE_AVAILABLE = True
 except ImportError:
     MACE_AVAILABLE = False
@@ -66,7 +71,7 @@ class MACEFoundationModels:
             "training_data": "Materials Project DFT calculations",
             "functional": "PBE",
             "license": "MIT",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",
         },
         "medium": {
             "type": "mace_mp",
@@ -75,7 +80,7 @@ class MACEFoundationModels:
             "training_data": "Materials Project DFT calculations",
             "functional": "PBE",
             "license": "MIT",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
         },
         "large": {
             "type": "mace_mp",
@@ -84,7 +89,7 @@ class MACEFoundationModels:
             "training_data": "Materials Project with trajectory data",
             "functional": "PBE",
             "license": "MIT",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/MACE_MPtrj_2022.9.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/MACE_MPtrj_2022.9.model",
         },
         # MACE-MPA (improved accuracy)
         "medium-mpa-0": {
@@ -94,7 +99,7 @@ class MACEFoundationModels:
             "training_data": "Materials Project with enhanced training",
             "functional": "PBE",
             "license": "MIT",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mpa_0/mace-mpa-0-medium.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mpa_0/mace-mpa-0-medium.model",
         },
         # MACE-OMAT (oxide materials specialized)
         "small-omat-0": {
@@ -104,7 +109,7 @@ class MACEFoundationModels:
             "training_data": "OMAT24 oxide materials dataset",
             "functional": "PBE",
             "license": "ASL",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-small.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-small.model",
         },
         "medium-omat-0": {
             "type": "mace_mp",
@@ -113,7 +118,7 @@ class MACEFoundationModels:
             "training_data": "OMAT24 oxide materials dataset",
             "functional": "PBE",
             "license": "ASL",
-            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-medium.model"
+            "url": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-medium.model",
         },
         # MACE-MatPES (MatPES dataset)
         "mace-matpes-pbe-0": {
@@ -123,7 +128,7 @@ class MACEFoundationModels:
             "training_data": "MatPES dataset",
             "functional": "PBE",
             "license": "ASL",
-            "url": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-pbe-omat-ft.model"
+            "url": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-pbe-omat-ft.model",
         },
         "mace-matpes-r2scan-0": {
             "type": "mace_mp",
@@ -132,7 +137,7 @@ class MACEFoundationModels:
             "training_data": "MatPES dataset",
             "functional": "r2SCAN",
             "license": "ASL",
-            "url": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-r2scan-omat-ft.model"
+            "url": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-r2scan-omat-ft.model",
         },
     }
 
@@ -147,32 +152,30 @@ class MACEFoundationModels:
         if not MACE_AVAILABLE:
             return FoundationModelListResult(
                 success=False,
-                error_message="MACE not available - install with: pip install mace-torch"
+                error_message="MACE not available - install with: pip install mace-torch",
             )
 
         try:
             models = []
             for name, info in MACEFoundationModels.AVAILABLE_MODELS.items():
-                models.append(FoundationModelInfo(
-                    model_name=name,
-                    model_type=info["type"],
-                    size=info["size"],
-                    description=info["description"],
-                    training_data=info["training_data"],
-                    functional=info.get("functional"),
-                    license=info["license"],
-                    url=info["url"]
-                ))
+                models.append(
+                    FoundationModelInfo(
+                        model_name=name,
+                        model_type=info["type"],
+                        size=info["size"],
+                        description=info["description"],
+                        training_data=info["training_data"],
+                        functional=info.get("functional"),
+                        license=info["license"],
+                        url=info["url"],
+                    )
+                )
 
-            return FoundationModelListResult(
-                success=True,
-                models=models
-            )
+            return FoundationModelListResult(success=True, models=models)
 
         except Exception as e:
             return FoundationModelListResult(
-                success=False,
-                error_message=f"Failed to list models: {str(e)}"
+                success=False, error_message=f"Failed to list models: {str(e)}"
             )
 
     @staticmethod
@@ -181,7 +184,7 @@ class MACEFoundationModels:
         device: str = "auto",
         dispersion: bool = False,
         dispersion_xc: str = "pbe",
-        default_dtype: str = "float32"
+        default_dtype: str = "float32",
     ) -> Any:
         """
         Get a MACE calculator for a foundation model.
@@ -214,6 +217,7 @@ class MACEFoundationModels:
             # Create calculator
             if device == "auto":
                 import torch
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
 
             calc = mace_mp(
@@ -221,7 +225,7 @@ class MACEFoundationModels:
                 device=device,
                 dispersion=dispersion,
                 dispersion_xc=dispersion_xc,
-                default_dtype=default_dtype
+                default_dtype=default_dtype,
             )
 
             logger.info(f"MACE calculator created successfully on {device}")
@@ -232,7 +236,7 @@ class MACEFoundationModels:
             raise
 
     @staticmethod
-    def get_model_info(model_name: str) -> Optional[FoundationModelInfo]:
+    def get_model_info(model_name: str) -> FoundationModelInfo | None:
         """
         Get detailed information about a specific model.
 
@@ -254,5 +258,5 @@ class MACEFoundationModels:
             training_data=info["training_data"],
             functional=info.get("functional"),
             license=info["license"],
-            url=info["url"]
+            url=info["url"],
         )

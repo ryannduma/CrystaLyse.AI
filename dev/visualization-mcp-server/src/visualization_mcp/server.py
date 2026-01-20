@@ -1,12 +1,13 @@
 """Visualization MCP Server for Crystalyse"""
 
 from mcp.server.fastmcp import FastMCP
+
 from .tools import (
     create_3dmol_visualization,
-    create_pymatviz_analysis_suite,
     create_creative_visualization,
+    create_mode_aligned_visualization,
+    create_pymatviz_analysis_suite,
     create_rigorous_visualization,
-    create_mode_aligned_visualization
 )
 
 mcp = FastMCP("visualization")

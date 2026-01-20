@@ -7,6 +7,4 @@ All legacy agent implementations have been consolidated into a single, efficient
 
 from .openai_agents_bridge import EnhancedCrystaLyseAgent
 
-__all__ = [
-    "EnhancedCrystaLyseAgent"
-]
+__all__ = ["EnhancedCrystaLyseAgent"]

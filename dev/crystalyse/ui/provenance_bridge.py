@@ -13,21 +13,26 @@ Design:
 """
 
 import logging
-from pathlib import Path
-from typing import Optional
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from ..config import CrystaLyseConfig
 
 # Import from internal provenance system
 try:
     from ..provenance.handlers import ProvenanceTraceHandler
+
     PROVENANCE_AVAILABLE = True
 except ImportError as e:
     PROVENANCE_AVAILABLE = False
     logging.warning(f"Provenance system handlers not available: {e}")
     # Fallback to base trace handler if provenance unavailable
     from .trace_handler import ToolTraceHandler
+
     ProvenanceTraceHandler = ToolTraceHandler
 
 logger = logging.getLogger(__name__)
@@ -59,11 +64,11 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
 
     def __init__(
         self,
-        console: Optional[Console] = None,
-        config: Optional['CrystaLyseConfig'] = None,
+        console: Console | None = None,
+        config: Optional["CrystaLyseConfig"] = None,
         mode: str = "adaptive",
-        session_id: Optional[str] = None,
-        **kwargs
+        session_id: str | None = None,
+        **kwargs,
     ):
         """
         Initialise provenance handler with CrystaLyse configuration.
@@ -78,6 +83,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         # Load configuration if not provided
         if config is None:
             from ..config import Config
+
             config = Config.load()
 
         self.config = config
@@ -95,13 +101,13 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         try:
             super().__init__(
                 console=console or Console(),
-                output_dir=config.provenance['output_dir'],
+                output_dir=config.provenance["output_dir"],
                 session_id=session_id,
                 enable_provenance=True,  # Always enabled
-                enable_visual=config.provenance['visual_trace'],
-                capture_mcp_logs=config.provenance['capture_mcp_logs'],
-                save_raw_outputs=config.provenance['capture_raw'],
-                **kwargs
+                enable_visual=config.provenance["visual_trace"],
+                capture_mcp_logs=config.provenance["capture_mcp_logs"],
+                save_raw_outputs=config.provenance["capture_raw"],
+                **kwargs,
             )
             logger.info(f"Provenance handler initialised: {session_id}")
         except Exception as e:
@@ -109,7 +115,9 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
             # If provenance fails to initialise, still allow discovery to proceed
             # Re-raise only if it's a critical error
             if not PROVENANCE_AVAILABLE:
-                logger.warning("Provenance system unavailable - discovery will proceed without provenance")
+                logger.warning(
+                    "Provenance system unavailable - discovery will proceed without provenance"
+                )
             else:
                 raise
 
@@ -120,7 +128,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         Returns:
             Path to summary.json
         """
-        if hasattr(self, 'output_dir') and self.output_dir:
+        if hasattr(self, "output_dir") and self.output_dir:
             return self.output_dir / "summary.json"
         return None
 
@@ -131,7 +139,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         Returns:
             Path to materials_catalog.json
         """
-        if hasattr(self, 'output_dir') and self.output_dir:
+        if hasattr(self, "output_dir") and self.output_dir:
             return self.output_dir / "materials_catalog.json"
         return None
 
@@ -142,7 +150,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         Returns:
             Path to events.jsonl
         """
-        if hasattr(self, 'output_dir') and self.output_dir:
+        if hasattr(self, "output_dir") and self.output_dir:
             return self.output_dir / "events.jsonl"
         return None
 
@@ -156,10 +164,12 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         return {
             "session_id": self.session_id,
             "mode": self.mode,
-            "output_dir": str(self.output_dir) if hasattr(self, 'output_dir') else None,
+            "output_dir": str(self.output_dir) if hasattr(self, "output_dir") else None,
             "summary_file": str(self.get_summary_path()) if self.get_summary_path() else None,
-            "materials_file": str(self.get_materials_catalogue_path()) if self.get_materials_catalogue_path() else None,
-            "events_file": str(self.get_events_path()) if self.get_events_path() else None
+            "materials_file": str(self.get_materials_catalogue_path())
+            if self.get_materials_catalogue_path()
+            else None,
+            "events_file": str(self.get_events_path()) if self.get_events_path() else None,
         }
 
     def finalize(self) -> dict:
@@ -176,29 +186,25 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
 
             # Add CrystaLyse-specific metadata
             if summary:
-                summary['mode'] = self.mode
-                summary['session_info'] = self.get_session_info()
+                summary["mode"] = self.mode
+                summary["session_info"] = self.get_session_info()
                 # Add output_dir at top level for easier access
-                if hasattr(self, 'output_dir') and self.output_dir:
-                    summary['output_dir'] = str(self.output_dir)
+                if hasattr(self, "output_dir") and self.output_dir:
+                    summary["output_dir"] = str(self.output_dir)
 
             logger.info(f"Provenance finalised: {self.session_id}")
             return summary
         except Exception as e:
             logger.error(f"Error finalising provenance: {e}")
             # Return minimal summary on error
-            return {
-                "session_id": self.session_id,
-                "mode": self.mode,
-                "error": str(e)
-            }
+            return {"session_id": self.session_id, "mode": self.mode, "error": str(e)}
 
 
 def create_provenance_handler(
     mode: str = "adaptive",
-    config: Optional['CrystaLyseConfig'] = None,
-    console: Optional[Console] = None,
-    session_id: Optional[str] = None
+    config: Optional["CrystaLyseConfig"] = None,
+    console: Console | None = None,
+    session_id: str | None = None,
 ) -> CrystaLyseProvenanceHandler:
     """
     Factory function to create a provenance handler with sensible defaults.
@@ -214,22 +220,16 @@ def create_provenance_handler(
     """
     if config is None:
         from ..config import Config
+
         config = Config.load()
 
     if console is None:
         console = Console()
 
     return CrystaLyseProvenanceHandler(
-        console=console,
-        config=config,
-        mode=mode,
-        session_id=session_id
+        console=console, config=config, mode=mode, session_id=session_id
     )
 
 
 # Export main class and factory
-__all__ = [
-    'CrystaLyseProvenanceHandler',
-    'create_provenance_handler',
-    'PROVENANCE_AVAILABLE'
-]
+__all__ = ["CrystaLyseProvenanceHandler", "create_provenance_handler", "PROVENANCE_AVAILABLE"]

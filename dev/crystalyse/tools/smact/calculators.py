@@ -1,29 +1,31 @@
 """SMACT calculation tools - extracted from MCP server."""
-from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+
 import numpy as np
+from pydantic import BaseModel, Field
 
 from .validators import get_robust_electronegativity
 
 
 class BandGapResult(BaseModel):
     """Band gap prediction result."""
+
     formula: str
-    band_gap_ev: Optional[float] = None
+    band_gap_ev: float | None = None
     band_gap_estimate: str
     method: str
-    electronegativity_difference: Optional[float] = None
+    electronegativity_difference: float | None = None
     confidence: float = Field(ge=0.0, le=1.0, default=0.5)
 
 
 class ElementInfo(BaseModel):
     """Element information result."""
+
     symbol: str
     name: str
     atomic_number: int
     atomic_mass: float
-    electronegativity: Optional[float] = None
-    oxidation_states: Optional[Dict[str, List[int]]] = None
+    electronegativity: float | None = None
+    oxidation_states: dict[str, list[int]] | None = None
 
 
 class SMACTCalculator:
@@ -42,6 +44,7 @@ class SMACTCalculator:
         """
         try:
             from pymatgen.core import Composition
+
             comp = Composition(composition)
 
             elements = list(comp.as_dict().keys())
@@ -58,7 +61,7 @@ class SMACTCalculator:
                     formula=composition,
                     band_gap_estimate="unknown",
                     method="harrison",
-                    confidence=0.0
+                    confidence=0.0,
                 )
 
             # Simple Harrison-based estimate (very approximate)
@@ -80,22 +83,16 @@ class SMACTCalculator:
                 electronegativity_difference=eneg_diff,
                 band_gap_estimate=gap_estimate,
                 method="Harrison-inspired electronegativity difference",
-                confidence=confidence
+                confidence=confidence,
             )
 
-        except Exception as e:
+        except Exception:
             return BandGapResult(
-                formula=composition,
-                band_gap_estimate="error",
-                method="harrison",
-                confidence=0.0
+                formula=composition, band_gap_estimate="error", method="harrison", confidence=0.0
             )
 
     @staticmethod
-    def get_element_info(
-        symbol: str,
-        include_oxidation_states: bool = True
-    ) -> ElementInfo:
+    def get_element_info(symbol: str, include_oxidation_states: bool = True) -> ElementInfo:
         """
         Get detailed properties of a chemical element from SMACT database.
 
@@ -108,18 +105,19 @@ class SMACTCalculator:
         """
         try:
             from smact import Element
+
             elem = Element(symbol)
 
             ox_states = None
             if include_oxidation_states:
                 ox_states = {}
-                if hasattr(elem, 'oxidation_states_icsd24'):
+                if hasattr(elem, "oxidation_states_icsd24"):
                     ox_states["icsd24"] = elem.oxidation_states_icsd24
-                if hasattr(elem, 'oxidation_states_icsd16'):
+                if hasattr(elem, "oxidation_states_icsd16"):
                     ox_states["icsd16"] = elem.oxidation_states_icsd16
-                if hasattr(elem, 'oxidation_states_smact14'):
+                if hasattr(elem, "oxidation_states_smact14"):
                     ox_states["smact14"] = elem.oxidation_states_smact14
-                if hasattr(elem, 'oxidation_states_wiki'):
+                if hasattr(elem, "oxidation_states_wiki"):
                     ox_states["wiki"] = elem.oxidation_states_wiki
 
             return ElementInfo(
@@ -128,8 +126,8 @@ class SMACTCalculator:
                 atomic_number=elem.number,
                 atomic_mass=elem.mass,
                 electronegativity=elem.pauling_eneg,
-                oxidation_states=ox_states if ox_states else None
+                oxidation_states=ox_states if ox_states else None,
             )
 
         except Exception as e:
-            raise ValueError(f"Failed to get element info for {symbol}: {e}")
+            raise ValueError(f"Failed to get element info for {symbol}: {e}") from e

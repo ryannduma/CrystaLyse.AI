@@ -1,68 +1,76 @@
 """MACE formation energy calculations - extracted from MCP server."""
-from typing import Dict, Any, Optional, Tuple
-from pydantic import BaseModel, Field
+
 import logging
 import warnings
+from typing import Any
+
 import numpy as np
+from pydantic import BaseModel
 
 # Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
-warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
-                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
+)
 
 logger = logging.getLogger(__name__)
 
 # Global model cache
-_model_cache: Dict[str, Any] = {}
+_model_cache: dict[str, Any] = {}
 
 
 class EnergyResult(BaseModel):
     """Formation energy calculation result."""
+
     success: bool = True
     formula: str
-    formation_energy: Optional[float] = None
-    energy_per_atom: Optional[float] = None
-    total_energy: Optional[float] = None
+    formation_energy: float | None = None
+    energy_per_atom: float | None = None
+    total_energy: float | None = None
     unit: str = "eV"
     method: str = "mace"
-    max_force: Optional[float] = None
-    rms_force: Optional[float] = None
-    error: Optional[str] = None
+    max_force: float | None = None
+    rms_force: float | None = None
+    error: str | None = None
 
 
 class RelaxationResult(BaseModel):
     """Structure relaxation result."""
+
     success: bool = True
     converged: bool = False
-    initial_energy: Optional[float] = None
-    final_energy: Optional[float] = None
-    energy_change: Optional[float] = None
-    max_displacement: Optional[float] = None
+    initial_energy: float | None = None
+    final_energy: float | None = None
+    energy_change: float | None = None
+    max_displacement: float | None = None
     n_steps: int = 0
-    relaxed_structure: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    relaxed_structure: dict[str, Any] | None = None
+    error: str | None = None
 
 
 def _import_dependencies():
     """Import required dependencies with informative error messages."""
     try:
-        import torch
-        global torch
-    except ImportError:
-        raise ImportError("PyTorch is required for MACE calculations")
+        import torch  # noqa: F401
+
+        global torch  # noqa: F811
+    except ImportError as e:
+        raise ImportError("PyTorch is required for MACE calculations") from e
 
     try:
         from ase import Atoms
         from ase.optimize import BFGS, FIRE, LBFGS
-        global Atoms, BFGS, FIRE, LBFGS
-    except ImportError:
-        raise ImportError("ASE is required for atomic simulations")
+
+        global Atoms, BFGS, FIRE, LBFGS  # noqa: F811
+    except ImportError as e:
+        raise ImportError("ASE is required for atomic simulations") from e
 
     try:
-        from mace.calculators import mace_mp, mace_off, MACECalculator
-        global mace_mp, mace_off, MACECalculator
+        from mace.calculators import MACECalculator, mace_mp, mace_off
+
+        global mace_mp, mace_off, MACECalculator  # noqa: F811
         logger.info("MACE calculators imported successfully")
     except ImportError as e:
-        raise ImportError(f"MACE package not available: {e}")
+        raise ImportError(f"MACE package not available: {e}") from e
 
 
 # Import dependencies on module load
@@ -74,7 +82,7 @@ def get_mace_calculator(
     size: str = "medium",
     device: str = "auto",
     compile_model: bool = False,
-    default_dtype: str = "float32"
+    default_dtype: str = "float32",
 ) -> Any:
     """Get or create MACE calculator with caching and optimisation."""
     cache_key = f"{model_type}_{size}_{device}_{compile_model}_{default_dtype}"
@@ -93,9 +101,7 @@ def get_mace_calculator(
             else:
                 # Custom model path
                 calc = MACECalculator(
-                    model_paths=model_type,
-                    device=device,
-                    default_dtype=default_dtype
+                    model_paths=model_type, device=device, default_dtype=default_dtype
                 )
 
             _model_cache[cache_key] = calc
@@ -108,7 +114,7 @@ def get_mace_calculator(
     return _model_cache[cache_key]
 
 
-def validate_structure(structure_dict: dict) -> Tuple[bool, str]:
+def validate_structure(structure_dict: dict) -> tuple[bool, str]:
     """Validate structure before MACE calculations."""
     try:
         required = ["numbers", "positions", "cell"]
@@ -150,7 +156,7 @@ def dict_to_atoms(structure_dict: dict) -> Any:
         numbers=structure_dict["numbers"],
         positions=structure_dict["positions"],
         cell=structure_dict["cell"],
-        pbc=structure_dict.get("pbc", [True, True, True])
+        pbc=structure_dict.get("pbc", [True, True, True]),
     )
 
 
@@ -160,43 +166,31 @@ def atoms_to_dict(atoms: Any) -> dict:
         "numbers": atoms.numbers.tolist(),
         "positions": atoms.positions.tolist(),
         "cell": atoms.cell.tolist(),
-        "pbc": atoms.pbc.tolist()
+        "pbc": atoms.pbc.tolist(),
     }
 
 
-class MACECalculator:
+class MACECalculator:  # noqa: F811
     """MACE energy calculations without MCP."""
 
-    def __init__(
-        self,
-        model_type: str = "mace_mp",
-        size: str = "medium",
-        device: str = "auto"
-    ):
+    def __init__(self, model_type: str = "mace_mp", size: str = "medium", device: str = "auto"):
         self.model_type = model_type
         self.size = size
         self.device = device
 
-    async def calculate_formation_energy(
-        self,
-        structure: Dict[str, Any]
-    ) -> EnergyResult:
+    async def calculate_formation_energy(self, structure: dict[str, Any]) -> EnergyResult:
         """Calculate formation energy using MACE."""
         try:
             # Validate structure
             valid, msg = validate_structure(structure)
             if not valid:
                 return EnergyResult(
-                    success=False,
-                    formula="unknown",
-                    error=f"Validation failed: {msg}"
+                    success=False, formula="unknown", error=f"Validation failed: {msg}"
                 )
 
             atoms = dict_to_atoms(structure)
             calc = get_mace_calculator(
-                model_type=self.model_type,
-                size=self.size,
-                device=self.device
+                model_type=self.model_type, size=self.size, device=self.device
             )
             atoms.calc = calc
 
@@ -206,8 +200,7 @@ class MACECalculator:
             # Get reference energies from the foundation model
             atomic_numbers = atoms.get_atomic_numbers()
             indices = torch.tensor(
-                [calc.z_table.z_to_index(z) for z in atomic_numbers],
-                device=calc.device
+                [calc.z_table.z_to_index(z) for z in atomic_numbers], device=calc.device
             )
 
             # Convert to one-hot encoding
@@ -226,39 +219,30 @@ class MACECalculator:
                 formula=atoms.get_chemical_formula(),
                 formation_energy=float(formation_energy),
                 energy_per_atom=float(formation_energy),
-                total_energy=float(compound_energy)
+                total_energy=float(compound_energy),
             )
 
         except Exception as e:
             logger.error(f"Formation energy calculation failed: {e}")
-            return EnergyResult(
-                success=False,
-                formula="unknown",
-                error=str(e)
-            )
+            return EnergyResult(success=False, formula="unknown", error=str(e))
 
     async def relax_structure(
         self,
-        structure: Dict[str, Any],
+        structure: dict[str, Any],
         fmax: float = 0.01,
         steps: int = 500,
-        optimizer: str = "BFGS"
+        optimizer: str = "BFGS",
     ) -> RelaxationResult:
         """Relax structure to local energy minimum."""
         try:
             # Validate structure
             valid, msg = validate_structure(structure)
             if not valid:
-                return RelaxationResult(
-                    success=False,
-                    error=f"Validation failed: {msg}"
-                )
+                return RelaxationResult(success=False, error=f"Validation failed: {msg}")
 
             atoms = dict_to_atoms(structure)
             calc = get_mace_calculator(
-                model_type=self.model_type,
-                size=self.size,
-                device=self.device
+                model_type=self.model_type, size=self.size, device=self.device
             )
             atoms.calc = calc
 
@@ -276,7 +260,7 @@ class MACECalculator:
             else:
                 return RelaxationResult(
                     success=False,
-                    error=f"Invalid optimizer '{optimizer}'. Choose from BFGS, FIRE, LBFGS."
+                    error=f"Invalid optimizer '{optimizer}'. Choose from BFGS, FIRE, LBFGS.",
                 )
 
             # Track optimization progress
@@ -294,9 +278,9 @@ class MACECalculator:
             # Calculate metrics
             final_energy = float(atoms.get_potential_energy())
             energy_change = final_energy - initial_energy
-            max_displacement = float(np.max(np.linalg.norm(
-                atoms.positions - initial_positions, axis=1
-            )))
+            max_displacement = float(
+                np.max(np.linalg.norm(atoms.positions - initial_positions, axis=1))
+            )
 
             return RelaxationResult(
                 success=True,
@@ -306,21 +290,14 @@ class MACECalculator:
                 energy_change=energy_change,
                 max_displacement=max_displacement,
                 n_steps=len(energies) - 1,
-                relaxed_structure=atoms_to_dict(atoms)
+                relaxed_structure=atoms_to_dict(atoms),
             )
 
         except Exception as e:
             logger.error(f"Relaxation failed: {e}")
-            return RelaxationResult(
-                success=False,
-                error=str(e)
-            )
+            return RelaxationResult(success=False, error=str(e))
 
-    async def calculate_energy(
-        self,
-        cif_content: str,
-        prefer_gpu: bool = True
-    ) -> Dict[str, Any]:
+    async def calculate_energy(self, cif_content: str, prefer_gpu: bool = True) -> dict[str, Any]:
         """
         Calculate energy from CIF content (compatible with MCP server interface).
 
@@ -333,10 +310,11 @@ class MACECalculator:
         """
         try:
             # Parse CIF to atoms
-            from ase.io import read
             from io import StringIO
 
-            atoms = read(StringIO(cif_content), format='cif')
+            from ase.io import read
+
+            atoms = read(StringIO(cif_content), format="cif")
 
             # Convert to structure dict
             structure = atoms_to_dict(atoms)
@@ -360,31 +338,27 @@ class MACECalculator:
                 "uncertainty": None,  # MACE doesn't provide uncertainty by default
                 "computation_time": None,
                 "model_used": f"{self.model_type}_{self.size}",
-                "error": result.error
+                "error": result.error,
             }
 
         except Exception as e:
             logger.error(f"Energy calculation from CIF failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def calculate_formation_energy_sync(
-        self,
-        structure: Dict[str, Any]
-    ) -> EnergyResult:
+    def calculate_formation_energy_sync(self, structure: dict[str, Any]) -> EnergyResult:
         """Synchronous version of calculate_formation_energy."""
         import asyncio
+
         return asyncio.run(self.calculate_formation_energy(structure))
 
     def relax_structure_sync(
         self,
-        structure: Dict[str, Any],
+        structure: dict[str, Any],
         fmax: float = 0.01,
         steps: int = 500,
-        optimizer: str = "BFGS"
+        optimizer: str = "BFGS",
     ) -> RelaxationResult:
         """Synchronous version of relax_structure."""
         import asyncio
+
         return asyncio.run(self.relax_structure(structure, fmax, steps, optimizer))

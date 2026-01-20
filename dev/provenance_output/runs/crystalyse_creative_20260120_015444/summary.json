@@ -1,0 +1,25 @@
+{
+  "session_id": "crystalyse_creative_20260120_015444",
+  "total_time_s": 23.60901117324829,
+  "ttfb_ms": 23602.98442840576,
+  "tool_calls_total": 1,
+  "materials_found": 0,
+  "unique_compositions": 0,
+  "mcp_operations": 1,
+  "timestamp": "2026-01-20T01:55:08.061379",
+  "mcp_tools": {
+    "creative_discovery_pipeline": {
+      "count": 1,
+      "total_ms": 7047.950029373169,
+      "materials": 0,
+      "avg_ms": 7047.950029373169
+    }
+  },
+  "materials_summary": {
+    "total": 0,
+    "with_energy": 0,
+    "min_energy": null,
+    "max_energy": null,
+    "avg_energy": null
+  }
+}

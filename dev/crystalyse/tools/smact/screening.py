@@ -10,13 +10,14 @@ Fast screening tools for materials discovery including:
 
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 try:
-    from smact.screening import smact_validity, ml_rep_generator, smact_filter
     from smact import Element
+    from smact.screening import ml_rep_generator, smact_filter, smact_validity
+
     SMACT_AVAILABLE = True
 except ImportError:
     SMACT_AVAILABLE = False
@@ -28,6 +29,7 @@ except ImportError:
 
 class CompositionValidityResult(BaseModel):
     """Result from SMACT validity check."""
+
     success: bool = True
     composition: str = Field(description="Chemical formula tested")
     is_valid: bool = Field(description="Whether composition passes SMACT tests")
@@ -36,34 +38,36 @@ class CompositionValidityResult(BaseModel):
     use_pauling_test: bool = Field(description="Whether Pauling EN test was used")
     include_alloys: bool = Field(description="Whether alloys are considered valid")
     check_metallicity: bool = Field(description="Whether metallicity was checked")
-    oxidation_states_set: Optional[str] = Field(description="Oxidation state dataset used")
+    oxidation_states_set: str | None = Field(description="Oxidation state dataset used")
 
     # Optional metadata
-    metallicity_threshold: Optional[float] = None
-    error_message: Optional[str] = None
+    metallicity_threshold: float | None = None
+    error_message: str | None = None
 
 
 class MLRepresentationResult(BaseModel):
     """Result from ML representation generation."""
+
     success: bool = True
     composition: str = Field(description="Chemical formula")
-    ml_vector: List[float] = Field(description="103-element ML representation vector (normalized)")
+    ml_vector: list[float] = Field(description="103-element ML representation vector (normalized)")
     vector_length: int = Field(default=103, description="Length of ML vector")
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class CompositionFilterResult(BaseModel):
     """Result from SMACT composition filtering."""
+
     success: bool = True
-    elements: List[str] = Field(description="Element symbols tested")
+    elements: list[str] = Field(description="Element symbols tested")
     num_valid_compositions: int = Field(description="Number of valid compositions found")
-    valid_compositions: List[Dict[str, Any]] = Field(
+    valid_compositions: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="List of valid compositions with oxidation states and stoichiometry"
+        description="List of valid compositions with oxidation states and stoichiometry",
     )
     threshold: int = Field(description="Stoichiometry threshold used")
     oxidation_states_set: str = Field(description="Oxidation state dataset used")
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class SMACTScreener:
@@ -75,11 +79,11 @@ class SMACTScreener:
     """
 
     AVAILABLE_OXIDATION_SETS = [
-        "icsd24",    # Default: 2024 ICSD (most up-to-date)
-        "smact14",   # Original SMACT 2014 oxidation states
-        "icsd16",    # 2016 ICSD
+        "icsd24",  # Default: 2024 ICSD (most up-to-date)
+        "smact14",  # Original SMACT 2014 oxidation states
+        "icsd16",  # 2016 ICSD
         "pymatgen_sp",  # PyMatgen structure predictor
-        "wiki"       # Wikipedia (use with caution)
+        "wiki",  # Wikipedia (use with caution)
     ]
 
     @staticmethod
@@ -89,10 +93,10 @@ class SMACTScreener:
         include_alloys: bool = True,
         check_metallicity: bool = False,
         metallicity_threshold: float = 0.7,
-        oxidation_states_set: Optional[str] = "icsd24",
+        oxidation_states_set: str | None = "icsd24",
         include_zero: bool = False,
         consensus: int = 3,
-        commonality: str = "medium"
+        commonality: str = "medium",
     ) -> CompositionValidityResult:
         """
         Fast SMACT validity check for a composition.
@@ -120,12 +124,15 @@ class SMACTScreener:
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 oxidation_states_set=oxidation_states_set,
-                error_message="SMACT not available - install with: pip install SMACT"
+                error_message="SMACT not available - install with: pip install SMACT",
             )
 
         try:
             # Validate oxidation states set
-            if oxidation_states_set and oxidation_states_set not in SMACTScreener.AVAILABLE_OXIDATION_SETS:
+            if (
+                oxidation_states_set
+                and oxidation_states_set not in SMACTScreener.AVAILABLE_OXIDATION_SETS
+            ):
                 return CompositionValidityResult(
                     success=False,
                     composition=composition,
@@ -134,7 +141,7 @@ class SMACTScreener:
                     include_alloys=include_alloys,
                     check_metallicity=check_metallicity,
                     oxidation_states_set=oxidation_states_set,
-                    error_message=f"Invalid oxidation set. Choose from: {SMACTScreener.AVAILABLE_OXIDATION_SETS}"
+                    error_message=f"Invalid oxidation set. Choose from: {SMACTScreener.AVAILABLE_OXIDATION_SETS}",
                 )
 
             # Run SMACT validity check
@@ -147,7 +154,7 @@ class SMACTScreener:
                 oxidation_states_set=oxidation_states_set,
                 include_zero=include_zero,
                 consensus=consensus,
-                commonality=commonality
+                commonality=commonality,
             )
 
             return CompositionValidityResult(
@@ -158,7 +165,7 @@ class SMACTScreener:
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 oxidation_states_set=oxidation_states_set,
-                metallicity_threshold=metallicity_threshold if check_metallicity else None
+                metallicity_threshold=metallicity_threshold if check_metallicity else None,
             )
 
         except Exception as e:
@@ -170,13 +177,12 @@ class SMACTScreener:
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 oxidation_states_set=oxidation_states_set,
-                error_message=f"Validation failed: {str(e)}"
+                error_message=f"Validation failed: {str(e)}",
             )
 
     @staticmethod
     def generate_ml_representation(
-        composition: Union[str, List[str]],
-        stoichs: Optional[List[int]] = None
+        composition: str | list[str], stoichs: list[int] | None = None
     ) -> MLRepresentationResult:
         """
         Generate 103-element ML-compatible vector for a composition.
@@ -198,13 +204,14 @@ class SMACTScreener:
                 success=False,
                 composition=str(composition),
                 ml_vector=[],
-                error_message="SMACT not available - install with: pip install SMACT"
+                error_message="SMACT not available - install with: pip install SMACT",
             )
 
         try:
             # Handle string composition by parsing it
             if isinstance(composition, str):
                 from pymatgen.core import Composition
+
                 comp = Composition(composition)
                 elements = [Element(sym) for sym in comp.as_dict().keys()]
                 stoichs = list(comp.as_dict().values())
@@ -212,7 +219,9 @@ class SMACTScreener:
             else:
                 # List of element symbols
                 elements = [Element(sym) if isinstance(sym, str) else sym for sym in composition]
-                composition_str = "".join([f"{el.symbol}{s}" for el, s in zip(elements, stoichs or [])])
+                composition_str = "".join(
+                    [f"{el.symbol}{s}" for el, s in zip(elements, stoichs or [], strict=False)]
+                )
 
             # Generate ML representation
             ml_vector = ml_rep_generator(elements, stoichs=stoichs)
@@ -221,7 +230,7 @@ class SMACTScreener:
                 success=True,
                 composition=composition_str,
                 ml_vector=ml_vector,
-                vector_length=len(ml_vector)
+                vector_length=len(ml_vector),
             )
 
         except Exception as e:
@@ -229,16 +238,16 @@ class SMACTScreener:
                 success=False,
                 composition=str(composition),
                 ml_vector=[],
-                error_message=f"ML representation generation failed: {str(e)}"
+                error_message=f"ML representation generation failed: {str(e)}",
             )
 
     @staticmethod
     def filter_compositions(
-        elements: List[str],
+        elements: list[str],
         threshold: int = 8,
-        stoichs: Optional[List[List[int]]] = None,
+        stoichs: list[list[int]] | None = None,
         species_unique: bool = True,
-        oxidation_states_set: str = "icsd24"
+        oxidation_states_set: str = "icsd24",
     ) -> CompositionFilterResult:
         """
         Generate all valid compositions for a given set of elements.
@@ -263,7 +272,7 @@ class SMACTScreener:
                 num_valid_compositions=0,
                 threshold=threshold,
                 oxidation_states_set=oxidation_states_set,
-                error_message="SMACT not available - install with: pip install SMACT"
+                error_message="SMACT not available - install with: pip install SMACT",
             )
 
         try:
@@ -276,23 +285,24 @@ class SMACTScreener:
                 threshold=threshold,
                 stoichs=stoichs,
                 species_unique=species_unique,
-                oxidation_states_set=oxidation_states_set
+                oxidation_states_set=oxidation_states_set,
             )
 
             # Format results
             formatted_comps = []
             for comp in valid_comps[:100]:  # Limit to 100 for response size
                 if species_unique and len(comp) == 3:
-                    formatted_comps.append({
-                        "elements": list(comp[0]),
-                        "oxidation_states": list(comp[1]),
-                        "stoichiometry": list(comp[2])
-                    })
+                    formatted_comps.append(
+                        {
+                            "elements": list(comp[0]),
+                            "oxidation_states": list(comp[1]),
+                            "stoichiometry": list(comp[2]),
+                        }
+                    )
                 elif not species_unique and len(comp) == 2:
-                    formatted_comps.append({
-                        "elements": list(comp[0]),
-                        "stoichiometry": list(comp[1])
-                    })
+                    formatted_comps.append(
+                        {"elements": list(comp[0]), "stoichiometry": list(comp[1])}
+                    )
 
             return CompositionFilterResult(
                 success=True,
@@ -300,7 +310,7 @@ class SMACTScreener:
                 num_valid_compositions=len(valid_comps),
                 valid_compositions=formatted_comps,
                 threshold=threshold,
-                oxidation_states_set=oxidation_states_set
+                oxidation_states_set=oxidation_states_set,
             )
 
         except Exception as e:
@@ -310,5 +320,5 @@ class SMACTScreener:
                 num_valid_compositions=0,
                 threshold=threshold,
                 oxidation_states_set=oxidation_states_set,
-                error_message=f"Composition filtering failed: {str(e)}"
+                error_message=f"Composition filtering failed: {str(e)}",
             )

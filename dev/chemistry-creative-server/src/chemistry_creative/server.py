@@ -8,29 +8,25 @@ Optimized for rapid exploration of materials space.
 """
 
 import logging
-import json
-from typing import List, Dict, Any, Optional
-import numpy as np
 import warnings
-from mcp.server.fastmcp import FastMCP
-from pathlib import Path
 from datetime import datetime
-from ase.io import write as ase_write
+from pathlib import Path
+from typing import Any
+
+import numpy as np
 from ase import Atoms
+from ase.io import write as ase_write
+from mcp.server.fastmcp import FastMCP
 
 # Suppress e3nn warning
-warnings.filterwarnings('ignore', category=UserWarning, module='e3nn',
-                       message='.*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*')
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
+)
 
 # CLEAN IMPORTS - No sys.path manipulation!
 from crystalyse.tools.chemeleon import ChemeleonPredictor
 from crystalyse.tools.mace import MACECalculator
 from crystalyse.tools.pymatgen import PyMatgenAnalyzer
-from crystalyse.tools.models import (
-    PredictionResult,
-    EnergyResult,
-    CrystalStructure
-)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -49,39 +45,40 @@ logger.info("Chemistry Creative Server initialized with Chemeleon and MACE")
 
 # --- Core Utility Functions ---
 
+
 def make_json_serializable(obj: Any) -> Any:
     """Convert objects to JSON-serializable format."""
     if isinstance(obj, dict):
         return {k: make_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, list | tuple):
         return [make_json_serializable(item) for item in obj]
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+    elif isinstance(obj, np.integer | np.int64 | np.int32):
         return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+    elif isinstance(obj, np.floating | np.float64 | np.float32):
         return float(obj)
     elif isinstance(obj, np.bool_):
         return bool(obj)
-    elif hasattr(obj, 'tolist'):
+    elif hasattr(obj, "tolist"):
         return obj.tolist()
-    elif obj is None or isinstance(obj, (str, int, float, bool)):
+    elif obj is None or isinstance(obj, str | int | float | bool):
         return obj
     else:
         try:
             return str(obj)
-        except:
+        except Exception:
             return repr(obj)
 
 
-def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
+def structure_dict_to_cif(structure_dict: dict[str, Any]) -> str:
     """Convert structure dictionary to CIF format string."""
     try:
         # Extract fields
-        numbers = structure_dict['numbers']
-        positions = structure_dict['positions']
-        cell = structure_dict['cell']
-        pbc = structure_dict.get('pbc', [True, True, True])
+        numbers = structure_dict["numbers"]
+        positions = structure_dict["positions"]
+        cell = structure_dict["cell"]
+        pbc = structure_dict.get("pbc", [True, True, True])
 
         # Ensure proper types
         if isinstance(numbers, np.ndarray):
@@ -91,23 +88,18 @@ def structure_dict_to_cif(structure_dict: Dict[str, Any]) -> str:
         if isinstance(cell, np.ndarray):
             cell = cell.tolist()
 
-        atoms = Atoms(
-            numbers=numbers,
-            positions=positions,
-            cell=cell,
-            pbc=pbc
-        )
+        atoms = Atoms(numbers=numbers, positions=positions, cell=cell, pbc=pbc)
 
         # Write to temporary file and read back
-        import tempfile
         import os
+        import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cif", delete=False) as tmp_file:
             tmp_filename = tmp_file.name
 
         try:
-            ase_write(tmp_filename, atoms, format='cif')
-            with open(tmp_filename, 'r') as f:
+            ase_write(tmp_filename, atoms, format="cif")
+            with open(tmp_filename) as f:
                 cif_content = f.read()
             return cif_content
         finally:
@@ -135,11 +127,10 @@ def _create_session_directory() -> Path:
 
 # --- CHEMELEON TOOLS ---
 
+
 @mcp.tool()
 async def generate_crystal_structure(
-    formula: str,
-    num_samples: int = 3,
-    prefer_gpu: bool = True
+    formula: str, num_samples: int = 3, prefer_gpu: bool = True
 ) -> dict[str, Any]:
     """
     Generate crystal structures using Chemeleon CSP (fast creative mode).
@@ -156,48 +147,41 @@ async def generate_crystal_structure(
 
     try:
         result = await chemeleon_predictor.predict_structure(
-            formula=formula,
-            num_samples=num_samples,
-            prefer_gpu=prefer_gpu
+            formula=formula, num_samples=num_samples, prefer_gpu=prefer_gpu
         )
 
-        return make_json_serializable({
-            "success": result.success,
-            "formula": result.formula,
-            "structures": [
-                {
-                    "formula": s.formula,
-                    "cell": s.cell,
-                    "positions": s.positions,
-                    "numbers": s.numbers,
-                    "symbols": s.symbols,
-                    "volume": s.volume,
-                    "confidence": s.confidence
-                }
-                for s in result.predicted_structures
-            ],
-            "computation_time": result.computation_time,
-            "method": result.method,
-            "checkpoint_used": result.checkpoint_used,
-            "error": result.error
-        })
+        return make_json_serializable(
+            {
+                "success": result.success,
+                "formula": result.formula,
+                "structures": [
+                    {
+                        "formula": s.formula,
+                        "cell": s.cell,
+                        "positions": s.positions,
+                        "numbers": s.numbers,
+                        "symbols": s.symbols,
+                        "volume": s.volume,
+                        "confidence": s.confidence,
+                    }
+                    for s in result.predicted_structures
+                ],
+                "computation_time": result.computation_time,
+                "method": result.method,
+                "checkpoint_used": result.checkpoint_used,
+                "error": result.error,
+            }
+        )
     except Exception as e:
         logger.error(f"Chemeleon structure generation failed: {e}")
-        return {
-            "success": False,
-            "formula": formula,
-            "structures": [],
-            "error": str(e)
-        }
+        return {"success": False, "formula": formula, "structures": [], "error": str(e)}
 
 
 # --- MACE TOOLS ---
 
+
 @mcp.tool()
-async def calculate_formation_energy(
-    cif_content: str,
-    prefer_gpu: bool = True
-) -> dict[str, Any]:
+async def calculate_formation_energy(cif_content: str, prefer_gpu: bool = True) -> dict[str, Any]:
     """
     Calculate formation energy using MACE (fast creative mode).
 
@@ -212,38 +196,37 @@ async def calculate_formation_energy(
 
     try:
         result = await mace_calculator.calculate_energy(
-            cif_content=cif_content,
-            prefer_gpu=prefer_gpu
+            cif_content=cif_content, prefer_gpu=prefer_gpu
         )
 
         # result is a dict from MACECalculator.calculate_energy()
-        return make_json_serializable({
-            "success": result["success"],
-            "formula": result.get("formula"),
-            "formation_energy_per_atom": result.get("formation_energy_per_atom"),
-            "total_energy": result.get("total_energy"),
-            "num_atoms": result.get("num_atoms", 0),
-            "uncertainty": result.get("uncertainty"),
-            "computation_time": result.get("computation_time"),
-            "model_used": result.get("model_used"),
-            "error": result.get("error")
-        })
+        return make_json_serializable(
+            {
+                "success": result["success"],
+                "formula": result.get("formula"),
+                "formation_energy_per_atom": result.get("formation_energy_per_atom"),
+                "total_energy": result.get("total_energy"),
+                "num_atoms": result.get("num_atoms", 0),
+                "uncertainty": result.get("uncertainty"),
+                "computation_time": result.get("computation_time"),
+                "model_used": result.get("model_used"),
+                "error": result.get("error"),
+            }
+        )
     except Exception as e:
         logger.error(f"MACE energy calculation failed: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 # --- COMPREHENSIVE CREATIVE DISCOVERY ---
+
 
 @mcp.tool()
 async def creative_discovery_pipeline(
     compositions: list[str],
     structures_per_composition: int = 3,
     calculate_energies: bool = True,
-    prefer_gpu: bool = True
+    prefer_gpu: bool = True,
 ) -> dict[str, Any]:
     """
     Fast creative discovery pipeline: Chemeleon structure generation + MACE energies.
@@ -272,17 +255,15 @@ async def creative_discovery_pipeline(
             "total_compositions": len(compositions),
             "structures_generated": 0,
             "energies_calculated": 0,
-            "failed_compositions": []
-        }
+            "failed_compositions": [],
+        },
     }
 
     for composition in compositions:
         try:
             # Generate structures
             struct_result = await generate_crystal_structure(
-                formula=composition,
-                num_samples=structures_per_composition,
-                prefer_gpu=prefer_gpu
+                formula=composition, num_samples=structures_per_composition, prefer_gpu=prefer_gpu
             )
 
             if struct_result["success"]:
@@ -301,15 +282,14 @@ async def creative_discovery_pipeline(
                             # Save CIF
                             cif_filename = f"{composition}_structure_{idx}.cif"
                             cif_path = session_dir / cif_filename
-                            with open(cif_path, 'w') as f:
+                            with open(cif_path, "w") as f:
                                 f.write(cif_content)
 
                             results["cif_files"][f"{composition}_{idx}"] = str(cif_path)
 
                             # Calculate energy
                             energy_result = await calculate_formation_energy(
-                                cif_content=cif_content,
-                                prefer_gpu=prefer_gpu
+                                cif_content=cif_content, prefer_gpu=prefer_gpu
                             )
 
                             if energy_result["success"]:
@@ -329,16 +309,19 @@ async def creative_discovery_pipeline(
     results["summary"]["optimization_notes"] = [
         "No SMACT composition validation (creative mode)",
         "No energy above hull calculations",
-        f"GPU acceleration: {'enabled' if prefer_gpu else 'disabled'}"
+        f"GPU acceleration: {'enabled' if prefer_gpu else 'disabled'}",
     ]
 
-    logger.info(f"Creative discovery complete: {results['summary']['structures_generated']} structures, "
-                f"{results['summary']['energies_calculated']} energies")
+    logger.info(
+        f"Creative discovery complete: {results['summary']['structures_generated']} structures, "
+        f"{results['summary']['energies_calculated']} energies"
+    )
 
     return make_json_serializable(results)
 
 
 # --- COMPREHENSIVE MATERIALS ANALYSIS (Creative Mode Compatible) ---
+
 
 @mcp.tool()
 async def comprehensive_materials_analysis(
@@ -348,7 +331,7 @@ async def comprehensive_materials_analysis(
     calculate_energies_flag: bool = True,
     temperature_range: str = "ambient",
     applications: str = "general",
-    prefer_gpu: bool = True
+    prefer_gpu: bool = True,
 ) -> dict[str, Any]:
     """
     Comprehensive materials analysis for creative mode.
@@ -374,7 +357,7 @@ async def comprehensive_materials_analysis(
         compositions=compositions,
         structures_per_composition=structures_per_composition,
         calculate_energies=calculate_energies_flag,
-        prefer_gpu=prefer_gpu
+        prefer_gpu=prefer_gpu,
     )
 
     # Add metadata to match unified server format
