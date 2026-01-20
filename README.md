@@ -3,8 +3,9 @@
 [![PyPI](https://img.shields.io/pypi/v/crystalyse)](https://pypi.org/project/crystalyse/)
 [![Python](https://img.shields.io/pypi/pyversions/crystalyse)](https://pypi.org/project/crystalyse/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://readthedocs.org/projects/crystalyse-ai/badge/?version=latest)](https://crystalyse-ai.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/crystalyseai/badge/?version=latest)](https://crystalyseai.readthedocs.io/en/latest/)
 [![CI](https://github.com/ryannduma/CrystaLyse.AI/actions/workflows/ci.yml/badge.svg)](https://github.com/ryannduma/CrystaLyse.AI/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ryannduma/CrystaLyse.AI/branch/master/graph/badge.svg)](https://codecov.io/gh/ryannduma/CrystaLyse.AI)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![GitHub issues](https://img.shields.io/github/issues-raw/ryannduma/CrystaLyse.AI)](https://github.com/ryannduma/CrystaLyse.AI/issues)
 
