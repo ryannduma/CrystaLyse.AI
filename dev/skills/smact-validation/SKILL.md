@@ -87,6 +87,38 @@ python scripts/validate_batch.py perovskites.txt --filter valid
 python scripts/validate.py "Fe2O3" --oxidation-states "Fe:+3,O:-2"
 ```
 
+## When to Trust SMACT Results
+
+**High confidence** (trust the result):
+- Simple binary compounds (NaCl, MgO, CaF2)
+- Well-known ternary oxides (LiFePO4, BaTiO3)
+- Compositions with unambiguous oxidation states
+
+**Lower confidence** (verify further):
+- Mixed-valence compounds (Fe3O4, Pb3O4)
+- Compounds with elements having many oxidation states (Mn, V, Mo)
+- Noble gas compounds (rare but exist: XeF2)
+- Intermetallics and Zintl phases
+
+## When to Override
+
+**SMACT says invalid, but you suspect it's real**:
+- Check literature for the compound
+- Force specific oxidation states: `--oxidation-states "Fe:+2,Fe:+3,O:-2"`
+- Consider mixed valence or unusual bonding
+
+**SMACT says valid, but you're skeptical**:
+- Charge balance alone doesn't guarantee stability
+- Run Chemeleon + MACE for structure/energy check
+- Check phase diagram for thermodynamic stability
+
+## Edge Cases and Gotchas
+
+- **Alloys**: Pure metals (Fe, Cu) return valid but aren't "compositions"
+- **Peroxides/superoxides**: O can be -1 (peroxide) or -0.5 (superoxide)
+- **Hydrides**: H can be +1 or -1 depending on partner
+- **Noble gases**: Most have no electronegativity data; validation may fail
+
 ## Provenance Requirements
 
 When reporting results, always include:
@@ -94,3 +126,4 @@ When reporting results, always include:
 - SMACT version used (in output JSON)
 - Any assumptions about oxidation states
 - Whether the result is valid or invalid with reasoning
+- **If you overrode SMACT**: Document why and what evidence supports it

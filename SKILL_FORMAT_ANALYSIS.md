@@ -295,6 +295,217 @@ Always record:
 
 ---
 
+## Skill Design Philosophy
+
+### Skills Are Procedural Knowledge, Not Documentation
+
+**Critical insight**: Claude already knows pymatgen, SMACT, ASE from training data. Skills don't replace documentation—they encode procedural knowledge that documentation doesn't capture.
+
+#### What a Skill is NOT
+
+```markdown
+# ❌ BAD: Trying to be documentation
+
+## Structure class
+The Structure class represents a periodic crystal structure...
+
+### Methods
+- `from_file(filename)`: Load structure from file
+- `to(fmt, filename)`: Write structure to file
+[10,000 more lines of API docs]
+```
+
+This is pointless. Claude can check `help(Structure)` or already knows from training.
+
+#### What a Skill IS
+
+```markdown
+# ✅ GOOD: Procedural knowledge
+
+## Quick patterns
+```python
+# Load any format
+struct = Structure.from_file("POSCAR")  # or .cif, .xyz
+
+# Get space group (common gotcha: need analyzer)
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+SpacegroupAnalyzer(struct).get_space_group_symbol()
+```
+
+## Common Gotchas
+- Many analyses require oxidation states: `struct.add_oxidation_state_by_guess()`
+- MP structures are primitive; convert for surfaces: `sga.get_conventional_standard_structure()`
+
+## Our Conventions
+- Store structures as .json (preserves metadata) not .cif
+- Always log transformations to provenance
+```
+
+#### The Test
+
+| Documentation Provides | Skills Provide |
+|------------------------|----------------|
+| "What can it do?" | "How do we use it?" |
+| API reference | Common patterns |
+| Generic examples | Task-specific workflows |
+| Exhaustive | Opinionated |
+
+**If Claude already knows it from training, don't put it in the skill.**
+
+---
+
+### Skills as Guidance, Not Constraints
+
+Two philosophies:
+
+#### ❌ Constraining Skill (Brittle)
+
+```markdown
+## Running a Relaxation
+
+1. ALWAYS use MPRelaxSet
+2. ALWAYS use EDIFFG = -0.02
+3. NEVER change ENCUT from default
+```
+
+This is a straitjacket. The agent can't adapt.
+
+#### ✅ Guiding Skill (Preserves Agency)
+
+```markdown
+## Running a Relaxation
+
+**Default approach**: Use MPRelaxSet with standard settings.
+
+**When to deviate**:
+- Metals: Increase ISMEAR to 1 or 2
+- Accurate forces needed: Tighten EDIFFG to -0.01
+- Convergence issues: Reduce POTIM or switch to IBRION = 1
+
+**If something unexpected happens**: Check OUTCAR, consult VASP wiki, use your judgment.
+```
+
+#### The Expert Analogy
+
+| Bad Mentor | Good Mentor |
+|------------|-------------|
+| "Always do it this way" | "Usually do it this way, here's why" |
+| "Never change these settings" | "These settings work for most cases, but watch for X" |
+| Produces technicians | Produces independent researchers |
+
+A skill should read like advice from a good mentor, not a rigid SOP.
+
+---
+
+### The Agency Spectrum
+
+```
+RIGID TOOL          SKILL               UNCONSTRAINED LLM
+     │                 │                        │
+     ▼                 ▼                        ▼
+ "Do exactly X"    "Usually X,          "Figure it out"
+                    unless Y,
+                    then consider Z"
+
+ ❌ No adaptation   ✅ Guided judgment    ❌ Inconsistent
+ ❌ Fails on edges  ✅ Handles edges      ❌ Hallucinates
+ ❌ Brittle         ✅ Robust             ❌ Unreliable
+```
+
+Skills occupy the middle ground: **opinionated defaults with escape hatches**.
+
+---
+
+### Encoding Override Permission
+
+Build override logic directly into skills:
+
+```markdown
+## Convergence Testing
+
+**Standard procedure**: Run ENCUT convergence at 400, 500, 600, 700 eV.
+
+**Skip if**:
+- Using well-established parameters for this material class
+- Time-constrained screening (accept MP defaults)
+
+**Override if**:
+- System contains O, F → may need higher ENCUT
+- Pseudopotential ENMAX suggests different value → use 1.3× ENMAX
+
+**When uncertain**: Run a quick 3-point test. 10 min compute < wrong results.
+```
+
+The agent has explicit permission to deviate, with guidance on *when*.
+
+---
+
+### Decision Trees in Skills
+
+For complex decisions, encode the reasoning:
+
+```markdown
+## Choosing a Functional
+
+Is this a:
+├── Metal or alloy?
+│   └── Use PBE (hybrids too expensive)
+├── Semiconductor needing accurate band gap?
+│   └── Use HSE06 or PBE0
+├── Strongly correlated (3d/4f)?
+│   └── Use PBE+U (check MP for U values)
+├── Van der Waals system?
+│   └── Use PBE-D3 or optB86b-vdW
+└── Unsure?
+    └── Start with PBE, check literature
+
+**Override**: If you have specific knowledge about the system, deviate with justification.
+```
+
+---
+
+### Skills + Provenance = Accountable Agency
+
+```markdown
+## Override Protocol
+
+If you deviate from standard procedures:
+
+1. **Document** in provenance:
+   ```python
+   log_deviation(
+       standard="MPRelaxSet defaults",
+       actual="ENCUT increased to 600 eV",
+       reason="System contains fluorine"
+   )
+   ```
+
+2. **Justify** - provenance should explain why
+
+3. **Flag if uncertain**:
+   ```python
+   flag_for_human_review(calculation_id="calc_001", reason="Unusual convergence")
+   ```
+```
+
+Agency + accountability = the best of both worlds.
+
+---
+
+### Summary: Well-Written Skills
+
+Skills don't limit agency if written correctly:
+
+1. **Provide defaults** — "usually do X"
+2. **Explain reasoning** — "because Y"
+3. **Enumerate exceptions** — "unless Z, then consider W"
+4. **Grant override permission** — "use judgment when..."
+5. **Require documentation** — "if deviating, log why"
+
+The result: an agent that's **reliable by default** but **adaptive when necessary**.
+
+---
+
 ## References
 
 - [Anthropic Agent Skills Blog](https://anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
