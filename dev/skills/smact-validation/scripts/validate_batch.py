@@ -20,30 +20,16 @@ from validate import validate_composition
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Batch validate chemical compositions"
-    )
-    parser.add_argument(
-        "input_file",
-        type=str,
-        help="File with formulas (one per line)"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output file (default: stdout)"
-    )
+    parser = argparse.ArgumentParser(description="Batch validate chemical compositions")
+    parser.add_argument("input_file", type=str, help="File with formulas (one per line)")
+    parser.add_argument("--output", "-o", type=str, help="Output file (default: stdout)")
     parser.add_argument(
         "--filter",
         choices=["valid", "invalid", "all"],
         default="all",
-        help="Filter results by validity"
+        help="Filter results by validity",
     )
-    parser.add_argument(
-        "--summary",
-        action="store_true",
-        help="Print summary statistics"
-    )
+    parser.add_argument("--summary", action="store_true", help="Print summary statistics")
 
     args = parser.parse_args()
 
@@ -89,7 +75,7 @@ def main():
         "total": len(formulas),
         "valid": valid_count,
         "invalid": invalid_count,
-        "results": results
+        "results": results,
     }
 
     if args.output:
@@ -101,10 +87,13 @@ def main():
 
     # Summary
     if args.summary:
-        print(f"\n--- Summary ---", file=sys.stderr)
+        print("\n--- Summary ---", file=sys.stderr)
         print(f"Total:   {len(formulas)}", file=sys.stderr)
-        print(f"Valid:   {valid_count} ({100*valid_count/len(formulas):.1f}%)", file=sys.stderr)
-        print(f"Invalid: {invalid_count} ({100*invalid_count/len(formulas):.1f}%)", file=sys.stderr)
+        print(f"Valid:   {valid_count} ({100 * valid_count / len(formulas):.1f}%)", file=sys.stderr)
+        print(
+            f"Invalid: {invalid_count} ({100 * invalid_count / len(formulas):.1f}%)",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

@@ -19,35 +19,17 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Analyze crystal structure properties"
-    )
-    parser.add_argument(
-        "structure",
-        type=str,
-        help="Structure file (CIF, POSCAR, JSON, etc.)"
-    )
+    parser = argparse.ArgumentParser(description="Analyze crystal structure properties")
+    parser.add_argument("structure", type=str, help="Structure file (CIF, POSCAR, JSON, etc.)")
     parser.add_argument(
         "--merge-tol",
         type=float,
         default=None,
-        help="Merge tolerance for duplicate atoms (use 0.01 for DFT CIFs)"
+        help="Merge tolerance for duplicate atoms (use 0.01 for DFT CIFs)",
     )
-    parser.add_argument(
-        "--guess-oxi",
-        action="store_true",
-        help="Guess oxidation states"
-    )
-    parser.add_argument(
-        "--primitive",
-        action="store_true",
-        help="Convert to primitive cell"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output file (default: stdout)"
-    )
+    parser.add_argument("--guess-oxi", action="store_true", help="Guess oxidation states")
+    parser.add_argument("--primitive", action="store_true", help="Convert to primitive cell")
+    parser.add_argument("--output", "-o", type=str, help="Output file (default: stdout)")
 
     args = parser.parse_args()
 
@@ -93,17 +75,19 @@ def main():
                 "point_group": sga.get_point_group_symbol(),
             },
             "elements": [str(el) for el in comp.elements],
-            "element_fractions": {str(el): round(frac, 4) for el, frac in comp.fractional_composition.items()},
+            "element_fractions": {
+                str(el): round(frac, 4) for el, frac in comp.fractional_composition.items()
+            },
         }
 
         # Oxidation state guessing
         if args.guess_oxi:
             oxi_guesses = comp.oxi_state_guesses(all_oxi_states=False)
             if oxi_guesses:
-                output["oxidation_states"] = {
-                    str(el): oxi for el, oxi in oxi_guesses[0].items()
-                }
-                output["oxi_state_confidence"] = "high" if len(oxi_guesses) == 1 else "multiple_possibilities"
+                output["oxidation_states"] = {str(el): oxi for el, oxi in oxi_guesses[0].items()}
+                output["oxi_state_confidence"] = (
+                    "high" if len(oxi_guesses) == 1 else "multiple_possibilities"
+                )
                 output["num_oxi_possibilities"] = len(oxi_guesses)
             else:
                 output["oxidation_states"] = None
@@ -132,10 +116,15 @@ def main():
             print(json_str)
 
     except ImportError as e:
-        print(json.dumps({
-            "error": f"Missing required package: {e}",
-            "hint": "Install with: pip install pymatgen"
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "error": f"Missing required package: {e}",
+                    "hint": "Install with: pip install pymatgen",
+                },
+                indent=2,
+            )
+        )
         sys.exit(1)
     except Exception as e:
         print(json.dumps({"error": str(e)}, indent=2))

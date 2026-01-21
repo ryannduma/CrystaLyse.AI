@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SkillMatch:
     """A matched skill with confidence score."""
+
     skill: SkillMetadata
     score: float  # 0.0 to 1.0
     match_type: str  # "explicit", "keyword", "semantic"
@@ -33,30 +34,69 @@ class SkillRegistry:
     """
 
     # Pattern for explicit skill invocation ($skill-name)
-    EXPLICIT_PATTERN = re.compile(r'\$([a-z][a-z0-9-]*)', re.IGNORECASE)
+    EXPLICIT_PATTERN = re.compile(r"\$([a-z][a-z0-9-]*)", re.IGNORECASE)
 
     # Common materials science keywords for matching
     MATERIALS_KEYWORDS = {
         "smact-validation": [
-            "validate", "composition", "oxidation", "charge", "balanced",
-            "smact", "electronegativity", "synthesizable", "feasible",
-            "formula", "plausible", "check validity"
+            "validate",
+            "composition",
+            "oxidation",
+            "charge",
+            "balanced",
+            "smact",
+            "electronegativity",
+            "synthesizable",
+            "feasible",
+            "formula",
+            "plausible",
+            "check validity",
         ],
         "chemeleon-prediction": [
-            "predict", "structure", "crystal", "csp", "dng", "generate",
-            "chemeleon", "de novo", "new material", "discover"
+            "predict",
+            "structure",
+            "crystal",
+            "csp",
+            "dng",
+            "generate",
+            "chemeleon",
+            "de novo",
+            "new material",
+            "discover",
         ],
         "mace-calculation": [
-            "energy", "relax", "optimize", "mace", "formation", "forces",
-            "calculate", "dft", "mlip", "interatomic"
+            "energy",
+            "relax",
+            "optimize",
+            "mace",
+            "formation",
+            "forces",
+            "calculate",
+            "dft",
+            "mlip",
+            "interatomic",
         ],
         "phase-diagram": [
-            "phase", "diagram", "hull", "stability", "decomposition",
-            "competing", "thermodynamic", "convex hull", "ehull"
+            "phase",
+            "diagram",
+            "hull",
+            "stability",
+            "decomposition",
+            "competing",
+            "thermodynamic",
+            "convex hull",
+            "ehull",
         ],
         "visualization": [
-            "visualize", "plot", "display", "3d", "structure", "render",
-            "cif", "image", "show"
+            "visualize",
+            "plot",
+            "display",
+            "3d",
+            "structure",
+            "render",
+            "cif",
+            "image",
+            "show",
         ],
     }
 
@@ -105,12 +145,11 @@ class SkillRegistry:
         for mention in explicit_mentions:
             skill = self._find_skill_by_name(mention)
             if skill:
-                matches.append(SkillMatch(
-                    skill=skill,
-                    score=1.0,
-                    match_type="explicit",
-                    matched_terms=[f"${mention}"]
-                ))
+                matches.append(
+                    SkillMatch(
+                        skill=skill, score=1.0, match_type="explicit", matched_terms=[f"${mention}"]
+                    )
+                )
 
         # Check for name mentions (without $)
         query_lower = query.lower()
@@ -121,23 +160,21 @@ class SkillRegistry:
 
             # Check for name mention
             if skill.name.lower() in query_lower:
-                matches.append(SkillMatch(
-                    skill=skill,
-                    score=0.9,
-                    match_type="explicit",
-                    matched_terms=[skill.name]
-                ))
+                matches.append(
+                    SkillMatch(
+                        skill=skill, score=0.9, match_type="explicit", matched_terms=[skill.name]
+                    )
+                )
                 continue
 
             # Keyword matching
             score, matched_terms = self._keyword_match(skill, query_lower)
             if score >= threshold:
-                matches.append(SkillMatch(
-                    skill=skill,
-                    score=score,
-                    match_type="keyword",
-                    matched_terms=matched_terms
-                ))
+                matches.append(
+                    SkillMatch(
+                        skill=skill, score=score, match_type="keyword", matched_terms=matched_terms
+                    )
+                )
 
         # Sort by score descending
         matches.sort(key=lambda m: m.score, reverse=True)
@@ -162,8 +199,7 @@ class SkillRegistry:
 
         # Get skill-specific keywords or fall back to description words
         keywords = self.MATERIALS_KEYWORDS.get(
-            skill.name,
-            self._extract_keywords(skill.description)
+            skill.name, self._extract_keywords(skill.description)
         )
 
         # Count matches
@@ -183,22 +219,101 @@ class SkillRegistry:
         """Extract keywords from text (simple tokenization)."""
         # Remove common words and split
         stopwords = {
-            "the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "being", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "must", "shall",
-            "can", "need", "dare", "ought", "used", "to", "of", "in",
-            "for", "on", "with", "at", "by", "from", "up", "about",
-            "into", "through", "during", "before", "after", "above",
-            "below", "between", "under", "again", "further", "then",
-            "once", "here", "there", "when", "where", "why", "how",
-            "all", "each", "few", "more", "most", "other", "some",
-            "such", "no", "nor", "not", "only", "own", "same", "so",
-            "than", "too", "very", "just", "and", "but", "if", "or",
-            "because", "as", "until", "while", "this", "that", "these",
-            "those", "use", "when", "user"
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "up",
+            "about",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "and",
+            "but",
+            "if",
+            "or",
+            "because",
+            "as",
+            "until",
+            "while",
+            "this",
+            "that",
+            "these",
+            "those",
+            "use",
+            "user",
         }
 
-        words = re.findall(r'\b[a-z]{3,}\b', text.lower())
+        words = re.findall(r"\b[a-z]{3,}\b", text.lower())
         return [w for w in words if w not in stopwords]
 
     def get_skills_summary(self) -> str:

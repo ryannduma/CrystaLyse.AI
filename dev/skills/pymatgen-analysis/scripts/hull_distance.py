@@ -19,36 +19,23 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Calculate energy above convex hull"
-    )
+    parser = argparse.ArgumentParser(description="Calculate energy above convex hull")
+    parser.add_argument("structure", type=str, help="Structure file (JSON, CIF, or POSCAR)")
     parser.add_argument(
-        "structure",
-        type=str,
-        help="Structure file (JSON, CIF, or POSCAR)"
-    )
-    parser.add_argument(
-        "--energy", "-e",
-        type=float,
-        required=True,
-        help="Total energy of the structure (eV)"
+        "--energy", "-e", type=float, required=True, help="Total energy of the structure (eV)"
     )
     parser.add_argument(
         "--entries",
         type=str,
-        help="JSON file with competing phase entries (optional, uses MP data if not provided)"
+        help="JSON file with competing phase entries (optional, uses MP data if not provided)",
     )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output file (default: stdout)"
-    )
+    parser.add_argument("--output", "-o", type=str, help="Output file (default: stdout)")
 
     args = parser.parse_args()
 
     try:
+        from pymatgen.analysis.phase_diagram import PDEntry, PhaseDiagram
         from pymatgen.core import Structure
-        from pymatgen.analysis.phase_diagram import PhaseDiagram, PDEntry
         from pymatgen.entries.computed_entries import ComputedEntry
 
         # Load structure
@@ -62,15 +49,14 @@ def main():
         if args.entries:
             with open(args.entries) as f:
                 entries_data = json.load(f)
-            entries = [
-                PDEntry(e["composition"], e["energy"])
-                for e in entries_data
-            ]
+            entries = [PDEntry(e["composition"], e["energy"]) for e in entries_data]
         else:
             # Fallback: create elemental references only
             # In practice, you'd load from Materials Project
-            print("Warning: No competing phases provided. Using elemental references only.",
-                  file=sys.stderr)
+            print(
+                "Warning: No competing phases provided. Using elemental references only.",
+                file=sys.stderr,
+            )
             entries = []
             for el in comp.elements:
                 # Assume 0 eV for elemental reference (placeholder)
@@ -83,10 +69,15 @@ def main():
         try:
             pd = PhaseDiagram(entries)
         except Exception as e:
-            print(json.dumps({
-                "error": f"Could not build phase diagram: {e}",
-                "hint": "Ensure competing phases cover the composition space"
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "error": f"Could not build phase diagram: {e}",
+                        "hint": "Ensure competing phases cover the composition space",
+                    },
+                    indent=2,
+                )
+            )
             sys.exit(1)
 
         # Calculate hull distance
@@ -133,10 +124,15 @@ def main():
             print(json_str)
 
     except ImportError as e:
-        print(json.dumps({
-            "error": f"Missing required package: {e}",
-            "hint": "Install with: pip install pymatgen"
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "error": f"Missing required package: {e}",
+                    "hint": "Install with: pip install pymatgen",
+                },
+                indent=2,
+            )
+        )
         sys.exit(1)
     except Exception as e:
         print(json.dumps({"error": str(e)}, indent=2))

@@ -25,43 +25,21 @@ def main():
     parser = argparse.ArgumentParser(
         description="Predict crystal structure using Chemeleon CSP model"
     )
+    parser.add_argument("formula", type=str, help="Chemical formula (e.g., 'BaTiO3', 'LiFePO4')")
     parser.add_argument(
-        "formula",
-        type=str,
-        help="Chemical formula (e.g., 'BaTiO3', 'LiFePO4')"
-    )
-    parser.add_argument(
-        "--num-structures", "-n",
+        "--num-structures",
+        "-n",
         type=int,
         default=1,
-        help="Number of structures to generate (default: 1)"
+        help="Number of structures to generate (default: 1)",
     )
     parser.add_argument(
-        "--temperature", "-t",
-        type=float,
-        default=1.0,
-        help="Sampling temperature (default: 1.0)"
+        "--temperature", "-t", type=float, default=1.0, help="Sampling temperature (default: 1.0)"
     )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output file (default: stdout)"
-    )
-    parser.add_argument(
-        "--no-gpu",
-        action="store_true",
-        help="Force CPU computation"
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        help="Path to specific checkpoint file"
-    )
-    parser.add_argument(
-        "--compact",
-        action="store_true",
-        help="Output compact JSON"
-    )
+    parser.add_argument("--output", "-o", type=str, help="Output file (default: stdout)")
+    parser.add_argument("--no-gpu", action="store_true", help="Force CPU computation")
+    parser.add_argument("--checkpoint", type=str, help="Path to specific checkpoint file")
+    parser.add_argument("--compact", action="store_true", help="Output compact JSON")
 
     args = parser.parse_args()
 
@@ -99,17 +77,13 @@ def main():
                             "positions": s.positions,
                             "cell": s.cell,
                             "symbols": s.symbols,
-                        }
+                        },
                     }
                     for s in result.predicted_structures
-                ]
+                ],
             }
         else:
-            output = {
-                "formula": result.formula,
-                "success": False,
-                "error": result.error
-            }
+            output = {"formula": result.formula, "success": False, "error": result.error}
 
         # Write output
         if args.compact:
@@ -128,15 +102,18 @@ def main():
         sys.exit(0 if result.success else 1)
 
     except ImportError as e:
-        print(json.dumps({
-            "error": f"Missing required package: {e}",
-            "hint": "Install with: pip install chemeleon-dng torch"
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "error": f"Missing required package: {e}",
+                    "hint": "Install with: pip install chemeleon-dng torch",
+                },
+                indent=2,
+            )
+        )
         sys.exit(1)
     except Exception as e:
-        print(json.dumps({
-            "error": str(e)
-        }, indent=2))
+        print(json.dumps({"error": str(e)}, indent=2))
         sys.exit(1)
 
 

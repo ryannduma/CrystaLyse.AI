@@ -24,10 +24,11 @@ logger = logging.getLogger(__name__)
 
 class SkillScope(Enum):
     """Scope determines where a skill was loaded from and its priority."""
-    PROJECT = "project"   # .crystalyse/skills/
-    USER = "user"         # ~/.crystalyse/skills/
-    SYSTEM = "system"     # ~/.crystalyse/skills/.system/
-    PACKAGE = "package"   # Bundled with CrystaLyse
+
+    PROJECT = "project"  # .crystalyse/skills/
+    USER = "user"  # ~/.crystalyse/skills/
+    SYSTEM = "system"  # ~/.crystalyse/skills/.system/
+    PACKAGE = "package"  # Bundled with CrystaLyse
 
 
 @dataclass
@@ -36,6 +37,7 @@ class SkillMetadata:
 
     This is all that's loaded initially - the full body is loaded on-demand.
     """
+
     name: str
     description: str
     path: Path
@@ -51,6 +53,7 @@ class SkillMetadata:
 @dataclass
 class SkillLoadOutcome:
     """Result of loading skills from all directories."""
+
     skills: list[SkillMetadata]
     errors: list[str]
     warnings: list[str]
@@ -73,10 +76,7 @@ class SkillLoader:
     """
 
     # Regex to extract YAML frontmatter from SKILL.md
-    FRONTMATTER_PATTERN = re.compile(
-        r'^---\s*\n(.*?)\n---\s*\n',
-        re.DOTALL
-    )
+    FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
     def __init__(
         self,
@@ -251,7 +251,7 @@ class SkillLoader:
         metadata = self._skills_cache.get(skill_name)
         if not metadata:
             # Try loading skills if not cached
-            outcome = self.load_skills()
+            self.load_skills()
             metadata = self._skills_cache.get(skill_name)
             if not metadata:
                 return None
@@ -262,7 +262,7 @@ class SkillLoader:
         # Strip frontmatter
         match = self.FRONTMATTER_PATTERN.match(content)
         if match:
-            body = content[match.end():]
+            body = content[match.end() :]
         else:
             body = content
 

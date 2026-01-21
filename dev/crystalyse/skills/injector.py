@@ -113,12 +113,12 @@ A skill is a set of local instructions stored in a `SKILL.md` file. Below is the
                     if "\n## " in remaining:
                         tools_end_idx = remaining.index("\n## ")
                         return (
-                            parts[0] +
-                            "## Tools" +
-                            remaining[:tools_end_idx] +
-                            "\n\n" +
-                            skills_section +
-                            remaining[tools_end_idx:]
+                            parts[0]
+                            + "## Tools"
+                            + remaining[:tools_end_idx]
+                            + "\n\n"
+                            + skills_section
+                            + remaining[tools_end_idx:]
                         )
 
             # Fallback: append at end

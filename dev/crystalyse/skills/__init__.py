@@ -10,9 +10,9 @@ Skills are modular packages that extend CrystaLyse's capabilities with:
 - Bundled resources (references, assets)
 """
 
+from .injector import SkillInjector
 from .loader import SkillLoader, SkillMetadata, SkillScope
 from .registry import SkillRegistry
-from .injector import SkillInjector
 
 __all__ = [
     "SkillLoader",

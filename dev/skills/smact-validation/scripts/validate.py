@@ -22,17 +22,22 @@ warnings.filterwarnings("ignore", message=".*electronegativity.*")
 warnings.filterwarnings("ignore", category=UserWarning)
 
 try:
+    import smact
     from pymatgen.core import Composition
     from smact import Element
     from smact.screening import smact_validity
-    import smact
 
     SMACT_VERSION = getattr(smact, "__version__", "unknown")
 except ImportError as e:
-    print(json.dumps({
-        "error": f"Missing required package: {e}",
-        "hint": "Install with: pip install smact pymatgen"
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "error": f"Missing required package: {e}",
+                "hint": "Install with: pip install smact pymatgen",
+            },
+            indent=2,
+        )
+    )
     sys.exit(1)
 
 
@@ -48,9 +53,7 @@ def get_element_oxidation_states(symbol: str) -> list[int]:
 
 
 def find_charge_balanced_combinations(
-    elements: list[str],
-    stoichiometry: list[int],
-    forced_states: dict[str, int] | None = None
+    elements: list[str], stoichiometry: list[int], forced_states: dict[str, int] | None = None
 ) -> list[dict]:
     """Find all oxidation state combinations that give charge neutrality."""
     from itertools import product
@@ -69,16 +72,13 @@ def find_charge_balanced_combinations(
     # Find all charge-balanced combinations
     valid_combinations = []
     for combo in product(*possible_states):
-        total_charge = sum(ox * stoich for ox, stoich in zip(combo, stoichiometry))
+        total_charge = sum(ox * stoich for ox, stoich in zip(combo, stoichiometry, strict=False))
         if total_charge == 0:
             combination = []
-            for elem, ox, stoich in zip(elements, combo, stoichiometry):
+            for elem, ox, _stoich in zip(elements, combo, stoichiometry, strict=False):
                 sign = "+" if ox > 0 else ""
                 combination.append(f"{elem}{sign}{ox}")
-            valid_combinations.append({
-                "combination": combination,
-                "charge_sum": total_charge
-            })
+            valid_combinations.append({"combination": combination, "charge_sum": total_charge})
 
     return valid_combinations
 
@@ -86,7 +86,7 @@ def find_charge_balanced_combinations(
 def validate_composition(
     formula: str,
     use_pauling_test: bool = True,
-    forced_oxidation_states: dict[str, int] | None = None
+    forced_oxidation_states: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """
     Validate a chemical composition using SMACT rules.
@@ -107,7 +107,7 @@ def validate_composition(
         "oxidation_states": [],
         "reasoning": "",
         "smact_version": SMACT_VERSION,
-        "errors": []
+        "errors": [],
     }
 
     try:
@@ -120,11 +120,7 @@ def validate_composition(
 
         # Run SMACT validity check
         try:
-            is_valid = smact_validity(
-                comp,
-                use_pauling_test=use_pauling_test,
-                include_alloys=True
-            )
+            is_valid = smact_validity(comp, use_pauling_test=use_pauling_test, include_alloys=True)
         except Exception as e:
             # Fallback for older SMACT versions or edge cases
             is_valid = False
@@ -160,12 +156,9 @@ def validate_composition(
         # Generate reasoning
         if result["valid"]:
             if combinations:
-                combo = combinations[0]["combination"]
-                charge_calc = " + ".join(
-                    f"{stoich}({ox})" for ox, stoich in
-                    zip([c.split('+')[1] if '+' in c else c.split('-')[0] + c.split(c.split('-')[0])[1] for c in combo], stoichiometry)
+                result["reasoning"] = (
+                    f"Valid composition. Found {len(combinations)} charge-balanced combination(s)."
                 )
-                result["reasoning"] = f"Valid composition. Found {len(combinations)} charge-balanced combination(s)."
             else:
                 result["reasoning"] = "Valid by SMACT rules (may be an alloy or special case)."
         else:
@@ -174,7 +167,9 @@ def validate_composition(
                 reasons.append("no charge-balanced oxidation states found")
             if not result["electronegativity_ok"]:
                 reasons.append("electronegativity ordering not satisfied")
-            result["reasoning"] = f"Invalid: {', '.join(reasons)}" if reasons else "Invalid by SMACT rules"
+            result["reasoning"] = (
+                f"Invalid: {', '.join(reasons)}" if reasons else "Invalid by SMACT rules"
+            )
 
     except Exception as e:
         result["errors"].append(str(e))
@@ -200,28 +195,16 @@ def parse_oxidation_states(ox_string: str) -> dict[str, int]:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate chemical compositions using SMACT rules"
+    parser = argparse.ArgumentParser(description="Validate chemical compositions using SMACT rules")
+    parser.add_argument("formulas", nargs="+", help="Chemical formula(s) to validate")
+    parser.add_argument(
+        "--oxidation-states", type=str, help="Force specific oxidation states (e.g., 'Fe:+3,O:-2')"
     )
     parser.add_argument(
-        "formulas",
-        nargs="+",
-        help="Chemical formula(s) to validate"
+        "--no-pauling-test", action="store_true", help="Skip electronegativity test"
     )
     parser.add_argument(
-        "--oxidation-states",
-        type=str,
-        help="Force specific oxidation states (e.g., 'Fe:+3,O:-2')"
-    )
-    parser.add_argument(
-        "--no-pauling-test",
-        action="store_true",
-        help="Skip electronegativity test"
-    )
-    parser.add_argument(
-        "--compact",
-        action="store_true",
-        help="Output compact JSON (one line per formula)"
+        "--compact", action="store_true", help="Output compact JSON (one line per formula)"
     )
 
     args = parser.parse_args()
@@ -234,7 +217,7 @@ def main():
         result = validate_composition(
             formula,
             use_pauling_test=use_pauling,
-            forced_oxidation_states=forced_states if forced_states else None
+            forced_oxidation_states=forced_states if forced_states else None,
         )
         results.append(result)
 

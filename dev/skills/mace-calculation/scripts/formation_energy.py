@@ -29,6 +29,7 @@ def load_structure(path: str) -> dict:
     elif path.endswith(".cif"):
         try:
             from ase.io import read
+
             atoms = read(path, format="cif")
             return {
                 "numbers": atoms.numbers.tolist(),
@@ -37,54 +38,42 @@ def load_structure(path: str) -> dict:
                 "pbc": atoms.pbc.tolist(),
             }
         except ImportError:
-            print(json.dumps({
-                "error": "ASE required to read CIF files",
-                "hint": "pip install ase"
-            }, indent=2))
+            print(
+                json.dumps(
+                    {"error": "ASE required to read CIF files", "hint": "pip install ase"}, indent=2
+                )
+            )
             sys.exit(1)
     else:
         # Try to parse as JSON from stdin or raw text
         try:
             return json.loads(path)
         except json.JSONDecodeError:
-            print(json.dumps({
-                "error": f"Unknown file format: {path}",
-                "hint": "Supported formats: .json, .cif"
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "error": f"Unknown file format: {path}",
+                        "hint": "Supported formats: .json, .cif",
+                    },
+                    indent=2,
+                )
+            )
             sys.exit(1)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Calculate formation energy using MACE"
-    )
-    parser.add_argument(
-        "structure",
-        type=str,
-        help="Structure file (JSON or CIF)"
-    )
+    parser = argparse.ArgumentParser(description="Calculate formation energy using MACE")
+    parser.add_argument("structure", type=str, help="Structure file (JSON or CIF)")
     parser.add_argument(
         "--model",
         type=str,
         default="medium",
         choices=["small", "medium", "large"],
-        help="MACE model size (default: medium)"
+        help="MACE model size (default: medium)",
     )
-    parser.add_argument(
-        "--no-gpu",
-        action="store_true",
-        help="Force CPU computation"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output file (default: stdout)"
-    )
-    parser.add_argument(
-        "--compact",
-        action="store_true",
-        help="Output compact JSON"
-    )
+    parser.add_argument("--no-gpu", action="store_true", help="Force CPU computation")
+    parser.add_argument("--output", "-o", type=str, help="Output file (default: stdout)")
+    parser.add_argument("--compact", action="store_true", help="Output compact JSON")
 
     args = parser.parse_args()
 
@@ -133,15 +122,18 @@ def main():
         sys.exit(0 if result.success else 1)
 
     except ImportError as e:
-        print(json.dumps({
-            "error": f"Missing required package: {e}",
-            "hint": "Install with: pip install mace-torch torch ase"
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "error": f"Missing required package: {e}",
+                    "hint": "Install with: pip install mace-torch torch ase",
+                },
+                indent=2,
+            )
+        )
         sys.exit(1)
     except Exception as e:
-        print(json.dumps({
-            "error": str(e)
-        }, indent=2))
+        print(json.dumps({"error": str(e)}, indent=2))
         sys.exit(1)
 
 
