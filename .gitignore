@@ -249,3 +249,18 @@ RIGOROUS_ASSESSMENT.md
 # External/experimental agents (not part of main project)
 synthesis-agent/
 
+# Cloned external libraries (for reference only)
+/pymatgen/
+/ShakeNBreak/
+/atomate2/
+/doped/
+
+# Anthropic skills repo (reference only)
+/skills/
+
+# Planning/vision documents (local only, not for remote)
+CODEX_SKILLS_NOTES.md
+CRYSTALYSE_V2_VISION.md
+SKILL_FORMAT_ANALYSIS.md
+SKILLS_INTEGRATION_PLAN.md
+
