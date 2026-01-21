@@ -107,11 +107,55 @@ python scripts/relax.py predicted.json --output relaxed.json
 python ../phase-diagram/scripts/hull_distance.py relaxed.json
 ```
 
+## Critical: float32 vs float64
+
+| dtype | Speed | Use Case |
+|-------|-------|----------|
+| `float32` | ~2x faster | Molecular dynamics, screening |
+| `float64` | Accurate | Geometry optimization, final energies |
+
+**Default**: Scripts use `float32`. For geometry optimization, add `--dtype float64`.
+
+## Gotchas
+
+**Stress + torch.compile incompatible**: When `--compile` is enabled, stress computation is silently disabled. If you need stress tensors, don't compile.
+
+**Formation energy calculation**: Uses model's internal atomic reference energies (`atomic_energies_fn`), NOT external databases. This is correct - different models have different references.
+
+**Committee models for uncertainty**: Load multiple models with wildcard patterns:
+```bash
+python scripts/formation_energy.py structure.json --model "mace_*.model"
+# Returns energy_var, forces_comm for uncertainty estimation
+```
+
+**Foundation model sizes**:
+- `small`: Fast, less accurate
+- `medium`: Balanced (default)
+- `large`: Most accurate, slowest
+
+## When to Override Defaults
+
+**Use `--no-gpu` if**:
+- GPU gives OOM errors
+- Testing on different hardware
+- Reproducibility with CPU reference
+
+**Use larger `--fmax` (e.g., 0.05) if**:
+- Quick screening (not final structure)
+- Structure far from minimum (pre-relax)
+
+**Use smaller `--fmax` (e.g., 0.001) if**:
+- Final production calculation
+- Phonon/vibrational analysis
+- High-precision property extraction
+
 ## Provenance
 
 When reporting results, always include:
 - Input structure source (predicted, experimental, etc.)
-- MACE model version
+- MACE model version and size
 - Energy values with units (eV)
 - Whether structure was relaxed
-- Convergence criteria used
+- Convergence criteria used (fmax, steps)
+- **dtype used** (float32 or float64)
+- **If stress needed**: Note whether compile was disabled

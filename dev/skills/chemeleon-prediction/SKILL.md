@@ -108,6 +108,31 @@ python scripts/predict_dng.py "Ba-Ti-O" \
     --output candidates.json
 ```
 
+## Critical Gotchas
+
+**Heavy elements silently broken**: Atoms with Z > 101 (Mendelevium) are **silently converted to Z=0**. If working with actinides beyond Md, verify output CIF files manually.
+
+**Checkpoint task mismatch crashes**: Using a CSP checkpoint with `--task dng` (or vice versa) raises an assertion error. The checkpoint's task must match the requested task.
+
+**Batch size defaults to num_samples**: For large generations, explicitly set `--batch-size` smaller to avoid OOM:
+```bash
+python scripts/predict_csp.py "BaTiO3" --num-structures 100 --batch-size 20
+```
+
+**JSON conversion may fail for some structures**: Check the warning count - some CIF files may not convert to pymatgen Structure objects.
+
+## When to Use CSP vs DNG
+
+| You have... | Use | Why |
+|-------------|-----|-----|
+| Specific formula (BaTiO3) | CSP | Predicts structures FOR that composition |
+| Element set (Ba-Ti-O) | DNG | Explores entire chemical space |
+| Novel material discovery | DNG | No composition constraint |
+| Known compound structure | CSP | More targeted prediction |
+
+**CSP requires**: Exact formula → atomic numbers list
+**DNG ignores**: atom_types parameter (only uses num_atoms distribution)
+
 ## Provenance
 
 When reporting results, always include:
@@ -115,3 +140,4 @@ When reporting results, always include:
 - Model used (CSP vs DNG)
 - Confidence score for each structure
 - Checkpoint version used
+- **If Z > 101 elements present**: Note potential data corruption

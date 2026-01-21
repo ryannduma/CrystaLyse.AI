@@ -114,10 +114,28 @@ python scripts/validate.py "Fe2O3" --oxidation-states "Fe:+3,O:-2"
 
 ## Edge Cases and Gotchas
 
-- **Alloys**: Pure metals (Fe, Cu) return valid but aren't "compositions"
+- **Alloy fast path**: Single elements (Fe) and all-metal compositions pass immediately with `include_alloys=True`
+- **Noble gas electronegativity**: Ne, Ar, Kr, Xe return **-20.0** (placeholder for "unknown") - Pauling test will fail
+- **At, Rn, Fr have NO oxidation states**: These elements will always fail validation
 - **Peroxides/superoxides**: O can be -1 (peroxide) or -0.5 (superoxide)
-- **Hydrides**: H can be +1 or -1 depending on partner
-- **Noble gases**: Most have no electronegativity data; validation may fail
+- **Hydrides**: H can be +1 or -1 depending on partner electronegativity
+- **Lanthanides/Actinides**: Multiple oxidation states; Pm only has +3
+
+## Oxidation State Sets
+
+SMACT has multiple data sources with different coverage:
+
+| Set | Description | When to Use |
+|-----|-------------|-------------|
+| `icsd24` (default) | Modern ICSD 2024 with occurrence counts | Most applications |
+| `smact14` | Original 2014 exhaustive list | Consistency with older work |
+| `pymatgen_sp` | PyMatGen structure predictor subset | When matching PyMatGen |
+
+```bash
+python scripts/validate.py "NaCl" --oxidation-states-set icsd24
+```
+
+**Gotcha**: Default changed from `smact14` to `icsd24` in SMACT v3.0+
 
 ## Provenance Requirements
 
