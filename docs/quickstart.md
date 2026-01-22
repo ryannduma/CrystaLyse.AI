@@ -140,7 +140,7 @@ crystalyse discover "Find stable electrolyte materials" --mode rigorous
 ```
 
 - **Tools Used**: SMACT + Chemeleon + MACE + Analysis Suite
-- **Speed**: 2-5 minutes  
+- **Speed**: 2-5 minutes
 - **Output**: Composition validation + structures + energies + comprehensive analysis plots
 
 ## Command Reference
@@ -245,7 +245,7 @@ crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode rigoro
    ```bash
    # Check server status
    # Ensure all required environment variables are set
-   
+
    # Look for "available" status for each tool
    ```
 
@@ -253,7 +253,7 @@ crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode rigoro
    ```bash
    # Verify key is set
    echo $OPENAI_API_KEY
-   
+
    # Check for valid key format (starts with sk-)
    ```
 

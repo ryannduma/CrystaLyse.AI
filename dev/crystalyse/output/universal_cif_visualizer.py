@@ -1110,7 +1110,7 @@ class UniversalCIFVisualizer:
         for structure in structures:
             formula_html = re.sub(r"(\d+)", r"<sub>\1</sub>", structure["formula"])
 
-            cards_html += f'''
+            cards_html += f"""
         <div class="crystal-card">
             <a href="{structure["filename"]}" class="card-link">
                 <div class="card-header">
@@ -1123,7 +1123,7 @@ class UniversalCIFVisualizer:
                     <p class="filename">{structure["original_filename"]}</p>
                 </div>
             </a>
-        </div>'''
+        </div>"""
 
         index_html = f"""<!DOCTYPE html>
 <html lang="en">

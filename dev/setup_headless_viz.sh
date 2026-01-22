@@ -6,23 +6,23 @@ echo "Setting up headless visualization environment for Crystalyse..."
 # Check if running in headless environment
 if [ -z "$DISPLAY" ]; then
     echo "No DISPLAY detected - configuring headless environment"
-    
+
     # Install virtual display for headless environments (if not already installed)
     if ! command -v Xvfb &> /dev/null; then
         echo "Installing Xvfb for virtual display..."
         sudo apt-get update
         sudo apt-get install -y xvfb
     fi
-    
+
     # Start virtual display
     export DISPLAY=:99
     echo "Starting virtual display on $DISPLAY..."
     Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
     XVFB_PID=$!
-    
+
     # Wait a moment for Xvfb to start
     sleep 2
-    
+
     echo "Virtual display started with PID $XVFB_PID"
 else
     echo "DISPLAY already set to: $DISPLAY"
@@ -61,4 +61,4 @@ echo ""
 echo "To apply these changes in the current session, run:"
 echo "source ~/.bashrc"
 echo ""
-echo "Or restart your terminal and the environment will be configured automatically." 
+echo "Or restart your terminal and the environment will be configured automatically."

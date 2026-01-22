@@ -9,10 +9,9 @@ This replaces the buggy upstream download_util to provide:
 - Clean error handling and progress reporting
 """
 
-import tarfile
 import logging
+import tarfile
 from pathlib import Path
-from typing import Dict, Optional
 
 import requests
 from tqdm import tqdm
@@ -53,13 +52,16 @@ def _download_file(url: str, filepath: Path) -> None:
 
     total_size = int(response.headers.get("content-length", 0))
 
-    with open(filepath, "wb") as f, tqdm(
-        desc=f"Downloading {filepath.name}",
-        total=total_size,
-        unit="B",
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as pbar:
+    with (
+        open(filepath, "wb") as f,
+        tqdm(
+            desc=f"Downloading {filepath.name}",
+            total=total_size,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar,
+    ):
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 f.write(chunk)
@@ -87,10 +89,10 @@ def _extract_tar_gz(filepath: Path, extract_to: Path) -> None:
     except tarfile.TarError as e:
         raise RuntimeError(f"Failed to extract checkpoint archive: {e}") from e
 
-    logger.info(f"Extraction complete")
+    logger.info("Extraction complete")
 
 
-def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Dict[str, Path]:
+def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[str, Path]:
     """
     Ensure all checkpoints are downloaded to cache directory.
 
@@ -114,8 +116,7 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Dict[s
 
     # Build expected checkpoint paths
     checkpoint_paths = {
-        task: cache_dir / filename
-        for task, filename in CHECKPOINT_FILENAMES.items()
+        task: cache_dir / filename for task, filename in CHECKPOINT_FILENAMES.items()
     }
 
     # Check if all checkpoints already exist
@@ -134,7 +135,9 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Dict[s
 
         # Extract to cache directory
         logger.info("Extracting checkpoint files...")
-        _extract_tar_gz(tar_file, cache_dir.parent)  # Extracts to parent, creates ckpts/ or chemeleon_checkpoints/
+        _extract_tar_gz(
+            tar_file, cache_dir.parent
+        )  # Extracts to parent, creates ckpts/ or chemeleon_checkpoints/
 
         # Clean up tar file
         tar_file.unlink()
@@ -157,7 +160,7 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Dict[s
     return checkpoint_paths
 
 
-def get_checkpoint_path(task: str, custom_dir: Optional[str] = None) -> Path:
+def get_checkpoint_path(task: str, custom_dir: str | None = None) -> Path:
     """
     Get checkpoint path for a task, downloading if needed.
 

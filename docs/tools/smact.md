@@ -98,7 +98,7 @@ SMACT applies systematic rules for oxidation state assignments:
 ```python
 # Example: CsSnI3 validation
 Cs: +1 (Group 1, typical oxidation state)
-Sn: +2 (Group 14, common oxidation state)  
+Sn: +2 (Group 14, common oxidation state)
 I:  -1 (Group 17, typical halide state)
 Charge balance: 1 + 2 + 3(-1) = 0 ✓
 ```
@@ -110,7 +110,7 @@ Validates bonding based on Pauling electronegativity differences:
 ```python
 # Electronegativity values (Pauling scale)
 Cs: 0.79
-Sn: 1.96  
+Sn: 1.96
 I:  2.66
 
 # Bond analysis
@@ -151,7 +151,7 @@ crystalyse chat -m rigorous -s perovskite_study
 🤖 CrystaLyse: [SMACT validation runs automatically]
 Based on SMACT analysis:
 - Cs⁺ (ionic radius: 1.67 Å) fits well in A-site
-- Sn²⁺ (ionic radius: 1.02 Å) suitable for B-site  
+- Sn²⁺ (ionic radius: 1.02 Å) suitable for B-site
 - I⁻ (ionic radius: 2.20 Å) forms stable halide framework
 - Electronegativity differences support ionic bonding
 - Chemical analogy to CsPbI₃ (known stable perovskite)
@@ -174,7 +174,7 @@ SMACT Result: {
 
 #### Invalid Composition Example
 ```python
-Composition: "CsF4O3"  
+Composition: "CsF4O3"
 SMACT Result: {
     "valid": False,
     "confidence": 0.12,
@@ -206,7 +206,7 @@ SMACT Result: {
 ```bash
 Screening Performance:
 ├── Single Composition: <1 second
-├── Small Set (5-10): 1-3 seconds  
+├── Small Set (5-10): 1-3 seconds
 ├── Medium Set (50-100): 10-30 seconds
 └── Large Set (1000+): 2-5 minutes
 
@@ -226,7 +226,7 @@ graph LR
     C --> D[Chemeleon CSP]
     D --> E[MACE Energy]
     E --> F[Results]
-    
+
     B --> G[Invalid Compositions]
     G --> H[Suggestions]
     H --> B
@@ -284,7 +284,7 @@ SMACT can also generate new compositions based on structural templates:
 # Generate perovskite compositions
 perovskites = smact_generate_perovskites(
     a_site_elements=["Cs", "Rb", "K"],
-    b_site_elements=["Sn", "Pb", "Ge"], 
+    b_site_elements=["Sn", "Pb", "Ge"],
     x_site_elements=["I", "Br", "Cl"]
 )
 ```

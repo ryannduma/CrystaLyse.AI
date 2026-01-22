@@ -1,0 +1,32 @@
+[project]
+name = "chemistry-unified-server"
+version = "0.1.0"
+description = "Unified Chemistry MCP Server integrating SMACT, Chemeleon, and MACE"
+dependencies = [
+    # Core package with tool implementations
+    "crystalyse",
+    # MCP framework
+    "python-mcp>=1.0.0",
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    # Chemistry libraries (also declared in crystalyse, but explicit here for clarity)
+    "pymatgen",
+    "ase",
+    "torch",
+    "numpy",
+    "smact",
+    "mace-torch",
+    # Pinned to v0.1.2 which includes fix for missing subpackages
+    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+]
+
+[project.scripts]
+chemistry-unified-server = "chemistry_unified.server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"] 

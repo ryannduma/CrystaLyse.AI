@@ -297,8 +297,8 @@ crystalyse config show
 
 Expected output:
 ```
-   Crystalyse Runtime   
-       Configuration       
+   Crystalyse Runtime
+       Configuration
 ┏━━━━━━━━━━━━━━━┳━━━━━━━━━┓
 ┃ Setting       ┃ Value   ┃
 ┡━━━━━━━━━━━━━━━╇━━━━━━━━━┩
@@ -362,7 +362,7 @@ analysis:
       timeout: 120           # 2 minutes
       structure_samples: 5
       quick_screening: true
-    
+
     rigorous:
       timeout: 600           # 10 minutes
       structure_samples: 10
@@ -378,18 +378,18 @@ tools:
     database_path: "./data/smact"
     screening_level: "standard"
     confidence_threshold: 0.7
-  
+
   chemeleon:
     model_path: "./models/chemeleon"
     num_structures: 5
     space_group_search: "comprehensive"
-  
+
   mace:
     model_path: "./models/mace"
     precision: "high"
     gpu_acceleration: true
     uncertainty_quantification: true
-  
+
   visualization:
     output_format: ["html", "pdf"]
     resolution: "high"
@@ -429,7 +429,7 @@ logging:
       backup_count: 5
     - type: "console"
       level: "WARNING"
-  
+
   loggers:
     crystalyse: "INFO"
     mcp_servers: "WARNING"
@@ -514,7 +514,7 @@ Different configurations for development/production:
 # Development
 export CRYSTALYSE_CONFIG="./config/dev.yaml"
 
-# Production  
+# Production
 export CRYSTALYSE_CONFIG="./config/prod.yaml"
 
 # Testing

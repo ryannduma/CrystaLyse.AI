@@ -34,7 +34,7 @@ The `EnhancedCrystaLyseAgent` provides "multi-agent-like" behavior through:
 
 ```bash
 crystalyse discover "query"              # Non-interactive discovery
-crystalyse chat -u user -s session      # Interactive chat session  
+crystalyse chat -u user -s session      # Interactive chat session
 crystalyse user-stats -u user            # User preference statistics
 ```
 
@@ -125,7 +125,7 @@ agent = EnhancedCrystaLyseAgent(
 # Start research session
 crystalyse chat -u researcher1 -s battery_project
 
-# Resume existing session  
+# Resume existing session
 crystalyse chat -u researcher1 -s battery_project
 
 # Quick anonymous session
@@ -176,7 +176,7 @@ crystalyse chat
 
 **MCP Server**: Chemistry Creative Server (Chemeleon + MACE + Basic Viz)
 
-### Rigorous Mode  
+### Rigorous Mode
 
 **Agent Behavior**:
 - Comprehensive validation (2-5 minutes)
@@ -215,7 +215,7 @@ config = Config.load()  # Loads from ~/.crystalyse/config.yaml
 ```python
 server_configs = {
     "creative": "chemistry_creative",
-    "rigorous": "chemistry_unified", 
+    "rigorous": "chemistry_unified",
     "adaptive": "chemistry_unified",
 }
 ```
@@ -224,8 +224,8 @@ server_configs = {
 ```python
 def _select_model_for_mode(self, mode: str) -> str:
     return {
-        "creative": "o4-mini", 
-        "rigorous": "o3", 
+        "creative": "o4-mini",
+        "rigorous": "o3",
         "adaptive": "o4-mini"
     }.get(mode, "o4-mini")
 ```

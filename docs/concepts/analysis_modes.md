@@ -34,7 +34,7 @@ Adaptive mode leverages the full feature set of EnhancedCrystaLyseAgent:
 User: "Find battery materials"
 System: "What type of battery application? (Li-ion cathode, Na-ion anode, solid electrolyte, etc.)"
 
-User: "Perovskites for solar cells"  
+User: "Perovskites for solar cells"
 System: "For single-junction or tandem cells? Any specific efficiency targets?"
 ```
 
@@ -53,7 +53,7 @@ Creative mode uses the **Chemistry Creative Server** (`chemistry-creative-server
 ```python
 # Tools available in creative mode
 - Chemeleon CSP: Crystal structure prediction
-- MACE: Formation energy calculations  
+- MACE: Formation energy calculations
 - Visualisation: 3D structure rendering
 # Not included: SMACT validation (for speed)
 ```
@@ -184,7 +184,7 @@ crystalyse analyse "query" --mode rigorous
 
 ### Use Adaptive Mode When: (Recommended Default)
 - **General research**: Most research scenarios benefit from intelligent tool selection
-- **Learning systems**: System adapts to your expertise level and preferences  
+- **Learning systems**: System adapts to your expertise level and preferences
 - **Mixed workflows**: Combining exploration with validation in one session
 - **First-time users**: Enhanced clarification helps guide effective queries
 - **Project organization**: Workspace management keeps research organized
@@ -244,11 +244,11 @@ graph TB
     A[CrystaLyse Agent] --> B{Mode Selection}
     B -->|Creative| C[Chemistry Creative Server]
     B -->|Rigorous| D[Chemistry Unified Server]
-    
+
     C --> E[Chemeleon CSP]
     C --> F[MACE Energy]
     C --> G[Basic Visualisation]
-    
+
     D --> H[SMACT Validation]
     D --> I[Chemeleon CSP]
     D --> J[MACE Energy]

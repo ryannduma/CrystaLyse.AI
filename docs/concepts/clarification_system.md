@@ -35,7 +35,7 @@ Crystalyse v1.0.0 features an adaptive clarification system that transforms user
 ```bash
 Based on your query, I'm assuming:
 • Application: Solid-state battery electrolyte
-• Temperature range: Room temperature operation  
+• Temperature range: Room temperature operation
 • Conductivity target: >10⁻⁴ S/cm
 
 → Proceeding with rigorous mode for expert-level analysis
@@ -67,7 +67,7 @@ I can help you find the perfect materials! Let me understand your needs step by 
 
 What's most important to you right now?
 🚀 Fast exploration of exciting possibilities (creative)
-🔬 Careful validation of proven options (rigorous)  
+🔬 Careful validation of proven options (rigorous)
 🎯 Something specific you're trying to improve (adaptive)
 ```
 
@@ -108,7 +108,7 @@ The system maintains user profiles that learn from interactions:
 During execution, the system monitors for adaptation signals:
 
 **Speed Requests**: "faster", "quicker", "taking too long" → Switch to creative mode
-**Depth Requests**: "more detail", "validate", "thorough" → Switch to rigorous mode  
+**Depth Requests**: "more detail", "validate", "thorough" → Switch to rigorous mode
 **Simplicity Requests**: "simpler", "too technical", "basic" → Switch to creative mode
 
 ## Workspace Integration
@@ -156,8 +156,8 @@ plan = await clarification.analyze_and_plan(query, clarification_request)
 
 # Execute with chosen strategy
 result = await clarification.execute_strategy(
-    plan["strategy"], 
-    clarification_request, 
+    plan["strategy"],
+    clarification_request,
     plan["analysis"]
 )
 ```
@@ -169,7 +169,7 @@ result = await clarification.execute_strategy(
 - **Quick Override**: Easy to adjust when assumptions are wrong
 - **Maintains Flow**: Doesn't break concentration with unnecessary questions
 
-### For Intermediate Users  
+### For Intermediate Users
 - **Efficient Interaction**: Focused questions with pre-populated likely answers
 - **Learning Support**: Provides context when needed without overwhelming
 - **Adaptive Difficulty**: Adjusts complexity based on demonstrated knowledge
@@ -192,7 +192,7 @@ The clarification system maintains computational honesty by:
 
 ### Planned Features
 - **Multi-modal Input**: Support for image/document uploads during clarification
-- **Collaborative Sessions**: Different users in same session with different expertise levels  
+- **Collaborative Sessions**: Different users in same session with different expertise levels
 - **Domain Specialization**: Expertise detection specific to research areas
 - **Cross-session Learning**: Learn from community interaction patterns
 

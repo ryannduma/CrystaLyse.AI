@@ -5,41 +5,41 @@ Provides responsive ASCII art logos with gradient support.
 """
 
 # Full CRYSTALYSE logo for wide terminals
-CRYSTALYSE_FULL_LOGO = '''
+CRYSTALYSE_FULL_LOGO = """
  ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗     █████╗ ██╗
 ██╔════╝██╔══██╗╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██║    ╚██╗ ██╔╝██╔════╝██╔════╝    ██╔══██╗██║
 ██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗      ███████║██║
 ██║     ██╔══██╗  ╚██╔╝  ╚════██║   ██║   ██╔══██║██║      ╚██╔╝  ╚════██║██╔══╝      ██╔══██║██║
 ╚██████╗██║  ██║   ██║   ███████║   ██║   ██║  ██║███████╗  ██║   ███████║███████╗    ██║  ██║██║
  ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ╚═╝   ╚══════╝╚══════╝    ╚═╝  ╚═╝╚═╝
-'''
+"""
 
 # Compact CRYSTALYSE logo for medium terminals
-CRYSTALYSE_COMPACT_LOGO = '''
+CRYSTALYSE_COMPACT_LOGO = """
  ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗
 ██╔════╝██╔══██╗╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██║    ╚██╗ ██╔╝██╔════╝██╔════╝
-██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗  
-██║     ██╔══██╗  ╚██╔╝  ╚════██║   ██║   ██╔══██║██║      ╚██╔╝  ╚════██║██╔══╝  
+██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗
+██║     ██╔══██╗  ╚██╔╝  ╚════██║   ██║   ██╔══██║██║      ╚██╔╝  ╚════██║██╔══╝
 ╚██████╗██║  ██║   ██║   ███████║   ██║   ██║  ██║███████╗  ██║   ███████║███████╗
  ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ╚═╝   ╚══════╝╚══════╝
-'''
+"""
 
 # Minimal logo for small terminals
-CRYSTALYSE_MINIMAL_LOGO = '''
+CRYSTALYSE_MINIMAL_LOGO = """
  ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗
 ██╔════╝██╔══██╗╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██║    ╚██╗ ██╔╝██╔════╝██╔════╝
-██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗  
+██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗
 ╚██████╗██║  ██║   ██║   ███████║   ██║   ██║  ██║███████╗  ██║   ███████║███████╗
  ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ╚═╝   ╚══════╝╚══════╝
-'''
+"""
 
 # Ultra minimal for very small terminals
-CRYSTALYSE_ULTRA_MINIMAL = '''
+CRYSTALYSE_ULTRA_MINIMAL = """
  ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗
 ██╔════╝██╔══██╗╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██║    ╚██╗ ██╔╝██╔════╝██╔════╝
 ╚██████╗██║  ██║   ██║   ███████║   ██║   ██║  ██║███████╗  ██║   ███████║███████╗
  ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ╚═╝   ╚══════╝╚══════╝
-'''
+"""
 
 # Default to compact for backwards compatibility
 CRYSTALYSE_ASCII_ART = CRYSTALYSE_COMPACT_LOGO
@@ -47,17 +47,17 @@ CRYSTALYSE_ASCII_ART = CRYSTALYSE_COMPACT_LOGO
 
 def get_ascii_art_width(ascii_art: str) -> int:
     """Calculate the display width of ASCII art."""
-    lines = ascii_art.strip().split('\n')
+    lines = ascii_art.strip().split("\n")
     return max(len(line) for line in lines) if lines else 0
 
 
 def get_responsive_logo(terminal_width: int) -> str:
     """
     Get the appropriate logo size based on terminal width.
-    
+
     Args:
         terminal_width: Current terminal width in characters
-        
+
     Returns:
         ASCII art string appropriate for the terminal width
     """
@@ -85,11 +85,11 @@ def get_responsive_logo(terminal_width: int) -> str:
 def get_logo_with_subtitle(terminal_width: int, version: str = None) -> tuple[str, str]:
     """
     Get logo with appropriate subtitle based on terminal width.
-    
+
     Args:
         terminal_width: Current terminal width in characters
         version: Optional version string
-        
+
     Returns:
         Tuple of (logo, subtitle)
     """

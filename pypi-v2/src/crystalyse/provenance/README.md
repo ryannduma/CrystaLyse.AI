@@ -65,7 +65,7 @@ trace_handler = ProvenanceTraceHandler(
 # Run discovery with tracking
 agent = EnhancedCrystaLyseAgent(mode="creative")
 result = await agent.discover(
-    "Find stable binary oxides", 
+    "Find stable binary oxides",
     trace_handler=trace_handler
 )
 
@@ -133,7 +133,7 @@ def detect_mcp_tool(output):
     # Parse wrapped response
     if output.get("type") == "text":
         data = json.loads(output["text"])
-    
+
     # Detect by structure
     if "generated_structures" in data:
         if data.get("mode") == "creative":

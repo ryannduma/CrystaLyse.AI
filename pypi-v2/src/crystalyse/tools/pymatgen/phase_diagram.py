@@ -1,26 +1,26 @@
 """PyMatgen phase diagram tools - energy above hull calculations."""
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
-import logging
-import gzip
-import pickle
-import os
-from pathlib import Path
 
-from pymatgen.core import Composition
+import gzip
+import logging
+import pickle
+from typing import Any
+
+from pydantic import BaseModel, Field
 from pymatgen.analysis.phase_diagram import PDEntry, PhaseDiagram
+from pymatgen.core import Composition
 
 from .phase_diagram_downloader import get_phase_diagram_path_with_fallbacks
 
 logger = logging.getLogger(__name__)
 
 # Global phase diagram data
-_PPD_DATA: Optional[PhaseDiagram] = None
-_PPD_PATH: Optional[str] = None
+_PPD_DATA: PhaseDiagram | None = None
+_PPD_PATH: str | None = None
 
 
 class EnergyAboveHullResult(BaseModel):
     """Energy above hull calculation result."""
+
     success: bool = True
     composition: str
     energy_per_atom: float
@@ -28,12 +28,12 @@ class EnergyAboveHullResult(BaseModel):
     is_stable: bool
     is_metastable: bool
     is_unstable: bool
-    decomposition_products: List[Dict[str, Any]] = Field(default_factory=list)
+    decomposition_products: list[dict[str, Any]] = Field(default_factory=list)
     competing_phases: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
-def _load_phase_diagram() -> Optional[PhaseDiagram]:
+def _load_phase_diagram() -> PhaseDiagram | None:
     """Load the pre-computed phase diagram with auto-download support."""
     global _PPD_DATA, _PPD_PATH
 
@@ -53,7 +53,9 @@ def _load_phase_diagram() -> Optional[PhaseDiagram]:
     try:
         with gzip.open(_PPD_PATH, "rb") as f:
             _PPD_DATA = pickle.load(f)
-        logger.info(f"Loaded phase diagram with {len(_PPD_DATA.all_entries)} entries from {_PPD_PATH}")
+        logger.info(
+            f"Loaded phase diagram with {len(_PPD_DATA.all_entries)} entries from {_PPD_PATH}"
+        )
         return _PPD_DATA
     except Exception as e:
         logger.error(f"Failed to load phase diagram from {_PPD_PATH}: {e}")
@@ -68,10 +70,7 @@ class PhaseDiagramAnalyzer:
         self.ppd_data = _load_phase_diagram()
 
     def calculate_energy_above_hull(
-        self,
-        composition: str,
-        energy: float,
-        per_atom: bool = True
+        self, composition: str, energy: float, per_atom: bool = True
     ) -> EnergyAboveHullResult:
         """
         Calculate the energy above the convex hull for a given composition and energy.
@@ -90,11 +89,11 @@ class PhaseDiagramAnalyzer:
                     success=False,
                     composition=composition,
                     energy_per_atom=0.0,
-                    energy_above_hull=float('inf'),
+                    energy_above_hull=float("inf"),
                     is_stable=False,
                     is_metastable=False,
                     is_unstable=True,
-                    error="Phase diagram data not loaded"
+                    error="Phase diagram data not loaded",
                 )
 
             # Parse composition
@@ -116,7 +115,7 @@ class PhaseDiagramAnalyzer:
                 e_above_hull = self.ppd_data.get_e_above_hull(entry, allow_negative=True)
             except Exception as e:
                 logger.warning(f"Failed to calculate energy above hull: {e}")
-                e_above_hull = float('inf')
+                e_above_hull = float("inf")
 
             # Get decomposition products
             try:
@@ -125,7 +124,7 @@ class PhaseDiagramAnalyzer:
                     {
                         "formula": phase.composition.reduced_formula,
                         "fraction": float(amount),
-                        "energy_per_atom": float(phase.energy_per_atom)
+                        "energy_per_atom": float(phase.energy_per_atom),
                     }
                     for phase, amount in decomp_products.items()
                 ]
@@ -142,7 +141,7 @@ class PhaseDiagramAnalyzer:
                 is_metastable=0 < e_above_hull <= 0.2,
                 is_unstable=e_above_hull > 0.2,
                 decomposition_products=decomp_list,
-                competing_phases=len(decomp_list)
+                competing_phases=len(decomp_list),
             )
 
         except Exception as e:
@@ -151,11 +150,11 @@ class PhaseDiagramAnalyzer:
                 success=False,
                 composition=composition,
                 energy_per_atom=0.0,
-                energy_above_hull=float('inf'),
+                energy_above_hull=float("inf"),
                 is_stable=False,
                 is_metastable=False,
                 is_unstable=True,
-                error=str(e)
+                error=str(e),
             )
 
     def is_loaded(self) -> bool:

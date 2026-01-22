@@ -14,7 +14,6 @@ Materials Project database: 271,617 entries (170 MB)
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 import requests
 from tqdm import tqdm
@@ -53,13 +52,16 @@ def _download_file(url: str, filepath: Path) -> None:
 
     total_size = int(response.headers.get("content-length", 0))
 
-    with open(filepath, "wb") as f, tqdm(
-        desc=f"Downloading {filepath.name}",
-        total=total_size,
-        unit="B",
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as pbar:
+    with (
+        open(filepath, "wb") as f,
+        tqdm(
+            desc=f"Downloading {filepath.name}",
+            total=total_size,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar,
+    ):
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 f.write(chunk)
@@ -120,7 +122,7 @@ def ensure_phase_diagram_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Path
     return data_file
 
 
-def get_phase_diagram_path(custom_path: Optional[str] = None) -> Path:
+def get_phase_diagram_path(custom_path: str | None = None) -> Path:
     """
     Get phase diagram data path, downloading if needed.
 
@@ -180,12 +182,16 @@ def get_phase_diagram_path(custom_path: Optional[str] = None) -> Path:
 FALLBACK_PATHS = [
     Path("/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz"),
     Path("/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz"),
-    Path(__file__).parent.parent.parent.parent.parent / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-    Path.home() / "updatecrystalyse" / "CrystaLyse.AI" / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+    Path(__file__).parent.parent.parent.parent.parent
+    / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+    Path.home()
+    / "updatecrystalyse"
+    / "CrystaLyse.AI"
+    / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
 ]
 
 
-def get_phase_diagram_path_with_fallbacks(custom_path: Optional[str] = None) -> Path:
+def get_phase_diagram_path_with_fallbacks(custom_path: str | None = None) -> Path:
     """
     Get phase diagram path with fallback to legacy locations.
 

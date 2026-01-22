@@ -7,8 +7,8 @@ Crystalyse v1.2 implements a sophisticated 4-layer memory system using a "simple
 ## Architecture
 
 ### 1. Session Memory
-**Location**: In-memory  
-**Purpose**: Current conversation context  
+**Location**: In-memory
+**Purpose**: Current conversation context
 **Retention**: Last 10 interactions by default
 
 ```python
@@ -20,8 +20,8 @@ session.add_interaction("assistant", "I'll search for lead-free perovskites...")
 ```
 
 ### 2. Discovery Cache
-**Location**: `~/.crystalyse/discoveries.json`  
-**Purpose**: Expensive computational results  
+**Location**: `~/.crystalyse/discoveries.json`
+**Purpose**: Expensive computational results
 **Benefits**: Avoids re-computation of MACE energies, SMACT validations
 
 ```json
@@ -36,8 +36,8 @@ session.add_interaction("assistant", "I'll search for lead-free perovskites...")
 ```
 
 ### 3. User Memory
-**Location**: `~/.crystalyse/memory_{user_id}.md`  
-**Purpose**: User preferences, research interests, important notes  
+**Location**: `~/.crystalyse/memory_{user_id}.md`
+**Purpose**: User preferences, research interests, important notes
 **Format**: Human-readable Markdown
 
 ```markdown
@@ -59,8 +59,8 @@ session.add_interaction("assistant", "I'll search for lead-free perovskites...")
 ```
 
 ### 4. Cross-Session Context
-**Location**: `~/.crystalyse/insights_{user_id}.md`  
-**Purpose**: Auto-generated research summaries and patterns  
+**Location**: `~/.crystalyse/insights_{user_id}.md`
+**Purpose**: Auto-generated research summaries and patterns
 **Update**: Weekly automatic generation
 
 ```markdown
@@ -93,7 +93,7 @@ Eight function tools provide seamless memory access for the OpenAI Agents SDK:
 def save_to_memory(fact: str, section: str = "Important Notes") -> str:
     """Save important information to user memory"""
 
-@function_tool  
+@function_tool
 def search_memory(query: str) -> str:
     """Search user memory for relevant information"""
 
@@ -146,11 +146,11 @@ Agent: [Saves research focus and successful patterns]
 
 # Session 2: Weeks later
 User: "I need more battery materials"
-Agent: "Based on your previous research into Li-ion cathodes, 
+Agent: "Based on your previous research into Li-ion cathodes,
         I recommend exploring these Ti-based alternatives..."
 ```
 
-### Personalised Recommendations  
+### Personalised Recommendations
 ```bash
 # System learns user preferences
 User consistently asks about:

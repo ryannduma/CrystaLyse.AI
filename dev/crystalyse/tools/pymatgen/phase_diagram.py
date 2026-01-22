@@ -47,12 +47,12 @@ def _load_phase_diagram() -> PhaseDiagram | None:
 
     possible_paths = [
         cache_path,
-        "/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        "/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+        "/home/ryan/updatecrystalyse/Crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+        "/home/ryan/mycrystalyse/Crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         Path(__file__).parent.parent.parent.parent.parent.parent
         / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        Path.home() / "updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        Path.home() / "mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+        Path.home() / "updatecrystalyse/Crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
+        Path.home() / "mycrystalyse/Crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         os.getenv("CRYSTALYSE_PPD_PATH", ""),
     ]
 

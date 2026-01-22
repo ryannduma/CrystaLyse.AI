@@ -16,7 +16,7 @@ Crystalyse v1.0.0 implements a  materials discovery platform built on the OpenAI
 ```
 Chemistry Unified Server (Rigorous Mode)
 ├── SMACT Validation
-├── Chemeleon Structure Generation  
+├── Chemeleon Structure Generation
 └── MACE Energy Calculations
 
 Chemistry Creative Server (Fast Mode)

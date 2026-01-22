@@ -12,7 +12,7 @@ This guide provides comprehensive instructions for installing Crystalyse on vari
 - **RAM**: 8GB minimum (16GB recommended)
 - **Storage**: 5GB for installation + ~600MB for Chemeleon model checkpoints (auto-downloaded)
 - **Network**: Internet connection for package downloads, API calls, and first-run Chemeleon checkpoint download (~523MB)
-- **Operating System**: 
+- **Operating System**:
   - Linux (Ubuntu 20.04+, CentOS 8+, RHEL 8+)
   - macOS 11+ (Big Sur or later)
   - Windows 10/11 with WSL2 (recommended)

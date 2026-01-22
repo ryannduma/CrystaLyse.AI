@@ -81,10 +81,10 @@ Structure:
   Li⁺  Fe²⁺  [PO₄]³⁻
    │    │      │
   Olivine Structure
-         
+
 Structural Features:
 • Olivine framework: [FeO6] octahedra
-• Polyanion: [PO4] tetrahedra  
+• Polyanion: [PO4] tetrahedra
 • Li channels: 1D diffusion paths
 ```
 
@@ -105,14 +105,14 @@ Interactive 3D crystal structure viewer:
 ═══════════════════════════════════════════════════════════
                     MATERIAL PROPERTIES
 ═══════════════════════════════════════════════════════════
-Property                Value              Unit       
+Property                Value              Unit
 ───────────────────────────────────────────────────────────
-Formation Energy        -2.84              eV/atom    
-Band Gap                3.8                eV         
-Density                 3.6                g/cm³      
-Space Group             Pnma               -          
-Lattice a               10.33              Å          
-Lattice b               6.01               Å          
+Formation Energy        -2.84              eV/atom
+Band Gap                3.8                eV
+Density                 3.6                g/cm³
+Space Group             Pnma               -
+Lattice a               10.33              Å
+Lattice b               6.01               Å
 ═══════════════════════════════════════════════════════════
 ```
 
@@ -167,7 +167,7 @@ Multiple crystal structures found:
     Li diffusion: 2D layers
     Structural stability: Low
 
-Select structure [1-3] or 'all' for details: 
+Select structure [1-3] or 'all' for details:
 ```
 
 ## Theme System
@@ -179,7 +179,7 @@ Select structure [1-3] or 'all' for details:
 ```python
 theme = {
     "primary": "#2E86AB",      # Crystal blue
-    "secondary": "#A23B72",    # Materials purple  
+    "secondary": "#A23B72",    # Materials purple
     "success": "#F18F01",      # Formation orange
     "warning": "#C73E1D",      # Alert red
     "info": "#03CEA4",         # Information teal
@@ -207,16 +207,16 @@ dark_theme = {
 #### Header Graphics
 
 ```
-     ▄████▄   ██▀███ ▓██   ██▓  ██████ ▄▄▄█████▓ ▄▄▄       ██▓    ▓██   ██▓  ██████ ▓█████ 
-    ▒██▀ ▀█  ▓██ ▒ ██▒▒██  ██▒▒██    ▒ ▓  ██▒ ▓▒▒████▄    ▓██▒     ▒██  ██▒▒██    ▒ ▓█   ▀ 
-    ▒▓█    ▄ ▓██ ░▄█ ▒ ▒██ ██░░ ▓██▄   ▒ ▓██░ ▒░▒██  ▀█▄  ▒██░      ▒██ ██░░ ▓██▄   ▒███   
-    ▒▓▓▄ ▄██▒▒██▀▀█▄   ░ ▐██▓░  ▒   ██▒░ ▓██▓ ░ ░██▄▄▄▄██ ▒██░      ░ ▐██▓░  ▒   ██▒▒▓█  ▄ 
+     ▄████▄   ██▀███ ▓██   ██▓  ██████ ▄▄▄█████▓ ▄▄▄       ██▓    ▓██   ██▓  ██████ ▓█████
+    ▒██▀ ▀█  ▓██ ▒ ██▒▒██  ██▒▒██    ▒ ▓  ██▒ ▓▒▒████▄    ▓██▒     ▒██  ██▒▒██    ▒ ▓█   ▀
+    ▒▓█    ▄ ▓██ ░▄█ ▒ ▒██ ██░░ ▓██▄   ▒ ▓██░ ▒░▒██  ▀█▄  ▒██░      ▒██ ██░░ ▓██▄   ▒███
+    ▒▓▓▄ ▄██▒▒██▀▀█▄   ░ ▐██▓░  ▒   ██▒░ ▓██▓ ░ ░██▄▄▄▄██ ▒██░      ░ ▐██▓░  ▒   ██▒▒▓█  ▄
     ▒ ▓███▀ ░░██▓ ▒██▒ ░ ██▒▓░▒██████▒▒  ▒██▒ ░  ▓█   ▓██▒░██████▒  ░ ██▒▓░▒██████▒▒░▒████▒
     ░ ░▒ ▒  ░░ ▒▓ ░▒▓░  ██▒▒▒ ▒ ▒▓▒ ▒ ░  ▒ ░░    ▒▒   ▓▒█░░ ▒░▓  ░   ██▒▒▒ ▒ ▒▓▒ ▒ ░░░ ▒░ ░
       ░  ▒     ░▒ ░ ▒░▓██ ░▒░ ░ ░▒  ░ ░    ░      ▒   ▒▒ ░░ ░ ▒  ░ ▓██ ░▒░ ░ ░▒  ░ ░ ░ ░  ░
-    ░          ░░   ░ ▒ ▒ ░░  ░  ░  ░    ░        ░   ▒     ░ ░    ▒ ▒ ░░  ░  ░  ░     ░   
+    ░          ░░   ░ ▒ ▒ ░░  ░  ░  ░    ░        ░   ▒     ░ ░    ▒ ▒ ░░  ░  ░  ░     ░
     ░ ░         ░     ░ ░           ░                 ░  ░    ░  ░ ░ ░           ░     ░  ░
-    ░                 ░ ░                                          ░ ░                      
+    ░                 ░ ░                                          ░ ░
 ```
 
 #### Crystal Structure Graphics
@@ -242,12 +242,12 @@ ui:
   show_ascii_art: true
   colour_output: true
   verbose_mode: false
-  
+
 display:
   structure_format: "3d_crystal"
   table_style: "grid"
   max_similar_materials: 10
-  
+
 interaction:
   confirm_destructive: true
   auto_save_sessions: true
@@ -332,7 +332,7 @@ Navigation:
 # High contrast colour scheme
 high_contrast = {
     "background": "#000000",
-    "text": "#FFFFFF", 
+    "text": "#FFFFFF",
     "highlight": "#FFFF00",
     "error": "#FF0000",
     "success": "#00FF00"
@@ -389,7 +389,7 @@ For 'LiCoO2':
   • Phase stability: analyse LiCoO2 --phase-diagram
   • Electronic structure: analyse LiCoO2 --band-structure
 
-crystalyse> 
+crystalyse>
 ```
 
 ## Integration Patterns
@@ -401,21 +401,21 @@ class UIAgent:
     def display_analysis(self, result):
         # Format for optimal readability
         formatted = self.format_for_terminal(result)
-        
+
         # Add interactive elements
         if result.has_alternatives:
             formatted += self.create_selection_menu(result.alternatives)
-        
+
         # Display with appropriate theme
         self.renderer.display(formatted, theme=self.current_theme)
-    
+
     def handle_user_input(self, input_text):
         # Parse natural language or commands
         parsed = self.parser.parse(input_text)
-        
+
         # Provide immediate feedback
         self.show_processing_indicator()
-        
+
         # Execute and display results
         result = self.agent.process(parsed)
         self.display_analysis(result)
@@ -432,7 +432,7 @@ class CustomDisplayPlugin:
             "reactions": ReactionRenderer(),
             "pathways": PathwayRenderer()
         }
-    
+
     def register_commands(self):
         return {
             "spectra": self.handle_spectra_command,
@@ -462,12 +462,12 @@ class LazyMoleculeRenderer:
 ```python
 def stream_analysis_results(molecule):
     yield "Starting analysis..."
-    
+
     for step in analysis_pipeline:
         yield f"Processing {step.name}..."
         result = step.execute(molecule)
         yield format_partial_result(result)
-    
+
     yield "Analysis complete!"
 ```
 

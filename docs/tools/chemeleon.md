@@ -95,9 +95,9 @@ Systematic space group selection based on composition:
 ```python
 # Example: Perovskite structures
 Composition: "CsSnI3"
-Likely space groups: 
+Likely space groups:
 - Pm3m (cubic perovskite, high symmetry)
-- P4/mmm (tetragonal, intermediate)  
+- P4/mmm (tetragonal, intermediate)
 - Pnma (orthorhombic, distorted)
 - P1 (triclinic, lowest symmetry)
 ```
@@ -109,7 +109,7 @@ Initial lattice parameters estimated from:
 ```python
 # Ionic radius approach for CsSnI3
 Cs⁺ radius: 1.67 Å
-Sn²⁺ radius: 1.02 Å  
+Sn²⁺ radius: 1.02 Å
 I⁻ radius: 2.20 Å
 
 # Perovskite lattice parameter estimate
@@ -152,10 +152,10 @@ Structure 1: Cubic Pm3m
 Lattice: a = 6.234 Å, α = 90°
 Atomic positions:
 - Cs: (0.5, 0.5, 0.5)
-- Sn: (0.0, 0.0, 0.0)  
+- Sn: (0.0, 0.0, 0.0)
 - I: (0.5, 0.0, 0.0), (0.0, 0.5, 0.0), (0.0, 0.0, 0.5)
 
-Structure 2: Tetragonal P4/mmm  
+Structure 2: Tetragonal P4/mmm
 Lattice: a = 6.18 Å, c = 6.45 Å
 Atomic positions:
 - Cs: (0.5, 0.5, 0.5)
@@ -167,7 +167,7 @@ Atomic positions:
 
 ```python
 Structure 1: Layered R3m (α-NaFeO2 type)
-Lattice: a = 2.82 Å, c = 14.05 Å  
+Lattice: a = 2.82 Å, c = 14.05 Å
 Atomic positions:
 - Li: (0.0, 0.0, 0.0)
 - Co: (0.0, 0.0, 0.5)
@@ -176,7 +176,7 @@ Atomic positions:
 Structure 2: Spinel Fd3m
 Lattice: a = 8.15 Å (cubic)
 Atomic positions:
-- Li: (0.125, 0.125, 0.125)  
+- Li: (0.125, 0.125, 0.125)
 - Co: (0.5, 0.5, 0.5)
 - O: (0.25, 0.25, 0.25), etc.
 ```
@@ -189,7 +189,7 @@ Chemeleon provides comprehensive quality assessment:
 
 #### Geometric Validation
 - **Bond lengths**: Check against known chemical bonds
-- **Bond angles**: Validate coordination geometries  
+- **Bond angles**: Validate coordination geometries
 - **Atomic overlaps**: Ensure no unphysical atomic positions
 - **Density check**: Compare to experimental/theoretical densities
 
@@ -210,7 +210,7 @@ Chemeleon provides comprehensive quality assessment:
 ```python
 Structure Quality Score: 0.87/1.0
 ├── Geometric validity: 0.92
-├── Crystallographic validity: 0.89  
+├── Crystallographic validity: 0.89
 ├── Chemical reasonableness: 0.83
 └── ML confidence: 0.85
 
@@ -227,7 +227,7 @@ Standard crystallographic format with complete structural information:
 ```cif
 data_CsSnI3_structure1
 _cell_length_a    6.234
-_cell_length_b    6.234  
+_cell_length_b    6.234
 _cell_length_c    6.234
 _cell_angle_alpha 90.0
 _cell_angle_beta  90.0
@@ -239,7 +239,7 @@ loop_
 _atom_site_label
 _atom_site_type_symbol
 _atom_site_fract_x
-_atom_site_fract_y  
+_atom_site_fract_y
 _atom_site_fract_z
 Cs1 Cs 0.5 0.5 0.5
 Sn1 Sn 0.0 0.0 0.0
@@ -353,7 +353,7 @@ graph LR
     C --> D[MACE Energy Calculation]
     D --> E[Structure Ranking]
     E --> F[Best Structures]
-    
+
     B --> G[Structure Analysis]
     G --> H[Quality Assessment]
     H --> C
@@ -396,9 +396,9 @@ perovskite_structures = chemeleon_predict_structure(
     space_groups=["Pm3m", "P4/mmm", "Pnma"]
 )
 
-# Layered structure guidance  
+# Layered structure guidance
 layered_structures = chemeleon_predict_structure(
-    formula="LiCoO2", 
+    formula="LiCoO2",
     template="layered",
     enforce_layers=True
 )

@@ -127,7 +127,7 @@ Crystalyse returns structured results in multiple formats:
 
 #### Analysis Plots (Rigorous Mode)
 - **XRD Patterns**: `XRD_Pattern_{formula}.pdf`
-- **RDF Analysis**: `RDF_Analysis_{formula}.pdf`  
+- **RDF Analysis**: `RDF_Analysis_{formula}.pdf`
 - **Coordination Analysis**: `Coordination_Analysis_{formula}.pdf`
 - **Structure Files**: `{formula}.cif`
 
@@ -139,7 +139,7 @@ Crystalyse returns structured results in multiple formats:
 - **Speed**: ~50 seconds
 - **Output**: Structure generation + energy ranking + 3D visualisation
 
-### Rigorous Mode  
+### Rigorous Mode
 - **Purpose**: Complete validation and characterisation
 - **Tools**: SMACT + Chemeleon + MACE + Comprehensive Analysis
 - **Speed**: 2-5 minutes

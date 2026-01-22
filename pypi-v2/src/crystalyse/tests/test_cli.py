@@ -1,11 +1,13 @@
 """
 Tests for the CrystaLyse CLI.
 """
+
 from typer.testing import CliRunner
 
 from crystalyse.cli import app
 
 runner = CliRunner()
+
 
 def test_app_help():
     """
@@ -16,6 +18,7 @@ def test_app_help():
     assert "Usage: crystalyse [OPTIONS] COMMAND [ARGS]..." in result.stdout
     assert "CrystaLyse.AI 2.0 - A Gemini-like CLI for Materials Informatics." in result.stdout
 
+
 def test_discover_help():
     """
     Tests the help message for the 'discover' command.
@@ -23,6 +26,7 @@ def test_discover_help():
     result = runner.invoke(app, ["discover", "--help"])
     assert result.exit_code == 0
     assert "Usage: crystalyse discover [OPTIONS] QUERY" in result.stdout
+
 
 def test_chat_help():
     """

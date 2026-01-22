@@ -397,7 +397,7 @@ class SessionAwareTool:
         # Access session data
         recent_materials = session_context.recent_materials
         discoveries = session_context.discoveries
-        
+
         # Tool logic here
         return results
 
@@ -466,7 +466,7 @@ except ConflictError as e:
         print(f"Conflict in {conflict.field}")
         print(f"Your version: {conflict.local}")
         print(f"Remote version: {conflict.remote}")
-    
+
     # Resolve
     session.resolve_conflicts(strategy="merge")
 ```

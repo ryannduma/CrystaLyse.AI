@@ -28,11 +28,11 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  
+
   font:
     text: Roboto
     code: Roboto Mono
-  
+
   features:
     - navigation.tabs
     - navigation.sections
@@ -50,10 +50,10 @@ theme:
     - content.tooltips
     - content.action.edit
     - content.action.view
-  
+
   icon:
     repo: fontawesome/brands/github
-    edit: material/pencil 
+    edit: material/pencil
     view: material/eye
 
 # Documentation structure
@@ -105,7 +105,7 @@ markdown_extensions:
   - toc:
       permalink: true
       title: Table of contents
-  
+
   # Python Markdown Extensions
   - pymdownx.arithmatex:
       generic: true
@@ -170,7 +170,7 @@ extra:
   analytics:
     provider: google
     property: G-XXXXXXXXXX  # Replace with actual GA4 property
-  
+
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/ryannduma/CrystaLyse.AI
@@ -178,7 +178,7 @@ extra:
       link: https://pypi.org/project/crystalyse/
     - icon: fontawesome/solid/globe
       link: https://crystalyse.ai
-  
+
   version:
     provider: mike
     default: stable

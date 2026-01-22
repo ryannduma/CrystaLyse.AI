@@ -346,4 +346,4 @@ crystalyse chat -s <session> -u <user>     # Resume session
 - ✅ **Computational result caching**
 - ✅ **Multi-day research project support**
 
-**Ready to revolutionize your materials research workflow? Start with `crystalyse chat -u your_username`!** 
+**Ready to revolutionize your materials research workflow? Start with `crystalyse chat -u your_username`!**

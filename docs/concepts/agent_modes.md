@@ -8,9 +8,9 @@ Crystalyse operates in two distinct execution modes that determine how the agent
 
 ### Analyse Mode (Autonomous)
 
-**Purpose**: Single-shot autonomous analysis with direct results  
-**Execution**: Stateless, self-contained processing  
-**Memory**: No persistent memory between queries  
+**Purpose**: Single-shot autonomous analysis with direct results
+**Execution**: Stateless, self-contained processing
+**Memory**: No persistent memory between queries
 **Best for**: Quick analyses, batch processing, one-off questions
 
 #### Characteristics
@@ -60,9 +60,9 @@ User Query → Agent Processing → Tool Calls → Results → Output
 
 ### Chat Mode (Interactive Sessions)
 
-**Purpose**: Interactive research sessions with persistent memory  
-**Execution**: Stateful, conversation-aware processing  
-**Memory**: Full session persistence and cross-query context  
+**Purpose**: Interactive research sessions with persistent memory
+**Execution**: Stateful, conversation-aware processing
+**Memory**: Full session persistence and cross-query context
 **Best for**: Research projects, exploratory analysis, collaborative work
 
 #### Characteristics
@@ -92,7 +92,7 @@ crystalyse chat -s team_project -u team_member
 /history          # Show conversation history
 /clear            # Clear conversation history
 /undo             # Remove last interaction
-/sessions         # List all sessions  
+/sessions         # List all sessions
 /resume <id>      # Resume a session
 /help             # Show help
 /exit             # Exit chat
@@ -163,10 +163,10 @@ User Query → Session Context → Agent Processing → Update Memory → Respon
 ```python
 class CrystaLyseAgent:
     """Autonomous analysis agent - stateless operation"""
-    
+
     async def discover_materials(self, query: str) -> dict:
         # Parse query
-        # Generate candidates  
+        # Generate candidates
         # Validate with tools
         # Return results
         # No state retention
@@ -176,11 +176,11 @@ class CrystaLyseAgent:
 ```python
 class CrystaLyseSession:
     """Session-based agent with memory and context"""
-    
+
     def __init__(self, session_id: str, user_id: str):
         self.conversation_history = []
         self.memory_system = SessionMemory()
-        
+
     async def run_with_history(self, query: str) -> dict:
         # Retrieve conversation context
         # Enhanced query with history
@@ -193,7 +193,7 @@ class CrystaLyseSession:
 
 ### Analyse Mode Memory
 - **No Persistence**: Results not retained between queries
-- **Temporary Context**: Working memory only during execution  
+- **Temporary Context**: Working memory only during execution
 - **Clean State**: Each analysis starts fresh
 - **Cache Miss**: No benefit from previous calculations
 
@@ -211,7 +211,7 @@ class CrystaLyseSession:
 3. **Batch Efficiently**: Group related analyses together
 4. **Result Storage**: Save important results externally
 
-### Chat Mode Best Practices  
+### Chat Mode Best Practices
 1. **Session Names**: Use descriptive session identifiers
 2. **Regular Summaries**: Generate periodic research summaries
 3. **Clean Exits**: Use `/exit` to properly save session state
@@ -272,12 +272,12 @@ async def analyse_material(query: str):
     await agent.cleanup()
     return result
 
-# WebSocket endpoint using chat mode  
+# WebSocket endpoint using chat mode
 @app.websocket("/materials/chat")
 async def chat_session(websocket, session_id: str):
     session = manager.get_or_create_session(session_id, user_id)
     await session.setup_agent("creative")
-    
+
     async for message in websocket:
         result = await session.run_with_history(message)
         await websocket.send(result)
@@ -291,7 +291,7 @@ async def chat_session(websocket, session_id: str):
 - **Scalability**: Excellent - stateless scaling
 - **Throughput**: High - optimised for single queries
 
-### Chat Mode Performance  
+### Chat Mode Performance
 - **Startup Time**: Moderate - session state loading
 - **Memory Usage**: Higher - conversation history retention
 - **Scalability**: Good - session-based scaling

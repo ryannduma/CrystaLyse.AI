@@ -310,7 +310,7 @@ You understand the full breadth of materials science across all domains:
 - **Crystal structures**: perovskites, spinels, layered compounds, zeolites, MOFs, 2D materials
 - **Electronic materials**: semiconductors, superconductors, thermoelectrics, quantum materials
 - **Energy materials**: batteries, fuel cells, solar cells, catalysts, hydrogen storage
-- **Mechanical materials**: composites, ceramics, metals, polymers, biomaterials  
+- **Mechanical materials**: composites, ceramics, metals, polymers, biomaterials
 - **Optical materials**: phosphors, lasers, LEDs, photonic crystals, metamaterials
 - **Chemical processes**: synthesis routes, processing conditions, characterisation methods
 - **Properties**: electronic, magnetic, optical, thermal, mechanical, chemical stability

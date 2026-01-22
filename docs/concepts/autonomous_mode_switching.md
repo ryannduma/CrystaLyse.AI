@@ -113,7 +113,7 @@ execution_context = {
 When the system detects adaptation signals:
 
 ```bash
-🔄 I notice you'd like faster results. 
+🔄 I notice you'd like faster results.
    Switching to creative mode for quicker exploration...
 
 ⚡ Now using: Creative Mode (~50 seconds)
@@ -143,7 +143,7 @@ The system learns from successful mode switches:
 adaptation_history = [
     {
         "user_id": "researcher1",
-        "trigger": "user_feedback: faster", 
+        "trigger": "user_feedback: faster",
         "from_mode": "rigorous",
         "to_mode": "creative",
         "user_satisfaction": 0.9,
@@ -158,7 +158,7 @@ adaptation_history = [
 
 ```bash
 /mode creative          # Switch to creative mode
-/mode rigorous         # Switch to rigorous mode  
+/mode rigorous         # Switch to rigorous mode
 /mode adaptive         # Switch to adaptive mode
 /mode auto             # Enable automatic mode switching
 /mode manual           # Disable automatic switching
@@ -180,7 +180,7 @@ adaptation_history = [
 The system can predict optimal modes based on:
 
 - **Query Pattern Recognition**: Similar queries that benefited from specific modes
-- **User Behavior Patterns**: Individual preferences learned over time  
+- **User Behavior Patterns**: Individual preferences learned over time
 - **Domain Knowledge**: Different fields may prefer different approaches
 - **Time Context**: Time of day, session length, user urgency
 
@@ -216,12 +216,12 @@ adaptation:
   auto_switch_threshold: 0.7
   user_confirmation_required: false
   learning_enabled: true
-  
+
 mode_preferences:
   default: adaptive
   time_sensitive: creative
   validation_critical: rigorous
-  
+
 sensitivity:
   feedback_detection: high
   performance_monitoring: medium

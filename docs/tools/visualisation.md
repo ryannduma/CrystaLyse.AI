@@ -190,7 +190,7 @@ viewer.render();
 # Comprehensive XRD analysis
 XRD Pattern for CsSnI3 (Cubic Pm3m):
 ├── Peak 1: 14.2° (2θ) - (001) reflection
-├── Peak 2: 20.1° (2θ) - (110) reflection  
+├── Peak 2: 20.1° (2θ) - (110) reflection
 ├── Peak 3: 28.4° (2θ) - (200) reflection
 ├── Peak 4: 34.8° (2θ) - (220) reflection
 └── Peak 5: 40.2° (2θ) - (222) reflection
@@ -278,7 +278,7 @@ PDF Contents:
 ├── Experimental comparison (if available)
 └── Pattern analysis summary
 
-# RDF Analysis Report  
+# RDF Analysis Report
 PDF Contents:
 ├── Page 1: Total and partial RDF plots
 ├── Peak assignment table
@@ -384,12 +384,12 @@ correlation_plot = create_property_correlation(
 graph LR
     A[Chemeleon Structures] --> B[MACE Energies]
     B --> C[Visualisation Suite]
-    
+
     C --> D[3D Molecular Viewer]
     C --> E[XRD Analysis]
-    C --> F[RDF Analysis] 
+    C --> F[RDF Analysis]
     C --> G[Coordination Analysis]
-    
+
     D --> H[Interactive HTML]
     E --> I[XRD PDF Report]
     F --> J[RDF PDF Report]
@@ -405,13 +405,13 @@ Visualisations are automatically generated in Crystalyse workflows:
 for structure_result in analysis_results:
     # 3D viewer
     html_viewer = create_3dmol_view(structure_result["cif"])
-    
+
     # Analysis plots (rigorous mode only)
     if analysis_mode == "rigorous":
         xrd_plot = generate_xrd_pattern(structure_result["cif"])
         rdf_plot = calculate_rdf_analysis(structure_result["cif"])
         coord_plot = coordination_environment_analysis(structure_result["cif"])
-    
+
     # Energy annotation
     annotate_with_energy(html_viewer, structure_result["formation_energy"])
 ```

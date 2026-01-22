@@ -18,7 +18,7 @@ class MCPDetector:
     def detect_tool(output):
         # Unwrap SDK response: {"type": "text", "text": "{actual_json}"}
         data = unwrap_output(output)
-        
+
         # Detect by unique fields
         if "generated_structures" in data and "energy_calculations" in data:
             return "comprehensive_materials_analysis"

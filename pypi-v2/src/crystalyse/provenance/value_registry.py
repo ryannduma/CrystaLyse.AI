@@ -6,15 +6,14 @@ Integrates with the artifact tracker and materials tracker to provide
 complete provenance lookup for the render gate.
 """
 
-import re
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass
-from datetime import datetime
 import logging
+import re
+from dataclasses import dataclass
+from typing import Any
 
-from .artifact_tracker import ArtifactTracker, Artifact, ExtractedValue
-from .render_gate import ProvenanceTuple
+from .artifact_tracker import ArtifactTracker
 from .core.materials_tracker import MaterialsTracker
+from .render_gate import ProvenanceTuple
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +23,15 @@ class ProvenancedValue:
     """
     A value with its complete provenance information.
     """
+
     value: float
-    unit: Optional[str]
+    unit: str | None
     source_tool: str
     artifact_hash: str
     timestamp: str
-    confidence: Optional[float] = None
-    property_type: Optional[str] = None
-    material: Optional[str] = None  # e.g., "LiCoO2"
+    confidence: float | None = None
+    property_type: str | None = None
+    material: str | None = None  # e.g., "LiCoO2"
 
     def to_tuple(self) -> ProvenanceTuple:
         """Convert to ProvenanceTuple for render gate."""
@@ -41,7 +41,7 @@ class ProvenancedValue:
             source_tool=self.source_tool,
             artifact_hash=self.artifact_hash,
             timestamp=self.timestamp,
-            confidence=self.confidence
+            confidence=self.confidence,
         )
 
 
@@ -53,8 +53,8 @@ class ProvenanceValueRegistry:
 
     def __init__(
         self,
-        artifact_tracker: Optional[ArtifactTracker] = None,
-        materials_tracker: Optional[MaterialsTracker] = None
+        artifact_tracker: ArtifactTracker | None = None,
+        materials_tracker: MaterialsTracker | None = None,
     ):
         """
         Initialize registry with optional trackers.
@@ -67,10 +67,10 @@ class ProvenanceValueRegistry:
         self.materials_tracker = materials_tracker
 
         # Direct value registry for quick lookup
-        self.registry: Dict[float, List[ProvenancedValue]] = {}
+        self.registry: dict[float, list[ProvenancedValue]] = {}
 
         # Material-specific registry
-        self.material_registry: Dict[str, List[ProvenancedValue]] = {}
+        self.material_registry: dict[str, list[ProvenancedValue]] = {}
 
     def register_tool_output(
         self,
@@ -78,7 +78,7 @@ class ProvenanceValueRegistry:
         tool_call_id: str,
         input_data: Any,
         output_data: Any,
-        timestamp: Optional[str] = None
+        timestamp: str | None = None,
     ) -> str:
         """
         Register a tool output and extract all values.
@@ -92,7 +92,7 @@ class ProvenanceValueRegistry:
             tool_call_id=tool_call_id,
             input_data=input_data,
             output_data=output_data,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         # Get the artifact
@@ -107,7 +107,7 @@ class ProvenanceValueRegistry:
                 artifact_hash=artifact_id,
                 timestamp=artifact.timestamp,
                 confidence=artifact.confidence,
-                property_type=extracted.property_type
+                property_type=extracted.property_type,
             )
 
             # Try to extract material formula
@@ -126,18 +126,13 @@ class ProvenanceValueRegistry:
                     self.material_registry[material] = []
                 self.material_registry[material].append(prov_value)
 
-        logger.info(
-            f"Registered {len(artifact.extracted_values)} values from {tool_name}"
-        )
+        logger.info(f"Registered {len(artifact.extracted_values)} values from {tool_name}")
 
         return artifact_id
 
     def lookup_provenance(
-        self,
-        value: float,
-        tolerance: float = 0.01,
-        material: Optional[str] = None
-    ) -> Optional[ProvenanceTuple]:
+        self, value: float, tolerance: float = 0.01, material: str | None = None
+    ) -> ProvenanceTuple | None:
         """
         Look up provenance for a value.
 
@@ -173,7 +168,7 @@ class ProvenanceValueRegistry:
                     source_tool=artifact.tool_name,
                     artifact_hash=artifact.output_hash,
                     timestamp=artifact.timestamp,
-                    confidence=artifact.confidence
+                    confidence=artifact.confidence,
                 )
 
         # Try exact match first
@@ -213,12 +208,12 @@ class ProvenanceValueRegistry:
                 source_tool=artifact.tool_name,
                 artifact_hash=artifact.output_hash,
                 timestamp=artifact.timestamp,
-                confidence=artifact.confidence
+                confidence=artifact.confidence,
             )
 
         return None
 
-    def lookup_material_properties(self, material: str) -> Dict[str, ProvenancedValue]:
+    def lookup_material_properties(self, material: str) -> dict[str, ProvenancedValue]:
         """
         Get all provenanced properties for a material.
 
@@ -234,13 +229,15 @@ class ProvenanceValueRegistry:
             for prov_value in self.material_registry[material]:
                 if prov_value.property_type:
                     # Keep the most recent value for each property
-                    if (prov_value.property_type not in properties or
-                        prov_value.timestamp > properties[prov_value.property_type].timestamp):
+                    if (
+                        prov_value.property_type not in properties
+                        or prov_value.timestamp > properties[prov_value.property_type].timestamp
+                    ):
                         properties[prov_value.property_type] = prov_value
 
         return properties
 
-    def get_provenance_data(self) -> Dict[str, Any]:
+    def get_provenance_data(self) -> dict[str, Any]:
         """
         Get all provenance data for render gate.
 
@@ -254,8 +251,7 @@ class ProvenanceValueRegistry:
 
         return {
             "artifacts": {
-                aid: artifact.to_dict()
-                for aid, artifact in self.artifact_tracker.artifacts.items()
+                aid: artifact.to_dict() for aid, artifact in self.artifact_tracker.artifacts.items()
             },
             "materials": materials,
             "registry": {
@@ -265,11 +261,11 @@ class ProvenanceValueRegistry:
             "statistics": {
                 "total_artifacts": len(self.artifact_tracker.artifacts),
                 "total_values": len(self.registry),
-                "materials_tracked": len(self.material_registry)
-            }
+                "materials_tracked": len(self.material_registry),
+            },
         }
 
-    def _extract_material(self, output_data: Any) -> Optional[str]:
+    def _extract_material(self, output_data: Any) -> str | None:
         """
         Extract material formula from tool output.
         """
@@ -282,13 +278,13 @@ class ProvenanceValueRegistry:
         elif isinstance(output_data, str):
             # Look for chemical formulas using regex
             # Pattern for chemical formulas like LiCoO2, CaTiO3, etc.
-            pattern = r'\b([A-Z][a-z]?(?:\d+)?(?:[A-Z][a-z]?(?:\d+)?)*)\b'
+            pattern = r"\b([A-Z][a-z]?(?:\d+)?(?:[A-Z][a-z]?(?:\d+)?)*)\b"
             matches = re.findall(pattern, output_data)
 
             # Filter to likely chemical formulas
             for match in matches:
                 # Must contain at least 2 elements
-                elements = re.findall(r'[A-Z][a-z]?', match)
+                elements = re.findall(r"[A-Z][a-z]?", match)
                 if len(elements) >= 2:
                     return match
 
@@ -301,18 +297,18 @@ class ProvenanceValueRegistry:
         self.artifact_tracker = ArtifactTracker()
         logger.info("Provenance registry cleared")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """Get registry statistics."""
         return {
             "total_values": len(self.registry),
             "unique_values": len(set(self.registry.keys())),
             "materials": len(self.material_registry),
-            "artifacts": self.artifact_tracker.get_statistics()
+            "artifacts": self.artifact_tracker.get_statistics(),
         }
 
 
 # Global registry instance
-_global_registry: Optional[ProvenanceValueRegistry] = None
+_global_registry: ProvenanceValueRegistry | None = None
 
 
 def get_global_registry() -> ProvenanceValueRegistry:

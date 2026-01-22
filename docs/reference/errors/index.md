@@ -349,7 +349,7 @@ Error: MCP server 'chemistry_unified' connection failed
 
 Configuration:
 chemistry_unified: ❌ Unavailable
-chemistry_creative: ✅ Available  
+chemistry_creative: ✅ Available
 visualization: ✅ Available
 
 Logs:

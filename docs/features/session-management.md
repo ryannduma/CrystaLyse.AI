@@ -61,7 +61,7 @@ crystalyse chat -u researcher1 -s comparison_study
 # Principal investigator starts project
 crystalyse chat -u prof_smith -s solar_perovskites
 
-# Graduate student continues analysis  
+# Graduate student continues analysis
 crystalyse chat -u grad_student -s solar_perovskites_detailed
 
 # Each user maintains isolated workspace

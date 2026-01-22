@@ -259,14 +259,14 @@ class DiscoveryValidator:
         # Check scientific validity
         if not self.is_chemically_valid(discovery):
             return False
-        
+
         # Check novelty
         if self.exists_in_literature(discovery):
             discovery.novelty = "known"
-        
+
         # Assign confidence score
         discovery.confidence = self.calculate_confidence(discovery)
-        
+
         return discovery.confidence > threshold
 ```
 
@@ -381,7 +381,7 @@ class CustomMemoryHandler:
         # Custom processing
         if discovery.type == "battery_cathode":
             notify_research_team(discovery)
-    
+
     def on_session_end(self, session):
         # Generate session summary
         summary = generate_summary(session)

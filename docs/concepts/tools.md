@@ -69,7 +69,7 @@ result = await unified_server.validate_composition("CsSnI3")
 
 # SMACT screening pipeline:
 # 1. Oxidation state analysis
-# 2. Electronegativity ratios 
+# 2. Electronegativity ratios
 # 3. Chemical analogy to known compounds
 # 4. Charge balance verification
 
@@ -154,7 +154,7 @@ Integrated pipeline using all available tools:
 
 # Rigorous mode (complete validation):
 # 1. SMACT composition validation
-# 2. Chemeleon structure generation  
+# 2. Chemeleon structure generation
 # 3. MACE energy calculations
 # 4. Visualisation with analysis plots
 
@@ -204,16 +204,16 @@ from crystalyse.tools import BaseTool, ToolResult
 class CustomAnalysisTool(BaseTool):
     name = "custom_analysis"
     description = "Performs custom materials analysis"
-    
+
     def __init__(self, config=None):
         super().__init__(config)
         self.setup_external_software()
-    
+
     def execute(self, material, parameters=None):
         try:
             # Tool implementation
             result = self.run_analysis(material, parameters)
-            
+
             return ToolResult(
                 success=True,
                 data=result,
@@ -228,7 +228,7 @@ class CustomAnalysisTool(BaseTool):
                 error=str(e),
                 error_type=type(e).__name__
             )
-    
+
     def validate_input(self, material):
         # Input validation logic
         if not self.is_valid_formula(material):
@@ -259,14 +259,14 @@ class CustomMCPServer(BaseMCPServer):
     def __init__(self, port=8004):
         super().__init__(name="custom_server", port=port)
         self.register_endpoints()
-    
+
     def register_endpoints(self):
         @self.route("/analyse", methods=["POST"])
         def analyse_endpoint():
             material = request.json.get("material")
             result = self.perform_analysis(material)
             return {"result": result}
-    
+
     def perform_analysis(self, material):
         # Custom materials analysis implementation
         return analysis_results
@@ -351,7 +351,7 @@ unified_server_config = {
 # Rigorous mode workflow:
 rigorous_workflow = [
     "SMACT composition validation",
-    "Chemeleon structure generation", 
+    "Chemeleon structure generation",
     "MACE energy calculations",
     "Comprehensive visualisation and analysis"
 ]
@@ -359,7 +359,7 @@ rigorous_workflow = [
 # Creative mode workflow:
 creative_workflow = [
     "Chemeleon structure generation",
-    "MACE energy calculations", 
+    "MACE energy calculations",
     "Basic 3D visualisation"
 ]
 
@@ -550,7 +550,7 @@ tool_config = {
             "timeout": 120
         },
         "chemistry_creative_server": {
-            "host": "localhost",  
+            "host": "localhost",
             "port": 8002,
             "timeout": 60
         },

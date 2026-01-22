@@ -31,24 +31,24 @@ graph TB
         CLI[Enhanced CLI<br/>crystalyse command]
         UNIFIED[Unified Interface<br/>Single entry point]
     end
-    
+
     subgraph "Core Agent"
         ENHANCED[EnhancedCrystaLyseAgent<br/>OpenAI SDK + Enhanced Features]
         COORDINATOR[Tool Coordinator<br/>MCP Server Management]
     end
-    
+
     subgraph "MCP Servers"
         CREATIVE[Creative Server<br/>Fast mode ~50s]
         RIGOROUS[Unified Server<br/>Complete mode 2-5min]
         VIZ[Visualization Server<br/>3D + Analysis]
     end
-    
+
     subgraph "Tools (oldmcpservers)"
         SMACT[SMACT<br/>Composition Check]
         CHEMELEON[Chemeleon<br/>Structure Prediction]
         MACE[MACE<br/>Energy Calculation]
     end
-    
+
     CLI --> ENHANCED
     UNIFIED --> ENHANCED
     ENHANCED --> COORDINATOR
@@ -69,11 +69,11 @@ graph LR
     QUERY[User Query] --> MODE{Mode?}
     MODE -->|creative| FAST[Creative Mode<br/>~50 seconds]
     MODE -->|rigorous| COMPLETE[Rigorous Mode<br/>2-5 minutes]
-    
+
     FAST --> STRUCT1[Chemeleon Structures]
     STRUCT1 --> ENERGY1[MACE Energies]
     ENERGY1 --> VIZ1[Basic 3D View]
-    
+
     COMPLETE --> VALIDATE[SMACT Validation]
     VALIDATE --> STRUCT2[Chemeleon Structures]
     STRUCT2 --> ENERGY2[MACE Energies]

@@ -49,7 +49,7 @@ get_python_version() {
 find_python() {
     # List of Python commands to try
     python_commands=("python3.12" "python3.11" "python3" "python")
-    
+
     for cmd in "${python_commands[@]}"; do
         version=$(get_python_version "$cmd")
         if version_greater_equal "$version" "$PYTHON_MIN_VERSION"; then
@@ -57,7 +57,7 @@ find_python() {
             return 0
         fi
     done
-    
+
     return 1
 }
 
@@ -85,7 +85,7 @@ detect_os() {
 # Function to install Python 3.11+ on different systems
 install_python() {
     os=$(detect_os)
-    
+
     case $os in
         "ubuntu")
             print_info "Installing Python 3.11 on Ubuntu/Debian..."
@@ -125,17 +125,17 @@ install_python() {
 create_venv() {
     python_cmd="$1"
     venv_path="$2"
-    
+
     print_info "Creating virtual environment at $venv_path..."
     $python_cmd -m venv "$venv_path"
-    
+
     # Activate virtual environment
     source "$venv_path/bin/activate"
-    
+
     # Upgrade pip
     print_info "Upgrading pip..."
     pip install --upgrade pip
-    
+
     print_success "Virtual environment created and activated"
 }
 
@@ -143,12 +143,12 @@ create_venv() {
 install_crystalyse() {
     method="$1"
     extras="$2"
-    
+
     package_spec="crystalyse-ai"
     if [[ -n "$extras" ]]; then
         package_spec="crystalyse-ai[$extras]"
     fi
-    
+
     case $method in
         "pip")
             print_info "Installing Crystalyse using pip..."
@@ -172,7 +172,7 @@ install_crystalyse() {
 # Function to verify installation
 verify_installation() {
     print_info "Verifying installation..."
-    
+
     # Check if crystalyse command is available
     if command_exists crystalyse; then
         version=$(crystalyse --version 2>/dev/null || echo "unknown")
@@ -181,7 +181,7 @@ verify_installation() {
         print_error "Crystalyse command not found"
         return 1
     fi
-    
+
     # Run system check
     print_info "Running system check..."
     if crystalyse check-system >/dev/null 2>&1; then
@@ -195,10 +195,10 @@ verify_installation() {
 # Function to setup configuration
 setup_config() {
     print_info "Setting up initial configuration..."
-    
+
     # Initialize configuration
     crystalyse init --quiet
-    
+
     # Check for OpenAI API key
     if [[ -z "$OPENAI_API_KEY" ]]; then
         print_warning "OpenAI API key not found in environment"
@@ -225,7 +225,7 @@ Options:
   -v, --venv NAME         Virtual environment name (default: crystalyse-env)
   --skip-venv            Skip virtual environment creation
   --python COMMAND       Use specific Python command
-  
+
 Examples:
   $0                              # Basic installation
   $0 -m uv -e all                 # Install with uv and all extras
@@ -273,7 +273,7 @@ done
 # Main installation process
 main() {
     print_info "Starting Crystalyse installation..."
-    
+
     # Find or install Python
     if [[ -n "$PYTHON_CMD" ]]; then
         python_version=$(get_python_version "$PYTHON_CMD")
@@ -294,10 +294,10 @@ main() {
             fi
         fi
     fi
-    
+
     python_version=$(get_python_version "$PYTHON_CMD")
     print_success "Using Python $python_version at $(command -v $PYTHON_CMD)"
-    
+
     # Create virtual environment (unless skipped)
     if [[ "$SKIP_VENV" == false ]]; then
         venv_path="$HOME/$VENV_NAME"
@@ -305,16 +305,16 @@ main() {
     else
         print_info "Skipping virtual environment creation"
     fi
-    
+
     # Install Crystalyse
     install_crystalyse "$INSTALL_METHOD" "$EXTRAS"
-    
+
     # Verify installation
     verify_installation
-    
+
     # Setup configuration
     setup_config
-    
+
     # Print completion message
     print_success "Installation completed successfully!"
     print_info ""

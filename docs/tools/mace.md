@@ -106,7 +106,7 @@ Formation energy calculation follows standard thermochemical conventions:
 
 # Example: CsSnI3 formation energy
 E_CsSnI3 = mace_total_energy("CsSnI3")           # eV
-E_Cs = reference_energy["Cs"]                     # eV/atom  
+E_Cs = reference_energy["Cs"]                     # eV/atom
 E_Sn = reference_energy["Sn"]                     # eV/atom
 E_I = reference_energy["I"]                       # eV/atom
 
@@ -120,7 +120,7 @@ MACE provides uncertainty estimates for all energy predictions:
 ```python
 Energy Prediction: -2.558 ± 0.045 eV/atom
 ├── Model uncertainty: ±0.032 eV/atom
-├── Data uncertainty: ±0.025 eV/atom  
+├── Data uncertainty: ±0.025 eV/atom
 └── Combined uncertainty: ±0.045 eV/atom
 
 Confidence Level: HIGH (uncertainty < 0.1 eV/atom)
@@ -162,7 +162,7 @@ crystalyse analyse "Analyse CsSnI3 energetics in detail" --mode rigorous
 Perovskite Stability Analysis:
 ├── CsGeI₃: -2.558 ± 0.043 eV/atom (most stable)
 ├── CsPbI₃: -2.542 ± 0.038 eV/atom
-├── CsSnI₃: -2.529 ± 0.041 eV/atom  
+├── CsSnI₃: -2.529 ± 0.041 eV/atom
 ├── RbPbI₃: -2.503 ± 0.046 eV/atom
 └── RbSnI₃: -2.488 ± 0.052 eV/atom
 
@@ -323,7 +323,7 @@ Standard energy output format:
       "stability_score": 0.94
     },
     {
-      "rank": 2, 
+      "rank": 2,
       "formula": "CsPbI3",
       "formation_energy": -2.542,
       "uncertainty": 0.038,
@@ -434,11 +434,11 @@ graph LR
     B --> C[MACE Energy Calculation]
     C --> D[Energy Ranking]
     D --> E[Stability Analysis]
-    
+
     C --> F[Uncertainty Assessment]
     F --> G[Quality Control]
     G --> D
-    
+
     D --> H[Results Visualisation]
 ```
 
