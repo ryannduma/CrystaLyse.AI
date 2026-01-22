@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.ui.ascii_art import get_responsive_logo
 from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem

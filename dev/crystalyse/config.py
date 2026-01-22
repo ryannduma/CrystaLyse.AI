@@ -1,57 +1,35 @@
-"""Central configuration management for CrystaLyse.AI"""
+"""Central configuration management for Crystalyse V2.
+
+This is a simplified configuration module for the skills-based architecture.
+MCP server configuration has been removed in favor of direct tool imports.
+"""
 
 import os
-import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
+# Model configuration - two modes only
+CREATIVE_MODEL = "o4-mini"
+RIGOROUS_MODEL = "o3"
+
 
 class CrystaLyseConfig:
-    """Central configuration management with environment variable support"""
+    """Central configuration management with environment variable support."""
 
     def __init__(self):
-        self.base_dir = Path(__file__).parent.parent
+        self.base_dir = Path(__file__).parent
         self.load_from_env()
 
     @classmethod
     def load(cls):
-        """Load configuration - class method for consistent interface"""
+        """Load configuration - class method for consistent interface."""
         return cls()
 
     def load_from_env(self):
-        """Load configuration from environment variables with sensible defaults"""
+        """Load configuration from environment variables with sensible defaults."""
 
-        # MCP Server Configurations
-        self.mcp_servers = {
-            "chemistry_unified": {
-                "command": os.getenv("CRYSTALYSE_PYTHON_PATH", sys.executable),
-                "args": ["-m", "chemistry_unified.server"],
-                "cwd": str(self.base_dir / "chemistry-unified-server" / "src"),
-            },
-            "chemistry_creative": {
-                "command": sys.executable,
-                "args": ["-m", "chemistry_creative.server"],
-                "cwd": str(self.base_dir / "chemistry-creative-server" / "src"),
-            },
-            "visualization": {
-                "command": sys.executable,
-                "args": ["-m", "visualization_mcp.server"],
-                "cwd": str(self.base_dir / "visualization-mcp-server" / "src"),
-            },
-        }
-
-        # Agent Configuration
-        self.default_model = os.getenv("CRYSTALYSE_MODEL", "o4-mini")
-        self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
-        self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY")
-
-        # Mode-specific timeouts
-        self.mode_timeouts = {
-            "creative": 120,  # 2 minutes for fast exploration
-            "adaptive": 180,  # 3 minutes for balanced approach
-            "rigorous": 300,  # 5 minutes for comprehensive validation
-        }
+        # API Configuration
+        self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
 
         # Performance Configuration
         self.parallel_batch_size = int(os.getenv("CRYSTALYSE_BATCH_SIZE", "10"))
@@ -71,15 +49,12 @@ class CrystaLyseConfig:
 
         # Provenance Configuration (ALWAYS ENABLED)
         # Provenance is a core feature of CrystaLyse - always captures complete audit trails
-        # Users can customise display and storage, but cannot disable capture
         self.provenance = {
             "output_dir": Path(os.getenv("CRYSTALYSE_PROVENANCE_DIR", "./provenance_output")),
             "capture_raw": os.getenv("CRYSTALYSE_CAPTURE_RAW", "true").lower() == "true",
-            "capture_mcp_logs": os.getenv("CRYSTALYSE_CAPTURE_MCP_LOGS", "false").lower() == "true",
             "session_prefix": os.getenv("CRYSTALYSE_SESSION_PREFIX", "crystalyse"),
             "show_summary": os.getenv("CRYSTALYSE_SHOW_PROVENANCE_SUMMARY", "true").lower()
             == "true",
-            "visual_trace": os.getenv("CRYSTALYSE_VISUAL_TRACE", "true").lower() == "true",
         }
 
         # Render Gate Configuration (Intelligent hallucination prevention)
@@ -93,81 +68,26 @@ class CrystaLyseConfig:
             == "true",
         }
 
-    def get_server_config(self, server_name: str) -> dict[str, Any]:
-        """Get MCP server configuration with validation"""
-        if server_name not in self.mcp_servers:
-            raise ValueError(
-                f"Unknown server: {server_name}. Available: {list(self.mcp_servers.keys())}"
-            )
+        # Skills Configuration
+        self.skills = {
+            "script_timeout": int(os.getenv("CRYSTALYSE_SKILL_TIMEOUT", "300")),
+            "enable_sandboxing": os.getenv("CRYSTALYSE_SKILL_SANDBOX", "true").lower() == "true",
+        }
 
-        config = self.mcp_servers[server_name].copy()
+    def get_model(self, rigorous: bool = False) -> str:
+        """Get the appropriate model based on mode.
 
-        # Ensure the working directory exists
-        cwd_path = Path(config["cwd"])
-        if not cwd_path.exists():
-            raise FileNotFoundError(f"MCP server directory not found: {cwd_path}")
+        Args:
+            rigorous: If True, return the rigorous model. Otherwise creative.
 
-        # Validate Python executable exists
-        python_cmd = config["command"]
-        if not shutil.which(python_cmd):
-            raise FileNotFoundError(
-                f"Python executable not found: {python_cmd}. Set CRYSTALYSE_PYTHON_PATH environment variable if using a specific conda environment."
-            )
-
-        # Add environment variables
-        config["env"] = os.environ.copy()
-
-        # Note: PYTHONPATH manipulation removed in favor of proper dependency declaration
-        # MCP server packages now declare 'crystalyse' as a dependency in their pyproject.toml
-        # This ensures clean imports without manual path manipulation
-
-        if self.debug_mode:
-            config["env"]["CRYSTALYSE_DEBUG"] = "true"
-
-        return config
-
-    def validate_dependencies(self):
-        """Perform validation of critical system dependencies."""
-        if not shutil.which("python"):
-            raise RuntimeError(
-                "Python interpreter not found in system PATH. CrystaLyse.AI requires Python."
-            )
-
-        import importlib.util
-
-        if importlib.util.find_spec("agents") is None:
-            raise RuntimeError(
-                "OpenAI Agents package not found. Please install it with: pip install openai-agents"
-            )
+        Returns:
+            Model name string.
+        """
+        return RIGOROUS_MODEL if rigorous else CREATIVE_MODEL
 
     def validate_environment(self) -> dict[str, Any]:
-        """Validate that all required components are available"""
-        status = {"servers": {}, "dependencies": {}, "overall": "healthy"}
-
-        # Check for python executable
-        if not shutil.which("python"):
-            status["dependencies"]["python"] = False
-            status["overall"] = "unhealthy"
-        else:
-            status["dependencies"]["python"] = True
-
-        # Check server directories
-        for server_name, server_config in self.mcp_servers.items():
-            cwd_path = Path(server_config["cwd"])
-            status["servers"][server_name] = {
-                "directory_exists": cwd_path.exists(),
-                "command": server_config["command"],
-                "available": False,
-            }
-
-            # Validate Python executable exists
-            python_cmd = server_config["command"]
-            if not shutil.which(python_cmd):
-                status["servers"][server_name]["available"] = False
-                if status["overall"] == "healthy":
-                    status["overall"] = "degraded"
-            else:
-                status["servers"][server_name]["available"] = True
+        """Validate that all required components are available."""
+        status = {"dependencies": {}, "skills": {}, "overall": "healthy"}
 
         # Check Python dependencies
         import importlib.util
@@ -178,10 +98,21 @@ class CrystaLyseConfig:
             status["dependencies"]["openai_agents"] = False
             status["overall"] = "degraded"
 
-        if importlib.util.find_spec("mcp") is not None:
-            status["dependencies"]["mcp"] = True
+        # Check for skills directory
+        skills_dir = self.base_dir.parent / "skills"
+        if skills_dir.exists():
+            skill_count = len(list(skills_dir.glob("*/SKILL.md")))
+            status["skills"]["directory"] = str(skills_dir)
+            status["skills"]["count"] = skill_count
         else:
-            status["dependencies"]["mcp"] = False
+            status["skills"]["directory"] = None
+            status["skills"]["count"] = 0
+
+        # Check API key
+        if self.openai_api_key:
+            status["dependencies"]["api_key"] = True
+        else:
+            status["dependencies"]["api_key"] = False
             status["overall"] = "degraded"
 
         return status
@@ -195,17 +126,26 @@ Config = CrystaLyseConfig
 
 # Optional dependency validation (may fail in some environments)
 try:
-    config.validate_dependencies()
-except RuntimeError as e:
-    import warnings
+    import importlib.util
 
-    warnings.warn(f"Some dependencies not available: {e}", stacklevel=2)
+    if importlib.util.find_spec("agents") is None:
+        import warnings
+
+        warnings.warn(
+            "OpenAI Agents SDK not available. Install with: pip install openai-agents",
+            stacklevel=2,
+        )
+except Exception:
+    pass
 
 
 # Backward compatibility functions
 def get_agent_config():
-    """Backward compatibility for old agent config function"""
-    return {"model": config.default_model, "max_turns": config.max_turns}
+    """Backward compatibility for old agent config function."""
+    return {
+        "creative_model": CREATIVE_MODEL,
+        "rigorous_model": RIGOROUS_MODEL,
+    }
 
 
-DEFAULT_MODEL = config.default_model
+DEFAULT_MODEL = CREATIVE_MODEL

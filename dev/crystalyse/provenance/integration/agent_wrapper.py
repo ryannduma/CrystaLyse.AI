@@ -21,7 +21,7 @@ if str(provenance_path) not in sys.path:
 from handlers import ProvenanceTraceHandler
 from rich.console import Console
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents import EnhancedCrystaLyseAgent
 
 
 class CrystaLyseWithProvenance:

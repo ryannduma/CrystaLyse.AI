@@ -1,27 +1,21 @@
 """
-Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
+Crystalyse -- Intelligent Scientific Agent for Materials Design
+
+This CLI uses a skills-based architecture with two modes:
+- Creative (default): Fast exploration using o4-mini
+- Rigorous (--rigorous): Thorough analysis using o3
 """
 
 import asyncio
 import logging
 import sys
 import warnings
-from enum import Enum
 from pathlib import Path
 
 # Suppress specific e3nn warning about weights_only parameter
-# This is a known issue with e3nn not explicitly passing weights_only to torch.load()
 warnings.filterwarnings(
     "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
 )
-
-# Add provenance_system to path for installed package
-# This ensures provenance works when using 'crystalyse' command
-# Need to add parent directory of provenance_system to sys.path
-crystalyse_root = Path(__file__).parent.parent.parent
-provenance_system_path = crystalyse_root / "provenance_system"
-if provenance_system_path.exists() and str(crystalyse_root) not in sys.path:
-    sys.path.insert(0, str(crystalyse_root))
 
 import typer
 from rich.console import Console
@@ -29,16 +23,14 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.text import Text
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agent import MaterialsAgent
 from crystalyse.config import Config
-from crystalyse.ui.chat_ui import ChatExperience
-from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
-from crystalyse.workspace import workspace_tools
+from crystalyse.ui.clarification import ClarificationSystem
 
 # --- Setup ---
 app = typer.Typer(
     name="crystalyse",
-    help="Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design",
+    help="Crystalyse -- Intelligent Scientific Agent for Materials Design",
     add_completion=False,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -47,19 +39,11 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
-# --- Type Enums for CLI choices ---
-class AgentMode(str, Enum):
-    creative = "creative"
-    rigorous = "rigorous"
-    adaptive = "adaptive"
-
-
 # --- State for global options ---
 state = {
     "project": "crystalyse_session",
-    "mode": AgentMode.adaptive,
-    "model": None,
-    "query": "",
+    "rigorous": False,
+    "verbose": False,
 }
 
 
@@ -71,7 +55,7 @@ def approval_callback(path: Path, content: str) -> bool:
 
     panel = Panel(
         Text(preview, overflow="fold"),
-        title="[bold yellow]📝 Approval Required[/bold yellow]",
+        title="[bold yellow]Approval Required[/bold yellow]",
         subtitle=f"About to write {len(content)} bytes to [cyan]{path.relative_to(Path.cwd())}[/cyan]",
         border_style="yellow",
     )
@@ -80,99 +64,9 @@ def approval_callback(path: Path, content: str) -> bool:
     return Confirm.ask("Do you approve this file write operation?", default=True)
 
 
-# --- Non-Interactive Clarification Handler ---
-async def non_interactive_clarification(request: workspace_tools.ClarificationRequest) -> dict:
-    """
-    Handles clarification for non-interactive mode by making smart assumptions.
-    """
-    # Use the adaptive clarification system even in non-interactive mode
-    system = IntegratedClarificationSystem(console, user_id="non_interactive")
-    analysis = system._analyze_query(state["query"])
-
-    # Check if we should skip clarification entirely (high-confidence queries)
-    should_skip = await system._should_skip_clarification(analysis, request)
-
-    if should_skip:
-        # Skip clarification and return smart assumptions
-        return await system._handle_high_confidence_skip(state["query"], request, analysis)
-
-    # For non-expert queries, use the adaptive clarification system
-    # but simulate responses for non-interactive mode
-    if analysis.expertise_level == "novice":
-        # Show educational guidance and make reasonable choices
-        console.print(
-            Panel(
-                "🔎 Discovery Mode: I'll help you explore battery materials!\n\n"
-                "Since this is non-interactive mode, I'm assuming you want:\n"
-                "• General exploration of battery technologies\n"
-                "• Focus on common, practical options\n"
-                "• Earth-abundant materials (cost-effective)",
-                title="[bold cyan]🎓 Educational Guidance[/bold cyan]",
-                border_style="cyan",
-            )
-        )
-
-        # Simulate guided discovery responses
-        simulated_answers = {
-            "approach_preference": "explore",
-            "_mode": "creative",
-            "_method": "guided_discovery_simulated",
-            "_user_type": "novice",
-        }
-
-        # Fill in reasonable defaults for any specific questions
-        for question in request.questions:
-            if question.options:
-                # Choose educational/accessible option
-                if "Li-ion" in question.options:
-                    simulated_answers[question.id] = "Li-ion"  # Most common
-                elif "Cathode" in question.options:
-                    simulated_answers[question.id] = "Cathode"  # Most common
-                elif "High capacity" in question.options:
-                    simulated_answers[question.id] = "High capacity"  # Good starting point
-                else:
-                    simulated_answers[question.id] = question.options[0]
-            else:
-                simulated_answers[question.id] = ""
-
-        return simulated_answers
-
-    # For intermediate/expert queries in non-interactive mode, use assumptions
-    console.print("[dim]Making smart assumptions based on your technical query...[/dim]")
-
-    # Generate assumptions without asking for confirmation
-    assumptions = await system._generate_smart_assumptions(request.questions, analysis)
-    suggested_mode = system._suggest_initial_mode(analysis)
-
-    assumption_lines = "\n".join(
-        f"• {q.text}: {assumptions.get(q.id, '[Not specified]')}" for q in request.questions
-    )
-
-    console.print(
-        Panel(
-            f"Based on the query, the following assumptions were made:\n{assumption_lines}"
-            f"\n\n→ Proceeding with [bold]{suggested_mode}[/bold] mode.",
-            title="[bold blue]🤖 Auto-Clarification[/bold blue]",
-            border_style="blue",
-        )
-    )
-
-    return {
-        **assumptions,
-        "_mode": suggested_mode,
-        "_method": "assumed_in_non_interactive_mode",
-    }
-
-
 # --- Helper Functions ---
-def display_results(results: dict, show_provenance_summary: bool = True):
-    """
-    Display final results in a structured format.
-
-    Args:
-        results: Discovery results dictionary
-        show_provenance_summary: Whether to display provenance summary table
-    """
+def display_results(results: dict):
+    """Display final results in a structured format."""
     if results.get("status") == "failed":
         console.print(
             Panel(
@@ -185,130 +79,76 @@ def display_results(results: dict, show_provenance_summary: bool = True):
 
     # Display main response
     response = results.get("response", "No response from agent.")
+    mode = results.get("mode", "creative")
+    model = results.get("model", "unknown")
+
     console.print(
-        Panel(response, title="[bold green]Discovery Report[/bold green]", border_style="green")
+        Panel(
+            response,
+            title=f"[bold green]Discovery Report[/bold green] [dim]({mode} mode, {model})[/dim]",
+            border_style="green",
+        )
     )
-
-    # Display provenance summary if available and enabled
-    if show_provenance_summary and "provenance" in results:
-        display_provenance_summary(results["provenance"])
-
-
-def display_provenance_summary(provenance: dict):
-    """
-    Display provenance summary in a formatted table.
-
-    Args:
-        provenance: Provenance dictionary from discovery results
-    """
-    from rich.table import Table
-
-    summary = provenance.get("summary", {})
-
-    # Create summary table
-    table = Table(title="Provenance Summary", show_header=True, header_style="bold cyan")
-    table.add_column("Metric", style="cyan", no_wrap=True)
-    table.add_column("Value", style="yellow")
-
-    # Add rows with available data
-    table.add_row("Session ID", provenance.get("session_id", "N/A"))
-
-    materials_found = summary.get("materials_found", 0)
-    table.add_row("Materials Found", str(materials_found))
-
-    materials_summary = summary.get("materials_summary", {})
-    if materials_summary:
-        with_energy = materials_summary.get("with_energy", 0)
-        table.add_row("With Energy Data", str(with_energy))
-
-        if materials_summary.get("min_energy") is not None:
-            energy_range = f"{materials_summary['min_energy']:.3f} to {materials_summary['max_energy']:.3f} eV/atom"
-            table.add_row("Energy Range", energy_range)
-
-    runtime = summary.get("total_time_s", 0)
-    table.add_row("Runtime", f"{runtime:.1f}s")
-
-    mcp_tools = summary.get("mcp_tools", {})
-    if mcp_tools:
-        tools_list = ", ".join(mcp_tools.keys())
-        table.add_row("MCP Tools Used", tools_list)
-
-    if provenance.get("output_dir"):
-        table.add_row("Output Location", provenance["output_dir"])
-
-    console.print("\n")
-    console.print(table)
 
 
 # --- Typer Commands ---
 
 
 @app.command()
-def discover(
-    query: str = typer.Argument(
-        ..., help="A non-interactive, single-shot materials discovery query."
+def analyse(
+    query: str = typer.Argument(..., help="A materials discovery query."),
+    rigorous: bool = typer.Option(
+        False, "--rigorous", "-r", help="Use rigorous mode (o3 model, slower but more thorough)."
     ),
-    provenance_dir: str | None = typer.Option(
-        None,
-        "--provenance-dir",
-        help="Custom directory for provenance output (default: ./provenance_output)",
-    ),
-    hide_summary: bool = typer.Option(
-        False, "--hide-summary", help="Hide provenance summary table (data still captured)"
-    ),
-    mode: AgentMode | None = typer.Option(
-        None, "--mode", help="Agent operating mode (overrides global option)."
-    ),
-    project: str | None = typer.Option(
-        None, "--project", "-p", help="Project name for workspace (overrides global option)."
+    project: str | None = typer.Option(None, "--project", "-p", help="Project name for workspace."),
+    clarify: bool = typer.Option(
+        True, "--clarify/--no-clarify", help="Ask clarifying questions for ambiguous queries."
     ),
 ):
     """
-    Run a single, non-interactive discovery query with automatic provenance capture.
+    Run a materials discovery query.
 
-    Provenance is always enabled - every query generates a complete audit trail
-    including materials discovered, MCP tool calls, and performance metrics.
+    By default, uses creative mode (o4-mini) for fast exploration.
+    Use --rigorous for thorough analysis with the o3 model.
 
     Examples:
-        crystalyse discover "Find stable perovskites"
-        crystalyse discover "Predict Li-ion cathodes" --provenance-dir ./my_research
-        crystalyse discover "Quick test" --hide-summary
-        crystalyse discover "Analysis" --mode rigorous
+        crystalyse analyse "Find stable perovskites"
+        crystalyse analyse "Predict Li-ion cathodes" --rigorous
+        crystalyse analyse "Quick test" --no-clarify
     """
-    # Determine effective mode and project (local overrides global)
-    effective_mode = mode if mode is not None else state["mode"]
-    effective_project = project if project is not None else state["project"]
+    effective_rigorous = rigorous or state["rigorous"]
+    effective_project = project or state["project"]
 
-    console.print(f"[cyan]Starting non-interactive discovery:[/cyan] {query}")
-    console.print(f"[dim]Mode: {effective_mode.value} | Project: {effective_project}[/dim]\n")
+    mode_str = "rigorous" if effective_rigorous else "creative"
+    console.print(f"[cyan]Starting discovery:[/cyan] {query}")
+    console.print(f"[dim]Mode: {mode_str} | Project: {effective_project}[/dim]\n")
 
-    # Set up non-interactive handlers
-    state["query"] = query
-    workspace_tools.APPROVAL_CALLBACK = approval_callback
-    workspace_tools.CLARIFICATION_CALLBACK = non_interactive_clarification
+    # Handle clarification
+    if clarify:
+        clarification = ClarificationSystem(console)
+        if clarification.needs_clarification(query):
+            result = clarification.clarify(query)
+            if not result.skipped:
+                # Enhance query with clarification answers
+                answers_str = ", ".join(f"{k}={v}" for k, v in result.answers.items())
+                query = f"{query} (Context: {answers_str})"
 
     async def _run():
-        # Load config and customise provenance settings if needed
-        config = Config.load()
-        if provenance_dir:
-            config.provenance["output_dir"] = Path(provenance_dir)
-
-        agent = EnhancedCrystaLyseAgent(
-            config=config,
+        agent = MaterialsAgent(
+            rigorous=effective_rigorous,
             project_name=effective_project,
-            mode=effective_mode.value,
-            model=state["model"],
         )
 
-        # Discovery automatically creates provenance handler
-        results = await agent.discover(query)
+        results = await agent.query(query)
 
         if results:
-            # Display results with optional provenance summary
-            show_summary = config.provenance["show_summary"] and not hide_summary
-            display_results(results, show_provenance_summary=show_summary)
+            display_results(results)
 
     asyncio.run(_run())
+
+
+# Alias for backwards compatibility
+discover = analyse
 
 
 @app.command()
@@ -323,246 +163,170 @@ def setup(
     console.print("[cyan]Setting up Crystalyse data files...[/cyan]")
     try:
         path = ensure_phase_diagram_data(force=force)
-        console.print(f"[green]✓ Phase diagram data ready at:[/green] {path}")
+        console.print(f"[green]Phase diagram data ready at:[/green] {path}")
     except Exception as e:
-        console.print(f"[red]✗ Failed to setup data:[/red] {e}")
+        console.print(f"[red]Failed to setup data:[/red] {e}")
         raise typer.Exit(code=1) from None
 
 
 @app.command()
 def chat(
-    user: str = typer.Option("default", "--user", "-u", help="User ID for personalized experience"),
-    session: str | None = typer.Option(
-        None, "--session", "-s", help="Session name for organization"
+    rigorous: bool = typer.Option(
+        False, "--rigorous", "-r", help="Use rigorous mode for all queries in this session."
     ),
+    project: str | None = typer.Option(None, "--project", "-p", help="Project name for workspace."),
 ):
     """
     Start an interactive chat session for materials discovery.
 
-    Features:
-    • Adaptive clarification based on expertise level
-    • Cross-session learning and personalization
-    • Mode switching and smart defaults
+    Use --rigorous for thorough analysis mode.
     """
-    workspace_tools.APPROVAL_CALLBACK = approval_callback
+    effective_rigorous = rigorous or state["rigorous"]
+    effective_project = project or state["project"]
 
-    # Create chat experience
-    chat_experience = ChatExperience(
-        project=state["project"] + (f"_{session}" if session else ""),
-        mode=state["mode"].value,
-        model=state["model"],
-        user_id=user,
+    mode_str = "rigorous" if effective_rigorous else "creative"
+
+    console.print(
+        Panel(
+            f"[bold]CrystaLyse Interactive Session[/bold]\n\n"
+            f"Mode: [cyan]{mode_str}[/cyan]\n"
+            f"Project: [cyan]{effective_project}[/cyan]\n\n"
+            "Type your query and press Enter. Type 'quit' or 'exit' to end.\n"
+            "Use '/rigorous' to toggle rigorous mode.",
+            title="[bold green]CrystaLyse v2.0[/bold green]",
+            border_style="green",
+        )
     )
 
+    agent = None
+    current_rigorous = effective_rigorous
+
+    async def run_query(q: str, rig: bool):
+        nonlocal agent
+        # Create new agent if mode changed or not initialized
+        if agent is None or agent.rigorous != rig:
+            agent = MaterialsAgent(
+                rigorous=rig,
+                project_name=effective_project,
+            )
+
+        return await agent.query(q)
+
+    clarification = ClarificationSystem(console)
+
     try:
-        asyncio.run(chat_experience.run_loop())
+        while True:
+            try:
+                query = console.input("[bold blue]You:[/bold blue] ")
+            except EOFError:
+                break
+
+            query = query.strip()
+
+            if not query:
+                continue
+
+            if query.lower() in ("quit", "exit", "q"):
+                console.print("[cyan]Ending session.[/cyan]")
+                break
+
+            # Toggle rigorous mode
+            if query.lower() == "/rigorous":
+                current_rigorous = not current_rigorous
+                mode_str = "rigorous" if current_rigorous else "creative"
+                console.print(f"[yellow]Switched to {mode_str} mode.[/yellow]")
+                agent = None  # Force recreation
+                continue
+
+            if query.startswith("/"):
+                console.print(f"[yellow]Unknown command: {query}[/yellow]")
+                continue
+
+            # Clarification
+            if clarification.needs_clarification(query):
+                result = clarification.clarify(query)
+                if not result.skipped:
+                    answers_str = ", ".join(f"{k}={v}" for k, v in result.answers.items())
+                    query = f"{query} (Context: {answers_str})"
+
+            # Run the query
+            try:
+                results = asyncio.run(run_query(query, current_rigorous))
+                if results:
+                    display_results(results)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Query interrupted.[/yellow]")
+                continue
+
     except KeyboardInterrupt:
         console.print("\n[cyan]Session ended by user.[/cyan]")
 
 
-@app.command(name="analyse-provenance")
-def analyse_provenance(
-    session_id: str | None = typer.Option(None, "--session", help="Specific session ID to analyse"),
-    latest: bool = typer.Option(False, "--latest", help="Analyse the most recent session"),
-    provenance_dir: str = typer.Option(
-        "./provenance_output", "--dir", help="Provenance directory to search"
-    ),
-):
-    """
-    Analyse provenance data from previous discovery sessions.
-
-    Examples:
-        crystalyse analyse-provenance --latest
-        crystalyse analyse-provenance --session crystalyse_creative_20250910_120000
-        crystalyse analyse-provenance --dir ./my_research/provenance
-    """
-    import json
-
-    from rich.table import Table
-
-    base_dir = Path(provenance_dir) / "runs"
-
-    # Check if provenance directory exists
-    if not base_dir.exists():
-        console.print(f"[red]Provenance directory not found: {base_dir}[/red]")
-        console.print("[dim]Run a discovery query first to generate provenance data.[/dim]")
-        return
-
-    # Find session to analyse
-    if latest:
-        sessions = sorted(base_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not sessions:
-            console.print("[red]No provenance sessions found[/red]")
-            return
-        session_dir = sessions[0]
-    elif session_id:
-        session_dir = base_dir / session_id
-        if not session_dir.exists():
-            console.print(f"[red]Session '{session_id}' not found[/red]")
-            return
-    else:
-        # List available sessions
-        sessions = sorted(base_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not sessions:
-            console.print("[red]No provenance sessions found[/red]")
-            return
-
-        table = Table(title="Available Provenance Sessions")
-        table.add_column("Session ID", style="cyan", no_wrap=True)
-        table.add_column("Timestamp", style="yellow")
-        table.add_column("Materials", style="green")
-
-        for session in sessions[:10]:  # Show last 10
-            summary_file = session / "summary.json"
-            if summary_file.exists():
-                with open(summary_file) as f:
-                    summary = json.load(f)
-                    table.add_row(
-                        session.name,
-                        summary.get("timestamp", "N/A")[:19],  # Trim to datetime
-                        str(summary.get("materials_found", 0)),
-                    )
-
-        console.print(table)
-        console.print("\n[dim]Use --latest or --session <id> to analyse a specific session[/dim]")
-        return
-
-    # Analyse the selected session
-    console.print(Panel(f"[bold]Analysing Session:[/bold] {session_dir.name}", border_style="cyan"))
-
-    # Load summary
-    summary_file = session_dir / "summary.json"
-    if not summary_file.exists():
-        console.print("[red]Summary file not found for this session[/red]")
-        return
-
-    with open(summary_file) as f:
-        summary = json.load(f)
-
-    # Display performance metrics
-    console.print("\n[bold]Performance Metrics:[/bold]")
-    perf_table = Table(show_header=False)
-    perf_table.add_column("Metric", style="cyan")
-    perf_table.add_column("Value", style="yellow")
-
-    perf_table.add_row("Total Runtime", f"{summary.get('total_time_s', 0):.2f}s")
-    if summary.get("ttfb_ms"):
-        perf_table.add_row("Time to First Byte", f"{summary['ttfb_ms']:.0f}ms")
-    perf_table.add_row("Total Tool Calls", str(summary.get("tool_calls_total", 0)))
-
-    console.print(perf_table)
-
-    # Display materials summary
-    mat_summary = summary.get("materials_summary", {})
-    if mat_summary:
-        console.print("\n[bold]Materials Summary:[/bold]")
-        mat_table = Table(show_header=False)
-        mat_table.add_column("Metric", style="cyan")
-        mat_table.add_column("Value", style="green")
-
-        mat_table.add_row("Total Found", str(mat_summary.get("total", 0)))
-        mat_table.add_row("With Energy Data", str(mat_summary.get("with_energy", 0)))
-
-        if mat_summary.get("min_energy") is not None:
-            mat_table.add_row(
-                "Energy Range",
-                f"{mat_summary['min_energy']:.3f} to {mat_summary['max_energy']:.3f} eV/atom",
-            )
-            mat_table.add_row("Average Energy", f"{mat_summary['avg_energy']:.3f} eV/atom")
-
-        console.print(mat_table)
-
-    # Display MCP tools usage
-    mcp_tools = summary.get("mcp_tools", {})
-    if mcp_tools:
-        console.print("\n[bold]MCP Tools Used:[/bold]")
-        for tool_name, stats in mcp_tools.items():
-            tool_panel = Panel(
-                f"Calls: {stats['count']}\n"
-                f"Average Time: {stats.get('avg_ms', 0):.1f}ms\n"
-                f"Materials Generated: {stats.get('materials', 0)}",
-                title=f"[bold]{tool_name}[/bold]",
-                border_style="blue",
-            )
-            console.print(tool_panel)
-
-    # Display materials catalogue if available
-    materials_file = session_dir / "materials_catalog.json"
-    if materials_file.exists():
-        with open(materials_file) as f:
-            materials = json.load(f)
-
-        if materials:
-            console.print("\n[bold]Top Materials (by formation energy):[/bold]")
-
-            # Sort by energy if available
-            sorted_materials = sorted(
-                [m for m in materials if m.get("formation_energy") is not None],
-                key=lambda x: x["formation_energy"],
-            )
-
-            for i, mat in enumerate(sorted_materials[:5], 1):
-                console.print(
-                    f"  {i}. [cyan]{mat['composition']}[/cyan]: "
-                    f"[yellow]{mat['formation_energy']:.3f} eV/atom[/yellow]"
-                )
-                if mat.get("space_group"):
-                    console.print(f"     Space Group: {mat['space_group']}")
-
-    # Show file locations
-    console.print(f"\n[dim]Session files located at: {session_dir}[/dim]")
-
-
 @app.command()
-def user_stats(
-    user: str = typer.Option("default", "--user", "-u", help="User ID to show stats for"),
-):
-    """
-    Display learning statistics and preferences for a user.
-    """
-    from crystalyse.ui.user_preference_memory import UserPreferenceMemory
+def skills():
+    """List all available skills and their scripts."""
+    from crystalyse.skills.executor import get_available_skills
 
-    memory = UserPreferenceMemory()
-    stats = memory.get_user_statistics(user)
+    available = get_available_skills()
 
-    if stats["interaction_count"] == 0:
-        console.print(f"[yellow]No interaction history found for user '{user}'[/yellow]")
+    if not available:
+        console.print("[yellow]No skills found.[/yellow]")
+        console.print("[dim]Skills should be in the dev/skills/ directory.[/dim]")
         return
 
     console.print(
         Panel(
-            f"""[bold cyan]CrystaLyse Learning Profile[/bold cyan]
-
-"""
-            f"User ID: {stats['user_id']}\n"
-            f"Total Interactions: {stats['interaction_count']}\n"
-            f"Detected Expertise: {stats['expertise_level']} ({stats['expertise_score']:.2f})\n"
-            f"Speed Preference: {stats['speed_preference']:.2f} (0=thorough, 1=fast)\n"
-            f"Preferred Mode: {stats['preferred_mode']}\n"
-            f"Days Since First Use: {stats['days_since_creation']}\n"
-            f"Personalization Active: {'Yes' if stats['personalization_active'] else 'No (need 3+ interactions)'}\n\n"
-            f"Domain Expertise:\n"
-            + (
-                "\n".join(
-                    f"  {domain}: {score:.2f}"
-                    for domain, score in stats["domain_expertise"].items()
-                )
-                if stats["domain_expertise"]
-                else "  No domain-specific data yet\n"
-            )
-            + "\n\nSuccessful Mode Performance:\n"
-            + (
-                "\n".join(
-                    f"  {mode}: {score:.2f} avg satisfaction"
-                    for mode, score in stats["successful_modes"].items()
-                )
-                if stats["successful_modes"]
-                else "  No mode performance data yet"
-            ),
-            title="[bold green]📊 User Learning Statistics[/bold green]",
-            border_style="green",
+            "[bold]Available Skills[/bold]",
+            border_style="cyan",
         )
     )
+
+    for skill_name, scripts in available.items():
+        scripts_str = ", ".join(scripts)
+        console.print(f"  [cyan]{skill_name}[/cyan]: {scripts_str}")
+
+
+@app.command()
+def config(
+    show: bool = typer.Option(False, "--show", help="Show current configuration"),
+    validate: bool = typer.Option(False, "--validate", help="Validate environment"),
+):
+    """Show or validate configuration."""
+    cfg = Config.load()
+
+    if validate:
+        status = cfg.validate_environment()
+        console.print(
+            Panel(
+                f"Overall: [{'green' if status['overall'] == 'healthy' else 'yellow'}]{status['overall']}[/]\n\n"
+                f"Dependencies:\n"
+                + "\n".join(
+                    f"  {k}: [{'green' if v else 'red'}]{v}[/]"
+                    for k, v in status["dependencies"].items()
+                )
+                + "\n\nSkills:\n"
+                + f"  Directory: {status['skills'].get('directory', 'Not found')}\n"
+                + f"  Count: {status['skills'].get('count', 0)}",
+                title="[bold]Environment Status[/bold]",
+                border_style="cyan",
+            )
+        )
+    elif show:
+        from crystalyse.config import CREATIVE_MODEL, RIGOROUS_MODEL
+
+        console.print(
+            Panel(
+                f"Creative Model: [cyan]{CREATIVE_MODEL}[/cyan]\n"
+                f"Rigorous Model: [cyan]{RIGOROUS_MODEL}[/cyan]\n"
+                f"Base Directory: [dim]{cfg.base_dir}[/dim]\n"
+                f"API Key Set: [{'green' if cfg.openai_api_key else 'red'}]"
+                f"{'Yes' if cfg.openai_api_key else 'No'}[/]",
+                title="[bold]Configuration[/bold]",
+                border_style="cyan",
+            )
+        )
+    else:
+        console.print("Use --show to display configuration or --validate to check environment.")
 
 
 @app.callback()
@@ -571,25 +335,28 @@ def main_callback(
     project: str = typer.Option(
         "crystalyse_session", "-p", "--project", help="Project name for workspace."
     ),
-    mode: AgentMode = typer.Option(
-        AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False
+    rigorous: bool = typer.Option(
+        False, "--rigorous", "-r", help="Use rigorous mode (o3 model, thorough analysis)."
     ),
-    model: str | None = typer.Option(None, "--model", help="Language model to use."),
     version: bool | None = typer.Option(
         None,
         "--version",
         help="Show version and exit.",
-        callback=lambda v: (console.print("Crystalyse v1.0.0-dev"), exit(0)) if v else None,
+        callback=lambda v: (console.print("Crystalyse v2.0.0-dev"), exit(0)) if v else None,
         is_eager=True,
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """
-    Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
+    Crystalyse v2.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
+
+    Two modes:
+    - Creative (default): Fast exploration with o4-mini
+    - Rigorous (--rigorous): Thorough analysis with o3
     """
     state["project"] = project
-    state["mode"] = mode
-    state["model"] = model
+    state["rigorous"] = rigorous
+    state["verbose"] = verbose
 
     # Configure logging
     if verbose:
@@ -622,7 +389,7 @@ def run():
         console.print("\n[cyan]Crystalyse session ended.[/cyan]")
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
-        console.print(f"\n[red]❌ An unexpected error occurred: {e}[/red]")
+        console.print(f"\n[red]An unexpected error occurred: {e}[/red]")
         console.print("[dim]Check crystalyse.log for details.[/dim]")
         sys.exit(1)
 

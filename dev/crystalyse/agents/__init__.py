@@ -1,10 +1,15 @@
 """
-CrystaLyse.AI Agent Module
+Crystalyse Agent Module V2
 
-This module provides the unified materials discovery agent using OpenAI Agents SDK.
-All legacy agent implementations have been consolidated into a single, efficient agent.
+This module provides the skills-based materials discovery agent.
+Two modes are supported:
+- Creative (default): Fast exploration with o4-mini
+- Rigorous: Thorough analysis with o3
 """
 
-from .openai_agents_bridge import EnhancedCrystaLyseAgent
+from .agent import MaterialsAgent
 
-__all__ = ["EnhancedCrystaLyseAgent"]
+# Backward compatibility alias
+EnhancedCrystaLyseAgent = MaterialsAgent
+
+__all__ = ["MaterialsAgent", "EnhancedCrystaLyseAgent"]
