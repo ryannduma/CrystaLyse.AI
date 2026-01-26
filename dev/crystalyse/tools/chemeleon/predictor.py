@@ -83,6 +83,7 @@ def _load_model(task: str = "csp", checkpoint_path: str | None = None, prefer_gp
         diffusion_module = DiffusionModule.load_from_checkpoint(
             checkpoint_path, map_location=device
         )
+        diffusion_module.to(device)  # Ensure model is on correct device
     except TypeError as e:
         if "optimiser_configs" in str(e):
             logger.info("Loading model with optimiser_configs compatibility mode")
@@ -126,6 +127,14 @@ def _load_model(task: str = "csp", checkpoint_path: str | None = None, prefer_gp
             raise e
 
     diffusion_module.eval()
+
+    # Log actual device for verification (helps debug HPC GPU issues)
+    try:
+        actual_device = next(diffusion_module.parameters()).device
+        logger.info(f"Model verified on device: {actual_device}")
+    except StopIteration:
+        logger.warning("Could not verify model device (no parameters found)")
+
     _model_cache[cache_key] = diffusion_module
 
     return diffusion_module
