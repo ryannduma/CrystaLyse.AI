@@ -1,0 +1,2168 @@
+manifest:
+  version: "0.1.2"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: ryannduma/crystalyse.ai
+    source: https://github.com/ryannduma/crystalyse.ai
+    branch: master
+    commit: "0abc75a6"
+    scope: [pypi-v2/src/crystalyse/agents/mode_injector.py, pypi-v2/src/crystalyse/agents/openai_agents_bridge.py, pypi-v2/src/crystalyse/agents/tool_wrappers.py,
+      pypi-v2/src/crystalyse/config.py, pypi-v2/src/crystalyse/memory/__init__.py, pypi-v2/src/crystalyse/memory/cross_session_context.py,
+      pypi-v2/src/crystalyse/memory/crystalyse_memory.py, pypi-v2/src/crystalyse/memory/memory_tools.py, pypi-v2/src/crystalyse/ui/enhanced_trace_handler.py,
+      pypi-v2/src/crystalyse/workspace/materials_workspace.py, pypi-v2/src/crystalyse/workspace/workspace_tools.py]
+  issued:
+    by: A2AS.org
+    at: '2026-01-26T16:13:25Z'
+  signatures:
+    digest: sha256:BnEkls3X_NwhryUet_UCUZvzPXQQbH2LioLvMF5pjVQ
+    key: ed25519:Y2Br4fPNT9OIzCLaXkT2V30n-ARm5VWOUHnQTascTxA
+    sig: ed25519:g4hKjJTNYLiph6CsG1iOq305L9rhDhe0oCihppxl-Sm87jeXKHjxV1UYtzbQgY1rguh5p0AvENSMPmG_FoaUDQ
+
+agents:
+  sdk_agent:
+    type: instance
+    models: [selected_model]
+    mcp: [mcp_servers]
+    params:
+      function: discover
+      name: CrystaLyse
+      model_settings: ModelSettings(tool_choice=auto)
+      instructions: [mode_aware_instructions]
+
+models:
+  selected_model:
+    type: variable
+    agents: [sdk_agent]
+
+tools:
+  calculate_formation_energy_wrapped:
+    type: decorator
+    params:
+      description: |-
+        Calculate formation energy with error handling.
+
+        Args:
+            structure: Structure dictionary with numbers, positions, cell
+
+        Returns:
+            Energy calculation result
+  extract_and_save_cif_from_structures:
+    type: decorator
+    params:
+      description: |-
+        Extract CIF data from structure generation results and save to a file.
+
+        Use this when the user wants to save generated structures to CIF files.
+        The structures_result should be the JSON output from generate_structures tool.
+
+        :param project_name: The name of the project workspace.
+        :param structures_result: JSON string containing structure generation results.
+        :param filename: Name for the output CIF file (default: structure.cif).
+        :param sample_index: Which structure sample to extract (default: 0 for most stable).
+        :return: Success message or error description.
+  generate_weekly_summary:
+    type: decorator
+    params:
+      description: |-
+        Generate a weekly summary of research progress.
+
+        Use this tool to create an automatic summary of discoveries, patterns,
+        and research progress from the past week.
+
+        Returns:
+            Weekly summary in markdown format
+  get_cached_discovery:
+    type: decorator
+    params:
+      description: |-
+        Get cached discovery result for a specific formula.
+
+        Use this tool to check if a material has been previously analyzed
+        and avoid re-running expensive calculations.
+
+        Args:
+            formula: Chemical formula to look up
+
+        Returns:
+            Cached result if available, or indication that no cache exists
+  get_memory_context:
+    type: decorator
+    params:
+      description: |-
+        Get comprehensive memory context for the agent.
+
+        Use this tool to get a summary of all memory layers including
+        session history, user preferences, and recent discoveries.
+
+        Returns:
+            Comprehensive memory context
+  get_memory_statistics:
+    type: decorator
+    params:
+      description: |-
+        Get statistics about the memory system.
+
+        Use this tool to check memory usage, cache statistics, and
+        system health information.
+
+        Returns:
+            Memory system statistics
+  list_files:
+    type: decorator
+    params:
+      description: |-
+        Lists the files and directories within a specified path in the project workspace.
+
+        :param project_name: The name of the project workspace.
+        :param relative_path: The path to the directory relative to the project root.
+        :return: A tree-like string representation of the directory contents.
+  predict_structure_wrapped:
+    type: decorator
+    params:
+      description: |-
+        Predict crystal structure with error handling.
+
+        Args:
+            formula: Chemical formula
+            num_samples: Number of structures to generate
+
+        Returns:
+            Structure prediction result
+  read_file:
+    type: decorator
+    params:
+      description: |-
+        Reads the content of a file from the specified project workspace.
+        Use this to retrieve data, review previous results, or read generated code.
+
+        :param project_name: The name of the project workspace.
+        :param relative_path: The path to the file relative to the project root.
+        :return: The content of the file as a string, or an error message.
+  request_user_clarification:
+    type: decorator
+    params:
+      description: |-
+        When a user's query is too broad or ambiguous, use this tool to ask clarifying
+        questions. This will pause your execution and prompt the user for more
+        information. The user's answers will be provided back to you to continue your task.
+
+        :param questions: A list of questions to ask the user. Each question should have an id,
+                          text, and optional list of choices.
+        :return: A JSON string containing the user's answers, keyed by question id.
+  save_discovery:
+    type: decorator
+    params:
+      description: |-
+        Save a material discovery to the cache.
+
+        Use this tool to cache expensive computational results (MACE energies,
+        Chemeleon structures, SMACT validations) to avoid re-computation.
+
+        Args:
+            formula: Chemical formula of the material
+            properties: JSON string of material properties and calculations
+
+        Returns:
+            Confirmation message
+  save_to_memory:
+    type: decorator
+    params:
+      description: "Save important information to user memory.\n\nUse this tool to remember important facts, discoveries,\
+        \ patterns, or \npreferences that should be retained across sessions.\n\nArgs:\n    fact: Important fact or information\
+        \ to save\n    section: Section to save to (options: \"Important Notes\", \"User Preferences\", \n            \"Recent\
+        \ Discoveries\", \"Common Patterns\")\n\nReturns:\n    Confirmation message"
+  search_discoveries:
+    type: decorator
+    params:
+      description: |-
+        Search cached discoveries for similar materials.
+
+        Use this tool to find previously analyzed materials that might be
+        relevant to the current query.
+
+        Args:
+            query: Search query for materials
+            limit: Maximum number of results to return
+
+        Returns:
+            Formatted search results
+  search_memory:
+    type: decorator
+    params:
+      description: |-
+        Search user memory for relevant information.
+
+        Use this tool to find information previously saved in memory, including
+        user preferences, past discoveries, and important notes.
+
+        Args:
+            query: Search query to find relevant memory entries
+
+        Returns:
+            Formatted search results
+  validate_material_wrapped:
+    type: decorator
+    params:
+      description: |-
+        Validate material composition with comprehensive error handling.
+
+        Args:
+            formula: Chemical formula to validate
+
+        Returns:
+            Structured validation result
+  write_file:
+    type: decorator
+    params:
+      description: |-
+        Writes content to a file in the specified project workspace. This action
+        requires user approval. Use it to save results, create reports, or generate code.
+
+        :param project_name: The name of the project workspace.
+        :param relative_path: The path to the file relative to the project root.
+        :param content: The content to write to the file.
+        :return: A message indicating success, user denial, or an error.
+
+mcp:
+  mcp_servers:
+    type: process
+    agents: [sdk_agent]
+    params:
+      dynamic: "True"
+
+imports:
+  Agent: agents.Agent
+  Any: typing.Any
+  Artifact: artifact_tracker.Artifact
+  ArtifactTracker: artifact_tracker.ArtifactTracker
+  asdict: dataclasses.asdict
+  asynccontextmanager: contextlib.asynccontextmanager
+  AsyncExitStack: contextlib.AsyncExitStack
+  asyncio: asyncio
+  AsyncOpenAI: openai.AsyncOpenAI
+  BaseModel: pydantic.BaseModel
+  Callable: typing.Callable
+  ChatExperience: crystalyse.ui.chat_ui.ChatExperience
+  ChemeleonPredictor: crystalyse.tools.chemeleon.ChemeleonPredictor
+  ClarificationRequest: workspace.workspace_tools.ClarificationRequest
+  ComputationError: crystalyse.tools.errors.ComputationError
+  Config: config.Config
+  Confirm: rich.prompt.Confirm
+  Console: rich.console.Console
+  create_enhanced_material_record: core.pydantic_serializer.create_enhanced_material_record
+  create_mode_aware_instructions: mode_injector.create_mode_aware_instructions
+  CrossSessionContext: cross_session_context.CrossSessionContext
+  CrystaLyseConfig: config.CrystaLyseConfig
+  CrystaLyseMemory: crystalyse_memory.CrystaLyseMemory
+  CrystaLyseProvenanceHandler: ui.provenance_bridge.CrystaLyseProvenanceHandler
+  CrystaLyseToolError: crystalyse.tools.errors.CrystaLyseToolError
+  CrystaLyseWithProvenance: agent_wrapper.CrystaLyseWithProvenance
+  dataclass: dataclasses.dataclass
+  datetime: datetime.datetime
+  Dict: typing.Dict
+  DiscoveryCache: discovery_cache.DiscoveryCache
+  DynamicModeAdapter: dynamic_mode_adapter.DynamicModeAdapter
+  EnergyResult: crystalyse.tools.models.EnergyResult
+  EnhancedCrystaLyseAgent: crystalyse.agents.openai_agents_bridge.EnhancedCrystaLyseAgent
+  EnhancedResultFormatter: enhanced_result_formatter.EnhancedResultFormatter
+  EnhancedToolCall: enhanced_trace.EnhancedToolCall
+  Enum: enum.Enum
+  Event: event_logger.Event
+  ExtractedValue: artifact_tracker.ExtractedValue
+  field: dataclasses.field
+  Field: pydantic.Field
+  function_tool: agents.function_tool
+  get_global_registry: provenance.value_registry.get_global_registry
+  get_memory_tools: memory_tools.get_memory_tools
+  get_responsive_logo: crystalyse.ui.ascii_art.get_responsive_logo
+  GlobalModeManager: mode_injector.GlobalModeManager
+  hashlib: hashlib
+  inject_mode_into_mcp_servers: mode_injector.inject_mode_into_mcp_servers
+  inspect: inspect
+  IntegratedClarificationSystem: crystalyse.ui.enhanced_clarification.IntegratedClarificationSystem
+  IntelligentRenderGate: provenance.render_gate.IntelligentRenderGate
+  ItemHelpers: agents.items.ItemHelpers
+  JSON: rich.json.JSON
+  json: json
+  JSONLLogger: core.JSONLLogger
+  List: typing.List
+  Live: rich.live.Live
+  logging: logging
+  MACECalculator: crystalyse.tools.mace.MACECalculator
+  main: cli.main
+  Material: materials_tracker.Material
+  MaterialsTracker: core.materials_tracker.MaterialsTracker
+  MaterialsWorkspace: materials_workspace.MaterialsWorkspace
+  MCPDetector: core.MCPDetector
+  MCPServerStdio: agents.mcp.MCPServerStdio
+  ModelSettings: agents.model_settings.ModelSettings
+  np: numpy
+  OpenAIProvider: agents.models.openai_provider.OpenAIProvider
+  Optional: typing.Optional
+  os: os
+  Panel: rich.panel.Panel
+  Path: pathlib.Path
+  PhaseAwareProgress: crystalyse.ui.progress.PhaseAwareProgress
+  PredictionResult: crystalyse.tools.models.PredictionResult
+  Prompt: rich.prompt.Prompt
+  PROVENANCE_AVAILABLE: ui.provenance_bridge.PROVENANCE_AVAILABLE
+  ProvenanceTraceHandler: enhanced_trace.ProvenanceTraceHandler
+  ProvenanceTuple: render_gate.ProvenanceTuple
+  ProvenanceValueRegistry: value_registry.ProvenanceValueRegistry
+  QueryAnalysis: workspace.workspace_tools.QueryAnalysis
+  Question: workspace.workspace_tools.Question
+  random: random
+  re: re
+  RunConfig: agents.RunConfig
+  Runner: agents.Runner
+  save_discovery: memory_tools.save_discovery
+  save_to_memory: memory_tools.save_to_memory
+  search_discoveries: memory_tools.search_discoveries
+  search_memory: memory_tools.search_memory
+  serialize_pydantic_model: core.pydantic_serializer.serialize_pydantic_model
+  SessionMemory: session_memory.SessionMemory
+  Set: typing.Set
+  shutil: shutil
+  SlashCommandHandler: crystalyse.ui.slash_commands.SlashCommandHandler
+  SMACTValidator: crystalyse.tools.smact.SMACTValidator
+  SQLiteSession: agents.memory.session.SQLiteSession
+  StringIO: io.StringIO
+  Structure: pymatgen.core.Structure
+  Syntax: rich.syntax.Syntax
+  sys: sys
+  Table: rich.table.Table
+  Text: rich.text.Text
+  time: time
+  timedelta: datetime.timedelta
+  ToolCallItem: agents.items.ToolCallItem
+  ToolCallOutputItem: agents.items.ToolCallOutputItem
+  ToolContext: agents.tool_context.ToolContext
+  ToolTraceHandler: ui.trace_handler.ToolTraceHandler
+  Tree: rich.tree.Tree
+  Tuple: typing.Tuple
+  typer: typer
+  Union: typing.Union
+  UserInteractionRecord: user_preference_memory.UserInteractionRecord
+  UserMemory: user_memory.UserMemory
+  UserPreferenceMemory: crystalyse.ui.user_preference_memory.UserPreferenceMemory
+  util: importlib.util
+  ValidationError: crystalyse.tools.errors.ValidationError
+  ValidationResult: crystalyse.tools.models.ValidationResult
+  warnings: warnings
+  workspace_tools: workspace.workspace_tools
+
+functions:
+  __call__:
+    type: async
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [self]
+  __init__:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self, config, project_name, mode, model]
+  __new__:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [cls]
+  _add_to_section:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, section, content]
+    params:
+      returns: None
+  _agent_requested_specific_questions:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, request]
+    params:
+      returns: bool
+  _analyze_patterns:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self, discoveries]
+    params:
+      returns: Dict
+  _analyze_query:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query]
+    params:
+      returns: QueryAnalysis
+  _analyze_query_with_llm:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query]
+    params:
+      returns: Optional[QueryAnalysisResponse]
+  _ask_clarification_questions_directly:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, questions]
+    params:
+      returns: Dict
+  _assess_domain_confidence:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query_lower]
+    params:
+      returns: float
+  _calculate_specificity:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query]
+    params:
+      returns: float
+  _call_llm_for_query_analysis:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query]
+    params:
+      returns: Optional[QueryAnalysisResponse]
+  _classify_interaction_style:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query_lower, complexity_factors]
+    params:
+      returns: str
+  _classify_number:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, num]
+    params:
+      returns: NumberType
+  _collect_feedback_if_appropriate:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  _confirm_assumptions:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, request, analysis]
+    params:
+      returns: Dict
+  _create_agent:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  _create_enhanced_instructions:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self, mode, history]
+    params:
+      returns: str
+  _create_enriched_query:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, original_query, context, analysis]
+    params:
+      returns: str
+  _create_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self, discoveries, patterns]
+    params:
+      returns: str
+  _default_approval_callback:
+    type: sync
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [path, content]
+    params:
+      returns: bool
+  _default_clarification_callback:
+    type: async
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [request]
+    params:
+      returns: Dict
+  _detect_expertise_level:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query_lower]
+    params:
+      returns: str
+  _detect_numbers:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, text]
+    params:
+      returns: List[DetectedNumber]
+  _determine_mode_from_responses:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, answers, analysis]
+    params:
+      returns: str
+  _display_message:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, role, content]
+  _display_provenance_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, summary]
+  _expertise_to_numeric:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, expertise_level]
+    params:
+      returns: float
+  _extract_energy_data:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, data]
+  _extract_from_comprehensive:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_filter_compositions:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_generation:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_mace:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_band_gap:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_chemeleon:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_dopants:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_eos:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_mace_energy:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_pymatgen_hull:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_space_group:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_phase15_stress:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_smact_validate_fast:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_from_string:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.artifact_tracker
+    args: [self, text]
+    params:
+      returns: List[ExtractedValue]
+  _extract_from_validate_composition:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_generic:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, data]
+    params:
+      returns: List[Material]
+  _extract_material:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self, output_data]
+    params:
+      returns: Optional[str]
+  _extract_material_context:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, text]
+    params:
+      returns: Optional[str]
+  _extract_materials_data:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, data]
+  _extract_provenance_from_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, tool_name, output]
+  _extract_result_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self, output_data, tool_name]
+    params:
+      returns: str
+  _extract_structure_data:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, data]
+  _extract_tool_args:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+    params:
+      returns: Dict
+  _extract_tool_name:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+    params:
+      returns: str
+  _extract_values:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.artifact_tracker
+    args: [self, output_data, tool_name]
+    params:
+      returns: List[ExtractedValue]
+  _find_matching_call:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+    params:
+      returns: Optional[str]
+  _find_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, num, provenance_data]
+    params:
+      returns: Optional[ProvenanceTuple]
+  _focused_questions:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, request, analysis]
+    params:
+      returns: Dict
+  _format_chemistry_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_energy_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_generic_dict:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_generic_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_key_arguments:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self, args]
+    params:
+      returns: str
+  _format_list_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_single_structure:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, title, structure]
+    params:
+      returns: None
+  _format_structure_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_structured_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, data, tool_args]
+    params:
+      returns: None
+  _format_text_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, result, tool_args]
+    params:
+      returns: None
+  _generate_fallback_assumptions:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, questions, analysis]
+    params:
+      returns: Dict
+  _generate_hash:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.artifact_tracker
+    args: [self, data]
+    params:
+      returns: str
+  _generate_likely_answers:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, questions, analysis]
+    params:
+      returns: Dict
+  _generate_llm_questions:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, query, analysis]
+    params:
+      returns: Dict
+  _generate_recommendations:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self, discoveries, patterns]
+    params:
+      returns: str
+  _generate_smart_assumptions:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, questions, analysis]
+    params:
+      returns: Dict
+  _get_call_id:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+    params:
+      returns: str
+  _get_educational_context:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, question]
+    params:
+      returns: str
+  _get_input_guidance:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, question]
+    params:
+      returns: str
+  _get_recent_discoveries:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self, days]
+    params:
+      returns: List[Dict]
+  _get_section_content:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, section]
+    params:
+      returns: List[str]
+  _guide_discovery:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, request, analysis]
+    params:
+      returns: Dict
+  _handle_clarification_request:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, request]
+    params:
+      returns: Dict
+  _handle_high_confidence_skip:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query, request, analysis, personalized_strategy, current_mode]
+    params:
+      returns: Dict
+  _has_mathematical_expression:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, text]
+    params:
+      returns: bool
+  _init_query_analysis_patterns:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self]
+  _initialize_memory_file:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self]
+    params:
+      returns: None
+  _is_chemistry_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, data]
+    params:
+      returns: bool
+  _is_energy_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, data]
+    params:
+      returns: bool
+  _is_exit_signal:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, response]
+    params:
+      returns: bool
+  _is_structure_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, data]
+    params:
+      returns: bool
+  _load_cache:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self]
+    params:
+      returns: Dict
+  _load_profiles:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self]
+  _managed_mcp_servers:
+    type: async
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self]
+  _merge_materials:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, existing, new]
+    params:
+      returns: None
+  _normalize_composition:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, composition]
+    params:
+      returns: str
+  _numeric_to_expertise:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, numeric_level]
+    params:
+      returns: str
+  _on_message_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+  _on_message_output_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, item]
+  _on_reasoning:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+  _on_reasoning_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, item]
+  _on_tool_call_end:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+  _on_tool_call_end_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, item]
+  _on_tool_call_start:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+  _on_tool_call_start_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, item]
+  _parse_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, output]
+    params:
+      returns: Dict
+  _preprocess_query_with_clarification:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, raw_query]
+    params:
+      returns: str
+  _process_stream_event:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, item]
+  _process_text:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, text, detected_numbers]
+    params:
+      returns: Tuple
+  _record_interaction_for_learning:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query, analysis, clarification_method, result, interaction_time]
+  _run:
+    type: async
+    module: pypi-v2.src.crystalyse.cli
+  _save_cache:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self]
+    params:
+      returns: None
+  _save_insights:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self, insights]
+    params:
+      returns: None
+  _save_profiles:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self]
+  _save_raw_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, call_id, output]
+  _select_clarification_strategy:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, analysis]
+    params:
+      returns: str
+  _select_model_for_mode:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self, mode]
+    params:
+      returns: str
+  _should_skip_clarification:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, analysis, request]
+    params:
+      returns: bool
+  _show_smart_auto_configuration:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, assumptions, analysis]
+  _show_welcome_banner:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  _simple_clarification_fallback:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, request]
+    params:
+      returns: Dict
+  _simplify_options_for_novice:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, options]
+    params:
+      returns: List[str]
+  _smart_match_response:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self, response, options, question_id]
+    params:
+      returns: Optional[str]
+  _smart_response_matching:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, response, options, question_id]
+    params:
+      returns: Optional[str]
+  _start_live_display:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self, text]
+  _stop_live_display:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self]
+  _suggest_initial_mode:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, analysis]
+    params:
+      returns: str
+  _summarize_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [self, output]
+    params:
+      returns: str
+  _unwrap_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.mcp_detector
+    args: [cls, output]
+    params:
+      returns: Dict
+  add_discovery:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, discovery]
+    params:
+      returns: None
+  add_fact:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, fact, section]
+    params:
+      returns: None
+  add_interaction:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.session_memory
+    args: [self, query, response]
+    params:
+      returns: None
+  add_pattern:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, pattern]
+    params:
+      returns: None
+  add_preference:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, preference]
+    params:
+      returns: None
+  analyse_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [session_id, latest, provenance_dir]
+  analyze_and_clarify:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, query, request, current_mode]
+    params:
+      returns: Dict
+  analyze_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, text, provenance_data]
+    params:
+      returns: Tuple
+  approval_callback:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [path, content]
+    params:
+      returns: bool
+  auto_generate_if_needed:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self]
+    params:
+      returns: Optional[str]
+  auto_generate_insights:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self]
+    params:
+      returns: Optional[str]
+  calculate_formation_energy_wrapped:
+    type: tool
+    module: pypi-v2.src.crystalyse.agents.tool_wrappers
+    args: [structure]
+    params:
+      returns: EnergyResult
+  chat:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [user, session]
+  cleanup:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self]
+    params:
+      returns: None
+  clear:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self]
+  clear_cache:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self]
+    params:
+      returns: None
+  clear_session:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self]
+    params:
+      returns: None
+  clear_session_memory:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self]
+  create_enhanced_material_record:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.pydantic_serializer
+    args: [tool_name, tool_output, timestamp]
+    params:
+      returns: Dict
+  create_mode_aware_instructions:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [base_instructions, mode]
+    params:
+      returns: str
+  create_provenance_handler:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.provenance_bridge
+    args: [mode, config, console, session_id]
+    params:
+      returns: CrystaLyseProvenanceHandler
+  crystalyse_error_handler:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.tool_wrappers
+    args: [context, error]
+    params:
+      returns: str
+  detect_tool:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.mcp_detector
+    args: [cls, output]
+    params:
+      returns: Optional[str]
+  discover:
+    type: async
+    module: pypi-v2.src.crystalyse.agents.openai_agents_bridge
+    args: [self, query, history, trace_handler]
+    params:
+      returns: Dict
+  display_provenance_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [provenance]
+  display_results:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [results, show_provenance_summary]
+  duration_ms:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self]
+    params:
+      returns: float
+  export_cache:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, export_path]
+    params:
+      returns: None
+  export_memory:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self, export_dir]
+    params:
+      returns: None
+  extract_and_save_cif_from_structures:
+    type: tool
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [project_name, structures_result, filename, sample_index]
+    params:
+      returns: str
+  extract_from_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, output, tool_name]
+    params:
+      returns: List[Material]
+  extract_pydantic_fields:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.pydantic_serializer
+    args: [data]
+    params:
+      returns: Dict
+  finalize:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self]
+    params:
+      returns: Dict
+  format_tool_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_result_formatter
+    args: [self, tool_name, result, tool_args]
+    params:
+      returns: None
+  function_tool:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [func]
+  generate_weekly_summary:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    params:
+      returns: str
+  get_agent_config:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+  get_all_sessions:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.integration.agent_wrapper
+    args: [self]
+    params:
+      returns: list
+  get_cached_discovery:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [formula]
+    params:
+      returns: str
+  get_cached_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, formula]
+    params:
+      returns: Optional[Dict]
+  get_context:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.session_memory
+    args: [self, last_n]
+    params:
+      returns: str
+  get_context_for_agent:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self]
+    params:
+      returns: str
+  get_context_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self]
+    params:
+      returns: str
+  get_domain_expertise:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id, domain]
+    params:
+      returns: float
+  get_event_count:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self]
+    params:
+      returns: int
+  get_events_path:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.provenance_bridge
+    args: [self]
+    params:
+      returns: Path
+  get_full_path:
+    type: sync
+    module: pypi-v2.src.crystalyse.workspace.materials_workspace
+    args: [self, relative_path]
+    params:
+      returns: Path
+  get_global_registry:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    params:
+      returns: ProvenanceValueRegistry
+  get_materials_catalog:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.integration.agent_wrapper
+    args: [self, session_id]
+    params:
+      returns: Optional[list]
+  get_materials_catalogue_path:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.provenance_bridge
+    args: [self]
+    params:
+      returns: Path
+  get_memory_context:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    params:
+      returns: str
+  get_memory_statistics:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    params:
+      returns: str
+  get_memory_tools:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [user_id]
+    params:
+      returns: List[callable]
+  get_mode:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [cls]
+    params:
+      returns: str
+  get_or_create_profile:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id]
+    params:
+      returns: UserProfile
+  get_personalized_strategy:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id, analysis]
+    params:
+      returns: Dict
+  get_preferences:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self]
+    params:
+      returns: List[str]
+  get_provenance_data:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self]
+    params:
+      returns: Dict
+  get_provenance_events:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.integration.agent_wrapper
+    args: [self, session_id]
+    params:
+      returns: Optional[list]
+  get_recent_discoveries:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, limit]
+    params:
+      returns: List[Dict]
+  get_render_gate:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    params:
+      returns: IntelligentRenderGate
+  get_research_interests:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self]
+    params:
+      returns: List[str]
+  get_server_config:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+    args: [self, server_name]
+    params:
+      returns: Dict
+  get_session_info:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.provenance_bridge
+    args: [self]
+    params:
+      returns: dict
+  get_session_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.session_memory
+    args: [self]
+    params:
+      returns: dict
+  get_statistics:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self]
+    params:
+      returns: Dict
+  get_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self]
+    params:
+      returns: Dict
+  get_summary_path:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.provenance_bridge
+    args: [self]
+    params:
+      returns: Path
+  get_tool_category:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.mcp_detector
+    args: [cls, tool_name]
+    params:
+      returns: str
+  get_user_statistics:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id]
+    params:
+      returns: Dict
+  get_workspace_for_project:
+    type: sync
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [project_name]
+    params:
+      returns: MaterialsWorkspace
+  has_energy:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self]
+    params:
+      returns: bool
+  hook_workspace_writes:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [output_dir, session_id]
+  import_cache:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, import_path, merge]
+    params:
+      returns: None
+  import_memory:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.crystalyse_memory
+    args: [self, import_dir, merge]
+    params:
+      returns: None
+  inject_mode_into_mcp_servers:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [mcp_servers, current_mode]
+    params:
+      returns: List[Any]
+  intercept_llm_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [text, provenance_data]
+    params:
+      returns: str
+  is_locked:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [cls]
+    params:
+      returns: bool
+  learn_from_interaction:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id, interaction]
+  list_files:
+    type: tool
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [project_name, relative_path]
+    params:
+      returns: str
+  load:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+    args: [cls]
+  load_from_env:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+    args: [self]
+  log:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, event_type, data]
+    params:
+      returns: None
+  log_material:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, material]
+    params:
+      returns: None
+  log_session_end:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, session_id, summary]
+    params:
+      returns: None
+  log_session_start:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, session_id, metadata]
+    params:
+      returns: None
+  log_suppressed_switch:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [attempted_mode, reason]
+  log_tool_end:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, tool_name, call_id, duration_ms, success, output_summary]
+    params:
+      returns: None
+  log_tool_start:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self, tool_name, call_id, args]
+    params:
+      returns: None
+  lookup_material_properties:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self, material]
+    params:
+      returns: Dict
+  lookup_provenance:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self, value, tolerance, material]
+    params:
+      returns: Optional[ProvenanceTuple]
+  lookup_value:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.artifact_tracker
+    args: [self, value, tolerance]
+    params:
+      returns: List[Tuple]
+  main:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+  main_callback:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [ctx, project, mode, model, version, verbose]
+  matches:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.artifact_tracker
+    args: [self, other_value, tolerance]
+    params:
+      returns: bool
+  non_interactive_clarification:
+    type: async
+    module: pypi-v2.src.crystalyse.cli
+    args: [request]
+    params:
+      returns: dict
+  on_event:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self, event]
+  on_tool_call_end:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self, item]
+  on_tool_call_start:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.trace_handler
+    args: [self, item]
+  predict_structure_wrapped:
+    type: tool
+    module: pypi-v2.src.crystalyse.agents.tool_wrappers
+    args: [formula, num_samples]
+    params:
+      returns: PredictionResult
+  read_events:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self]
+    params:
+      returns: list
+  read_file:
+    type: tool
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [project_name, relative_path]
+    params:
+      returns: str
+  read_insights:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self]
+    params:
+      returns: str
+  read_memory:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self]
+    params:
+      returns: str
+  record_user_feedback:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_clarification
+    args: [self, feedback, satisfaction_score]
+  record_user_satisfaction:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.user_preference_memory
+    args: [self, user_id, satisfaction]
+  refresh_agent:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  register_tool_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self, tool_name, tool_call_id, input_data, output_data, timestamp]
+    params:
+      returns: str
+  request_user_clarification:
+    type: tool
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [questions]
+    params:
+      returns: str
+  reset_global_registry:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+  run:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+  run_loop:
+    type: async
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  save_catalog:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self, path, enhanced]
+    params:
+      returns: None
+  save_discovery:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [formula, properties]
+    params:
+      returns: str
+  save_result:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, formula, properties]
+    params:
+      returns: None
+  save_to_memory:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [fact, section]
+    params:
+      returns: str
+  search_discoveries:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [query, limit]
+    params:
+      returns: str
+  search_history:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.session_memory
+    args: [self, query]
+    params:
+      returns: List[Tuple]
+  search_memory:
+    type: tool
+    module: pypi-v2.src.crystalyse.memory.memory_tools
+    args: [query]
+    params:
+      returns: str
+  search_similar:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.discovery_cache
+    args: [self, query, limit]
+    params:
+      returns: List[Dict]
+  serialize_pydantic_model:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.pydantic_serializer
+    args: [obj]
+    params:
+      returns: Union
+  set_mode:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [cls, mode, lock_mode]
+  should_generate_summary:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.cross_session_context
+    args: [self]
+    params:
+      returns: bool
+  should_suppress_dynamic_switching:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    params:
+      returns: bool
+  show_user_stats:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.chat_ui
+    args: [self]
+  text_message_output:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [item]
+  to_catalog:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self]
+    params:
+      returns: List[Dict]
+  to_dict:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self]
+    params:
+      returns: Dict
+  to_enhanced_catalog:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.materials_tracker
+    args: [self]
+    params:
+      returns: Dict
+  to_jsonl:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.core.event_logger
+    args: [self]
+    params:
+      returns: str
+  to_tuple:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.value_registry
+    args: [self]
+    params:
+      returns: ProvenanceTuple
+  tool_name:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.handlers.enhanced_trace
+    args: [self]
+    params:
+      returns: str
+  unlock_mode:
+    type: sync
+    module: pypi-v2.src.crystalyse.agents.mode_injector
+    args: [cls]
+  update_preference:
+    type: sync
+    module: pypi-v2.src.crystalyse.memory.user_memory
+    args: [self, key, value]
+    params:
+      returns: None
+  user_stats:
+    type: sync
+    module: pypi-v2.src.crystalyse.cli
+    args: [user]
+  validate_dependencies:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+    args: [self]
+  validate_environment:
+    type: sync
+    module: pypi-v2.src.crystalyse.config
+    args: [self]
+    params:
+      returns: Dict
+  validate_material_wrapped:
+    type: tool
+    module: pypi-v2.src.crystalyse.agents.tool_wrappers
+    args: [formula]
+    params:
+      returns: ValidationResult
+  validate_response:
+    type: sync
+    module: pypi-v2.src.crystalyse.provenance.render_gate
+    args: [self, response, provenance_data, expected_properties]
+    params:
+      returns: Dict
+  write_file:
+    type: tool
+    module: pypi-v2.src.crystalyse.workspace.workspace_tools
+    args: [project_name, relative_path, content]
+    params:
+      returns: str
+  write_with_tracking:
+    type: sync
+    module: pypi-v2.src.crystalyse.ui.enhanced_trace_handler
+    args: [file_path, content]
+    params:
+      returns: str
+
+variables:
+  CRYSTALYSE_BATCH_SIZE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_BLOCK_UNPROVENANCED:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_CAPTURE_MCP_LOGS:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_CAPTURE_RAW:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_CIF_ONLY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_COLOR_SCHEME:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_DEBUG:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_ENABLE_HTML_VIZ:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_MAX_CANDIDATES:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_MAX_TURNS:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_METRICS:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_MODEL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_PROVENANCE_DIR:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_PYTHON_PATH:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_RENDER_GATE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_RENDER_GATE_LOG:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_RENDER_GATE_STRICTNESS:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_SESSION_PREFIX:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_SHOW_PROVENANCE_SUMMARY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_STRUCTURE_SAMPLES:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  CRYSTALYSE_VISUAL_TRACE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config]
+  OPENAI_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.agents.openai_agents_bridge]
+  OPENAI_MDG_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [pypi-v2.src.crystalyse.config, pypi-v2.src.crystalyse.ui.enhanced_clarification, pypi-v2.src.crystalyse.ui.chat_ui,
+        pypi-v2.src.crystalyse.agents.openai_agents_bridge]
+
+files:
+  ./:
+    type: pattern
+    actions: [read]
+    params:
+      patterns: ['*']
+      caller: [analyse_provenance]
+  .crystalyse:
+    type: literal
+    actions: [read]
+    params:
+      caller: [__init__, clear_session_memory]
+      path: [Path.home]
+  .db:
+    type: literal
+    actions: [read]
+    params:
+      caller: [__init__, clear_session_memory]
+      path: [session_dir]
+  artifacts.jsonl:
+    type: literal
+    actions: [read]
+    params:
+      caller: [__init__]
+      path: [self.output_dir]
+  assistant_full.md:
+    type: literal
+    actions: [read]
+    params:
+      caller: [finalize]
+      path: [self.output_dir]
+  base_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [base_dir.glob]
+  cache_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  catalog_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  catalog_path:
+    type: literal
+    actions: [read, write]
+    params:
+      caller: [Path(path), catalog_path.parent.mkdir, open]
+  clarification_llm_prompt.md:
+    type: literal
+    actions: [read]
+    params:
+      caller: [_generate_llm_questions]
+      path: [Path.parent.parent]
+  CRYSTALYSE_PROVENANCE_DIR:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  cwd_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path()]
+  db_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists, os.remove]
+  discoveries.json:
+    type: literal
+    actions: [read]
+    params:
+      caller: [export_memory, import_memory, __init__]
+      path: [export_dir]
+  events.jsonl:
+    type: literal
+    actions: [read]
+    params:
+      caller: [get_provenance_events, get_events_path, __init__]
+      path: [session_dir]
+  events_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open]
+      alias: [f]
+  export_dir:
+    type: literal
+    actions: [read, write]
+    params:
+      caller: [Path(export_dir), Path, export_dir.mkdir]
+  export_path:
+    type: variable
+    actions: [write]
+    params:
+      caller: [open]
+      alias: [f]
+  full_path:
+    type: variable
+    actions: [write, read]
+    params:
+      caller: [full_path.parent.mkdir, full_path.write_text, full_path.read_text, full_path.iterdir]
+  import_dir:
+    type: literal
+    actions: [read]
+    params:
+      caller: [Path(import_dir), Path]
+  import_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  materials.jsonl:
+    type: literal
+    actions: [read]
+    params:
+      caller: [__init__]
+      path: [self.output_dir]
+  materials_catalog.json:
+    type: literal
+    actions: [read]
+    params:
+      caller: [get_materials_catalog, get_materials_catalogue_path, analyse_provenance, finalize]
+      path: [session_dir]
+  materials_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  memory_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  output_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  profiles_file:
+    type: variable
+    actions: [read, write]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  prompt_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  provenance.jsonl:
+    type: literal
+    actions: [read]
+    params:
+      caller: [__init__]
+      path: [self.output_dir]
+  provenance_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  raw_file:
+    type: variable
+    actions: [write]
+    params:
+      caller: [open]
+      alias: [f]
+  response_file:
+    type: variable
+    actions: [write]
+    params:
+      caller: [open]
+      alias: [f]
+  runs/:
+    type: literal
+    actions: [read]
+    params:
+      caller: [get_materials_catalog, get_provenance_events, __init__, hook_workspace_writes]
+      path: [self.provenance_dir]
+  session_dir:
+    type: variable
+    actions: [write]
+    params:
+      caller: [session_dir.mkdir]
+  summary.json:
+    type: literal
+    actions: [read]
+    params:
+      caller: [get_summary_path, finalize, analyse_provenance]
+      path: [self.output_dir]
+  summary_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [f]
+  unified_agent_prompt.md:
+    type: literal
+    actions: [read]
+    params:
+      caller: [_create_enhanced_instructions]
+      path: [self.config.base_dir]
+  user_memory_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [shutil.copy2, open]
+  user_profiles.json:
+    type: literal
+    actions: [read]
+    params:
+      caller: [_load_profiles, _save_profiles]
+      path: [self.memory_dir]
