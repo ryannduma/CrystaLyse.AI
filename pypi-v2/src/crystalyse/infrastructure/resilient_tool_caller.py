@@ -271,9 +271,7 @@ class ResilientToolCaller:
             "failure_rate": (failed_calls / total_calls) * 100,
         }
 
-    def get_timeout(
-        self, tool_name: str, operation_type: str, context: dict | None = None
-    ) -> int:
+    def get_timeout(self, tool_name: str, operation_type: str, context: dict | None = None) -> int:
         """
         Get appropriate timeout for a tool operation.
 

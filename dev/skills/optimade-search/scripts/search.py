@@ -19,6 +19,7 @@ Output (JSON to stdout):
 import json
 import sys
 
+
 def main():
     # Read input from stdin
     try:
@@ -38,6 +39,7 @@ def main():
     # Try to import the OPTIMADE tool
     try:
         from crystalyse.tools.optimade import query_optimade
+
         result = query_optimade(
             filter_query=filter_query,
             provider=provider,
@@ -46,8 +48,8 @@ def main():
         print(json.dumps(result, indent=2, default=str))
     except ImportError:
         # Fallback: direct implementation
-        import urllib.request
         import urllib.parse
+        import urllib.request
 
         PROVIDERS = {
             "mp": "https://optimade.materialsproject.org/v1",
@@ -58,10 +60,7 @@ def main():
         }
 
         if provider not in PROVIDERS:
-            print(json.dumps({
-                "success": False,
-                "error": f"Unknown provider: {provider}"
-            }))
+            print(json.dumps({"success": False, "error": f"Unknown provider: {provider}"}))
             return
 
         base_url = PROVIDERS[provider]
@@ -77,25 +76,29 @@ def main():
             structures = []
             for entry in data.get("data", []):
                 attrs = entry.get("attributes", {})
-                structures.append({
-                    "id": entry.get("id"),
-                    "formula": attrs.get("chemical_formula_reduced"),
-                    "elements": attrs.get("elements", []),
-                    "nsites": attrs.get("nsites"),
-                })
+                structures.append(
+                    {
+                        "id": entry.get("id"),
+                        "formula": attrs.get("chemical_formula_reduced"),
+                        "elements": attrs.get("elements", []),
+                        "nsites": attrs.get("nsites"),
+                    }
+                )
 
-            print(json.dumps({
-                "success": True,
-                "provider": provider,
-                "count": len(structures),
-                "structures": structures,
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "provider": provider,
+                        "count": len(structures),
+                        "structures": structures,
+                    },
+                    indent=2,
+                )
+            )
 
         except Exception as e:
-            print(json.dumps({
-                "success": False,
-                "error": str(e)
-            }))
+            print(json.dumps({"success": False, "error": str(e)}))
 
 
 if __name__ == "__main__":

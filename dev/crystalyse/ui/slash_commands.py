@@ -3,10 +3,15 @@ Slash commands for Crystalyse CLI.
 Meta-operations and system commands for enhanced user experience.
 """
 
+import os
+import tempfile
 import time
+from pathlib import Path
 
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
@@ -74,7 +79,8 @@ class SlashCommandHandler:
         help_table.add_row("/mcp [status|servers|desc]", "Show MCP server status and details")
         help_table.add_row("/stats", "Display session statistics and performance")
         help_table.add_row(
-            "/memory [show|clear|refresh]", "Manage agent memory and conversation history"
+            "/memory [show|list|preview|edit|find|clear|refresh]",
+            "Manage project memory (CRYSTALYSE.md files)",
         )
         help_table.add_row(
             "/mode [show|creative|rigorous|adaptive]", "View or change agent operating mode"
@@ -242,70 +248,247 @@ class SlashCommandHandler:
             return False
 
     def _memory(self, args: list[str]):
-        """Manage agent memory."""
+        """Manage agent memory and project memory files."""
         subcommand = args[0] if args else "show"
+        extra_args = args[1:] if len(args) > 1 else []
 
         if subcommand == "show":
-            memory_text = Text()
-            memory_text.append("Agent Memory Context:\n\n", style="bold")
-
-            # Check if agent has session
-            if self.chat_experience and hasattr(self.chat_experience, "agent"):
-                if (
-                    hasattr(self.chat_experience.agent, "session")
-                    and self.chat_experience.agent.session
-                ):
-                    session_id = getattr(self.chat_experience.agent, "session_id", "unknown")
-                    memory_text.append(f"• Session ID: {session_id}\n", style="cyan")
-                    memory_text.append("• Persistent Memory: Enabled (SQLite)\n", style="green")
-                    from pathlib import Path
-
-                    session_dir = Path.home() / ".crystalyse" / "sessions"
-                    session_db = session_dir / f"{session_id}.db"
-                    if session_db.exists():
-                        size_kb = session_db.stat().st_size / 1024
-                        memory_text.append(f"• Database Size: {size_kb:.1f} KB\n", style="dim")
-                else:
-                    memory_text.append("• Persistent Memory: Disabled\n", style="yellow")
-            else:
-                memory_text.append("• Session: Not initialized\n", style="dim")
-
-            memory_text.append("• Tool Context: Loaded\n", style="dim")
-            memory_text.append("• User Preferences: Available\n", style="dim")
-            memory_text.append("• Domain Knowledge: Materials Science\n", style="dim")
-
-            self.console.print(
-                Panel(memory_text, title="[bold]Memory Status[/bold]", border_style="magenta")
-            )
-
+            self._memory_show()
+        elif subcommand == "list":
+            self._memory_list()
+        elif subcommand == "preview":
+            self._memory_preview()
+        elif subcommand == "edit":
+            self._memory_edit(extra_args)
+        elif subcommand == "find":
+            self._memory_find()
         elif subcommand == "clear":
-            if self.chat_experience and hasattr(self.chat_experience, "agent"):
-                from rich.prompt import Confirm
+            self._memory_clear()
+        elif subcommand == "refresh":
+            self._memory_refresh()
+        else:
+            self.console.print(f"[red]Unknown memory subcommand: {subcommand}[/red]")
+            self._memory_help()
 
-                if Confirm.ask(
-                    "[yellow]Clear all conversation memory? This cannot be undone.[/yellow]"
-                ):
-                    self.console.print("[yellow]Clearing session memory...[/yellow]")
-                    if self.chat_experience.agent.clear_session_memory():
-                        # Also clear the chat history
-                        if hasattr(self.chat_experience, "history"):
-                            self.chat_experience.history = []
-                        self.console.print("[green]✓ Session memory cleared successfully.[/green]")
-                    else:
-                        self.console.print("[red]Failed to clear session memory.[/red]")
+    def _memory_help(self):
+        """Show memory command help."""
+        help_text = Text()
+        help_text.append("Memory subcommands:\n\n", style="bold")
+        help_text.append("  show    ", style="cyan")
+        help_text.append("Show session memory status\n", style="dim")
+        help_text.append("  list    ", style="cyan")
+        help_text.append("List all discovered CRYSTALYSE.md files\n", style="dim")
+        help_text.append("  preview ", style="cyan")
+        help_text.append("Show content of nearest CRYSTALYSE.md\n", style="dim")
+        help_text.append("  edit    ", style="cyan")
+        help_text.append("Open CRYSTALYSE.md in editor\n", style="dim")
+        help_text.append("  find    ", style="cyan")
+        help_text.append("Show file discovery paths (debugging)\n", style="dim")
+        help_text.append("  clear   ", style="cyan")
+        help_text.append("Clear session conversation memory\n", style="dim")
+        help_text.append("  refresh ", style="cyan")
+        help_text.append("Refresh agent memory context\n", style="dim")
+        self.console.print(Panel(help_text, title="[bold]/memory Help[/bold]", border_style="cyan"))
+
+    def _memory_show(self):
+        """Show session memory status."""
+        memory_text = Text()
+        memory_text.append("Agent Memory Context:\n\n", style="bold")
+
+        # Check if agent has session
+        if self.chat_experience and hasattr(self.chat_experience, "agent"):
+            if (
+                hasattr(self.chat_experience.agent, "session")
+                and self.chat_experience.agent.session
+            ):
+                session_id = getattr(self.chat_experience.agent, "session_id", "unknown")
+                memory_text.append(f"• Session ID: {session_id}\n", style="cyan")
+                memory_text.append("• Persistent Memory: Enabled (SQLite)\n", style="green")
+                session_dir = Path.home() / ".crystalyse" / "sessions"
+                session_db = session_dir / f"{session_id}.db"
+                if session_db.exists():
+                    size_kb = session_db.stat().st_size / 1024
+                    memory_text.append(f"• Database Size: {size_kb:.1f} KB\n", style="dim")
+            else:
+                memory_text.append("• Persistent Memory: Disabled\n", style="yellow")
+        else:
+            memory_text.append("• Session: Not initialized\n", style="dim")
+
+        # Show project memory info
+        from crystalyse.memory.project_memory import get_project_memory_paths
+
+        paths = get_project_memory_paths()
+        if paths:
+            memory_text.append(f"\n• Project Memory: {len(paths)} file(s) loaded\n", style="green")
+        else:
+            memory_text.append("\n• Project Memory: None (create CRYSTALYSE.md)\n", style="yellow")
+
+        memory_text.append("• Tool Context: Loaded\n", style="dim")
+        memory_text.append("• Domain Knowledge: Materials Science\n", style="dim")
+
+        self.console.print(
+            Panel(memory_text, title="[bold]Memory Status[/bold]", border_style="magenta")
+        )
+
+    def _memory_list(self):
+        """List all discovered project memory files."""
+        from crystalyse.memory.project_memory import get_project_memory_paths
+
+        paths = get_project_memory_paths()
+        if not paths:
+            self.console.print("[yellow]No CRYSTALYSE.md files found.[/yellow]")
+            self.console.print("[dim]Create one with: /memory edit[/dim]")
+            return
+
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("File", style="cyan")
+        table.add_column("Location", style="dim")
+        table.add_column("Size", style="yellow", justify="right")
+
+        for path_str in paths:
+            path = Path(path_str)
+            size_kb = path.stat().st_size / 1024 if path.exists() else 0
+            table.add_row(path.name, str(path.parent), f"{size_kb:.1f} KB")
+
+        self.console.print(Panel(table, title="[bold]Memory Files[/bold]", border_style="cyan"))
+
+    def _memory_preview(self):
+        """Preview content of nearest CRYSTALYSE.md."""
+        from crystalyse.memory.project_memory import load_project_memory
+
+        content = load_project_memory()
+        if not content:
+            self.console.print("[yellow]No project memory found.[/yellow]")
+            self.console.print("[dim]Create CRYSTALYSE.md in your project root.[/dim]")
+            return
+
+        # Truncate for display
+        if len(content) > 2000:
+            content = content[:2000] + "\n\n[dim]... (truncated, use /memory edit to see full)[/dim]"
+
+        self.console.print(
+            Panel(
+                Markdown(content),
+                title="[bold]Project Memory Preview[/bold]",
+                border_style="cyan",
+            )
+        )
+
+    def _memory_edit(self, args: list[str]):
+        """Edit or create CRYSTALYSE.md file."""
+        # Determine target file
+        target = args[0] if args else "CRYSTALYSE.md"
+        memory_path = Path.cwd() / target
+
+        # Read existing content or use template
+        if memory_path.exists():
+            existing = memory_path.read_text()
+        else:
+            existing = """# Project Memory
+
+## Context
+<!-- Add project-specific context for the agent -->
+<!-- Example: This is a battery materials discovery project focusing on Na-ion cathodes -->
+
+## Preferences
+<!-- Add your preferences here -->
+<!-- Example: Always use SMACT validation before structure generation -->
+
+## Notes
+<!-- Add any important notes -->
+"""
+
+        # Try to open in editor
+        editor = os.environ.get("EDITOR", os.environ.get("VISUAL", ""))
+        if editor:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".md", delete=False, prefix="crystalyse_"
+            ) as f:
+                f.write(existing)
+                temp_path = f.name
+
+            self.console.print(f"[dim]Opening in {editor}...[/dim]")
+            os.system(f"{editor} {temp_path}")
+            edited = Path(temp_path).read_text()
+            Path(temp_path).unlink()  # Clean up temp file
+
+            # Show diff and confirm
+            if edited != existing:
+                preview = edited[:500] + "..." if len(edited) > 500 else edited
+                self.console.print(Panel(preview, title="[bold]Preview Changes[/bold]"))
+
+                if Confirm.ask(f"Save to {memory_path}?", default=True):
+                    memory_path.parent.mkdir(parents=True, exist_ok=True)
+                    memory_path.write_text(edited)
+                    self.console.print(f"[green]✓ Saved to {memory_path}[/green]")
                 else:
                     self.console.print("[dim]Cancelled.[/dim]")
             else:
-                self.console.print("[red]No active agent session to clear.[/red]")
-
-        elif subcommand == "refresh":
-            self.console.print("[yellow]Refreshing agent memory context...[/yellow]")
-            time.sleep(1)  # Simulate refresh
-            self.console.print("[green]Memory context refreshed successfully.[/green]")
-
+                self.console.print("[dim]No changes made.[/dim]")
         else:
-            self.console.print(f"[red]Unknown memory subcommand: {subcommand}[/red]")
-            self.console.print("Available: show, clear, refresh")
+            # Fallback: show current content and path
+            self.console.print("[yellow]No $EDITOR set.[/yellow]")
+            self.console.print(f"[dim]To edit manually: {memory_path}[/dim]")
+            self.console.print(
+                "[dim]Set $EDITOR environment variable (e.g., export EDITOR=nano)[/dim]"
+            )
+            if not memory_path.exists():
+                if Confirm.ask(f"Create template at {memory_path}?", default=True):
+                    memory_path.parent.mkdir(parents=True, exist_ok=True)
+                    memory_path.write_text(existing)
+                    self.console.print(f"[green]✓ Created {memory_path}[/green]")
+
+    def _memory_find(self):
+        """Show file discovery paths for debugging."""
+        from crystalyse.memory.project_memory import MEMORY_FILES, RULES_DIR, find_project_memory
+
+        self.console.print("[bold]Memory File Discovery[/bold]\n")
+        self.console.print("[cyan]Search patterns:[/cyan]")
+        for name in MEMORY_FILES:
+            self.console.print(f"  • {name}")
+        self.console.print(f"  • {RULES_DIR}/*.md\n")
+
+        self.console.print(f"[cyan]Current directory:[/cyan] {Path.cwd()}\n")
+
+        files = find_project_memory()
+        if files:
+            self.console.print("[green]Found files:[/green]")
+            for f in files:
+                self.console.print(f"  ✓ {f}")
+        else:
+            self.console.print("[yellow]No memory files found in directory tree.[/yellow]")
+
+    def _memory_clear(self):
+        """Clear session conversation memory."""
+        if self.chat_experience and hasattr(self.chat_experience, "agent"):
+            if Confirm.ask(
+                "[yellow]Clear all conversation memory? This cannot be undone.[/yellow]"
+            ):
+                self.console.print("[yellow]Clearing session memory...[/yellow]")
+                if self.chat_experience.agent.clear_session_memory():
+                    # Also clear the chat history
+                    if hasattr(self.chat_experience, "history"):
+                        self.chat_experience.history = []
+                    self.console.print("[green]✓ Session memory cleared successfully.[/green]")
+                else:
+                    self.console.print("[red]Failed to clear session memory.[/red]")
+            else:
+                self.console.print("[dim]Cancelled.[/dim]")
+        else:
+            self.console.print("[red]No active agent session to clear.[/red]")
+
+    def _memory_refresh(self):
+        """Refresh agent memory context."""
+        self.console.print("[yellow]Refreshing agent memory context...[/yellow]")
+        # Reload project memory
+        from crystalyse.memory.project_memory import load_project_memory
+
+        content = load_project_memory()
+        if content:
+            self.console.print(f"[green]✓ Loaded {len(content)} chars of project memory.[/green]")
+        else:
+            self.console.print("[dim]No project memory files found.[/dim]")
+        self.console.print("[green]Memory context refreshed successfully.[/green]")
 
     def _about(self, _args: list[str]):
         """Show version and system information."""

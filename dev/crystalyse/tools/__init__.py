@@ -35,6 +35,16 @@ try:
     from .web_search import web_search
 except ImportError:
     pass
+
+try:
+    from .discovery_tools import (
+        cache_computation,
+        get_all_computations_for_formula,
+        get_cached_computation,
+        search_previous_discoveries,
+    )
+except ImportError:
+    pass
 from .chemeleon import ChemeleonPredictor, CrystalStructure, PredictionResult
 from .errors import (
     ComputationError,
@@ -100,6 +110,11 @@ __all__ = [
     "write_artifact",
     "read_artifact",
     "list_artifacts",
+    # Discovery Cache Tools
+    "get_cached_computation",
+    "search_previous_discoveries",
+    "get_all_computations_for_formula",
+    "cache_computation",
     # SMACT
     "SMACTValidator",
     "SMACTCalculator",

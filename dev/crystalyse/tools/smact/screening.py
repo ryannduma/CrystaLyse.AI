@@ -10,9 +10,14 @@ Fast screening tools for materials discovery including:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from ..discovery_tools import cache_computation, get_cache
+
+logger = logging.getLogger(__name__)
 
 try:
     from smact import Element
@@ -275,6 +280,20 @@ class SMACTScreener:
                 error_message="SMACT not available - install with: pip install SMACT",
             )
 
+        # Create cache key from sorted elements
+        cache_key = "-".join(sorted(elements))
+        cache_params = {
+            "threshold": threshold,
+            "species_unique": species_unique,
+            "oxidation_states_set": oxidation_states_set,
+        }
+
+        # Check cache first
+        cached = get_cache().get(cache_key, "smact_filter", cache_params)
+        if cached:
+            logger.debug(f"Cache hit for SMACT filter: {cache_key}")
+            return CompositionFilterResult(**cached)
+
         try:
             # Create Element objects
             smact_elements = tuple(Element(sym) for sym in elements)
@@ -304,7 +323,7 @@ class SMACTScreener:
                         {"elements": list(comp[0]), "stoichiometry": list(comp[1])}
                     )
 
-            return CompositionFilterResult(
+            result = CompositionFilterResult(
                 success=True,
                 elements=elements,
                 num_valid_compositions=len(valid_comps),
@@ -312,6 +331,12 @@ class SMACTScreener:
                 threshold=threshold,
                 oxidation_states_set=oxidation_states_set,
             )
+
+            # Cache successful result
+            cache_computation(cache_key, "smact_filter", result.model_dump(), cache_params)
+            logger.debug(f"Cached SMACT filter for: {cache_key}")
+
+            return result
 
         except Exception as e:
             return CompositionFilterResult(

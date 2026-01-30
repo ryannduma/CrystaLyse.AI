@@ -272,7 +272,9 @@ loop_
                             # Convert Cartesian to fractional coordinates
                             inv_cell = np.linalg.inv(cell_matrix)
 
-                            for i, (pos, symbol) in enumerate(zip(positions, species, strict=False)):
+                            for i, (pos, symbol) in enumerate(
+                                zip(positions, species, strict=False)
+                            ):
                                 frac_pos = np.dot(inv_cell, pos)
                                 cif_content += f"  {symbol}  {symbol}{i+1}   {frac_pos[0]:.6f}  {frac_pos[1]:.6f}  {frac_pos[2]:.6f}  1.0\n"
 

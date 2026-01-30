@@ -368,9 +368,7 @@ def calculate_energy_above_hull(composition: str, total_energy: float) -> Energy
 
 
 @mcp.tool(description="Analyze coordination environment of atoms")
-def analyze_coordination(
-    structure_input: str | dict[str, Any], method: str = "voronoi"
-) -> dict:
+def analyze_coordination(structure_input: str | dict[str, Any], method: str = "voronoi") -> dict:
     """
     Analyze coordination environment using Voronoi nearest neighbors.
 

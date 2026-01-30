@@ -35,6 +35,11 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
+
+# Sessions subcommand group
+sessions_app = typer.Typer(help="Manage saved chat sessions.")
+app.add_typer(sessions_app, name="sessions")
+
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -98,7 +103,10 @@ def display_results(results: dict):
 def analyse(
     query: str = typer.Argument(..., help="A materials discovery query."),
     rigorous: bool = typer.Option(
-        False, "--rigorous", "-r", help="Use rigorous mode (gpt-5.2 model, slower but more thorough)."
+        False,
+        "--rigorous",
+        "-r",
+        help="Use rigorous mode (gpt-5.2 model, slower but more thorough).",
     ),
     project: str | None = typer.Option(None, "--project", "-p", help="Project name for workspace."),
     clarify: bool = typer.Option(
@@ -175,14 +183,40 @@ def chat(
         False, "--rigorous", "-r", help="Use rigorous mode for all queries in this session."
     ),
     project: str | None = typer.Option(None, "--project", "-p", help="Project name for workspace."),
+    session_id: str | None = typer.Option(
+        None, "--session-id", "-s", help="Resume existing session by ID."
+    ),
+    new_session: bool = typer.Option(False, "--new", help="Start fresh session (ignore last)."),
 ):
     """
     Start an interactive chat session for materials discovery.
 
     Use --rigorous for thorough analysis mode.
+    Sessions are automatically persisted. Use --new to start fresh.
     """
+    import uuid
+
     effective_rigorous = rigorous or state["rigorous"]
     effective_project = project or state["project"]
+
+    # Session ID logic: explicit > resume last > generate new
+    if new_session:
+        effective_session_id = str(uuid.uuid4())[:8]
+        console.print(f"[dim]New session: {effective_session_id}[/dim]")
+    elif session_id:
+        effective_session_id = session_id
+        console.print(f"[dim]Resuming session: {effective_session_id}[/dim]")
+    else:
+        # Try to resume last session, or create new
+        from crystalyse.memory.session import list_sessions
+
+        sessions = list_sessions(limit=1)
+        if sessions:
+            effective_session_id = sessions[0].session_id
+            console.print(f"[dim]Resuming last session: {effective_session_id}[/dim]")
+        else:
+            effective_session_id = str(uuid.uuid4())[:8]
+            console.print(f"[dim]New session: {effective_session_id}[/dim]")
 
     mode_str = "rigorous" if effective_rigorous else "creative"
 
@@ -190,7 +224,8 @@ def chat(
         Panel(
             f"[bold]CrystaLyse Interactive Session[/bold]\n\n"
             f"Mode: [cyan]{mode_str}[/cyan]\n"
-            f"Project: [cyan]{effective_project}[/cyan]\n\n"
+            f"Project: [cyan]{effective_project}[/cyan]\n"
+            f"Session: [cyan]{effective_session_id}[/cyan]\n\n"
             "Type your query and press Enter. Type 'quit' or 'exit' to end.\n"
             "Use '/rigorous' to toggle rigorous mode.",
             title="[bold green]CrystaLyse v2.0[/bold green]",
@@ -210,7 +245,7 @@ def chat(
                 project_name=effective_project,
             )
 
-        return await agent.query(q)
+        return await agent.query(q, session_id=effective_session_id)
 
     clarification = ClarificationSystem(console)
 
@@ -290,9 +325,60 @@ def skills():
 def config(
     show: bool = typer.Option(False, "--show", help="Show current configuration"),
     validate: bool = typer.Option(False, "--validate", help="Validate environment"),
+    edit: bool = typer.Option(False, "--edit", help="Edit user preferences in $EDITOR"),
+    path: bool = typer.Option(False, "--path", help="Show path to config file"),
+    init: bool = typer.Option(False, "--init", help="Create default config file"),
 ):
-    """Show or validate configuration."""
+    """Show, validate, or edit configuration.
+
+    Examples:
+        crystalyse config --show        Show current settings
+        crystalyse config --path        Show config file path
+        crystalyse config --edit        Edit config in $EDITOR
+        crystalyse config --init        Create default config file
+        crystalyse config --validate    Check environment setup
+    """
+    from crystalyse.user_config.preferences import (
+        DEFAULT_CONFIG_PATH,
+        get_default_config_template,
+        load_preferences,
+    )
+
     cfg = Config.load()
+
+    if path:
+        console.print(str(DEFAULT_CONFIG_PATH))
+        return
+
+    if init:
+        if DEFAULT_CONFIG_PATH.exists():
+            if not Confirm.ask(f"Overwrite existing {DEFAULT_CONFIG_PATH}?", default=False):
+                console.print("[yellow]Cancelled.[/yellow]")
+                return
+        DEFAULT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_CONFIG_PATH.write_text(get_default_config_template())
+        console.print(f"[green]Created config at: {DEFAULT_CONFIG_PATH}[/green]")
+        return
+
+    if edit:
+        import os
+
+        editor = os.environ.get("EDITOR", os.environ.get("VISUAL", ""))
+        if not editor:
+            console.print("[yellow]No $EDITOR set.[/yellow]")
+            console.print(f"[dim]Config file: {DEFAULT_CONFIG_PATH}[/dim]")
+            console.print("[dim]Set $EDITOR environment variable (e.g., export EDITOR=nano)[/dim]")
+            return
+
+        # Create default config if it doesn't exist
+        if not DEFAULT_CONFIG_PATH.exists():
+            DEFAULT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            DEFAULT_CONFIG_PATH.write_text(get_default_config_template())
+            console.print(f"[dim]Created default config at {DEFAULT_CONFIG_PATH}[/dim]")
+
+        os.system(f"{editor} {DEFAULT_CONFIG_PATH}")
+        console.print("[green]Config file edited.[/green]")
+        return
 
     if validate:
         status = cfg.validate_environment()
@@ -311,22 +397,112 @@ def config(
                 border_style="cyan",
             )
         )
-    elif show:
+        return
+
+    if show:
         from crystalyse.config import CREATIVE_MODEL, RIGOROUS_MODEL
+
+        prefs = load_preferences()
+        config_exists = DEFAULT_CONFIG_PATH.exists()
 
         console.print(
             Panel(
-                f"Creative Model: [cyan]{CREATIVE_MODEL}[/cyan]\n"
-                f"Rigorous Model: [cyan]{RIGOROUS_MODEL}[/cyan]\n"
-                f"Base Directory: [dim]{cfg.base_dir}[/dim]\n"
-                f"API Key Set: [{'green' if cfg.openai_api_key else 'red'}]"
+                f"[bold]Models[/bold]\n"
+                f"  Creative: [cyan]{CREATIVE_MODEL}[/cyan]\n"
+                f"  Rigorous: [cyan]{RIGOROUS_MODEL}[/cyan]\n\n"
+                f"[bold]User Preferences[/bold] "
+                f"[{'green' if config_exists else 'yellow'}]"
+                f"({'loaded' if config_exists else 'using defaults'})[/]\n"
+                f"  Default Mode: [cyan]{prefs.analysis.default_mode}[/cyan]\n"
+                f"  Batch Size: [cyan]{prefs.analysis.parallel_batch_size}[/cyan]\n"
+                f"  Max Candidates: [cyan]{prefs.analysis.max_candidates}[/cyan]\n"
+                f"  Verbosity: [cyan]{prefs.display.verbosity}[/cyan]\n"
+                f"  HTML Viz: [cyan]{prefs.display.enable_html_viz}[/cyan]\n"
+                f"  Skill Timeout: [cyan]{prefs.skills.script_timeout_secs}s[/cyan]\n\n"
+                f"[bold]Paths[/bold]\n"
+                f"  Config File: [dim]{DEFAULT_CONFIG_PATH}[/dim]\n"
+                f"  Base Dir: [dim]{cfg.base_dir}[/dim]\n\n"
+                f"[bold]API[/bold]\n"
+                f"  Key Set: [{'green' if cfg.openai_api_key else 'red'}]"
                 f"{'Yes' if cfg.openai_api_key else 'No'}[/]",
                 title="[bold]Configuration[/bold]",
                 border_style="cyan",
             )
         )
+        return
+
+    # Default: show help
+    console.print("Configuration commands:")
+    console.print("  --show      Show current settings")
+    console.print("  --path      Show config file path")
+    console.print("  --edit      Edit config in $EDITOR")
+    console.print("  --init      Create default config file")
+    console.print("  --validate  Check environment setup")
+
+
+# --- Sessions Subcommands ---
+
+
+@sessions_app.command("list")
+def sessions_list():
+    """List all saved sessions."""
+    from crystalyse.memory.session import list_sessions
+
+    sessions = list_sessions()
+    if not sessions:
+        console.print("[yellow]No saved sessions found.[/yellow]")
+        console.print("[dim]Start a chat to create your first session.[/dim]")
+        return
+
+    console.print(Panel("[bold]Saved Sessions[/bold]", border_style="cyan"))
+    for s in sessions:
+        updated = s.last_updated[:16] if s.last_updated else "unknown"
+        console.print(
+            f"  [cyan]{s.session_id}[/cyan]  {s.message_count} msgs  [dim]{updated}[/dim]"
+        )
+
+
+@sessions_app.command("delete")
+def sessions_delete(
+    session_id: str = typer.Argument(..., help="Session ID to delete"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+):
+    """Delete a saved session."""
+    from crystalyse.memory.session import delete_session
+
+    if not force:
+        if not Confirm.ask(f"Delete session {session_id}?", default=False):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return
+
+    if delete_session(session_id):
+        console.print(f"[green]Deleted session: {session_id}[/green]")
     else:
-        console.print("Use --show to display configuration or --validate to check environment.")
+        console.print(f"[red]Session not found: {session_id}[/red]")
+
+
+@sessions_app.command("show")
+def sessions_show(
+    session_id: str = typer.Argument(..., help="Session ID to show"),
+):
+    """Show conversation history for a session."""
+    import asyncio
+
+    from crystalyse.memory.session import get_session
+
+    session = get_session(session_id)
+    items = asyncio.run(session.get_items())
+
+    if not items:
+        console.print(f"[yellow]No messages in session: {session_id}[/yellow]")
+        return
+
+    console.print(Panel(f"[bold]Session: {session_id}[/bold]", border_style="cyan"))
+    for item in items:
+        role = item.get("role", "unknown")
+        content = str(item.get("content", ""))[:200]
+        color = "blue" if role == "user" else "green"
+        console.print(f"  [{color}]{role}[/{color}]: {content}")
 
 
 @app.callback()

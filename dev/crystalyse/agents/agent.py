@@ -186,6 +186,25 @@ class MaterialsAgent:
         except ImportError as e:
             logger.debug(f"Artifact tools not available: {e}")
 
+        # Discovery cache tools for avoiding redundant computations
+        try:
+            from ..tools.discovery_tools import (
+                get_all_computations_for_formula,
+                get_cached_computation,
+                search_previous_discoveries,
+            )
+
+            tools.extend(
+                [
+                    get_cached_computation,
+                    search_previous_discoveries,
+                    get_all_computations_for_formula,
+                ]
+            )
+            logger.debug("Added discovery cache tools")
+        except ImportError as e:
+            logger.debug(f"Discovery cache tools not available: {e}")
+
         return tools
 
     def _create_instructions(self) -> str:
@@ -210,6 +229,17 @@ Always validate materials before detailed analysis. Report your findings clearly
         # Add mode-specific context
         mode_context = self._get_mode_context()
         instructions = f"{base_instructions}\n\n{mode_context}"
+
+        # Add project-specific instructions from CRYSTALYSE.md files
+        try:
+            from ..memory.project_memory import load_project_memory
+
+            project_memory = load_project_memory()
+            if project_memory:
+                instructions = f"{instructions}\n\n## Project Instructions\n\n{project_memory}"
+                logger.debug("Loaded project memory into instructions")
+        except Exception as e:
+            logger.debug(f"Could not load project memory: {e}")
 
         # Inject skills section
         instructions = self.skill_injector.inject_into_instructions(
@@ -246,6 +276,7 @@ You are operating in CREATIVE mode. This means:
         self,
         prompt: str,
         timeout: float | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Process a query and return the result.
@@ -253,6 +284,8 @@ You are operating in CREATIVE mode. This means:
         Args:
             prompt: The user's query/request.
             timeout: Optional timeout in seconds. Defaults based on mode.
+            session_id: Optional session ID for conversation persistence.
+                        If provided, conversation history is persisted to SQLite.
 
         Returns:
             Dictionary with status, response, and metadata.
@@ -266,6 +299,14 @@ You are operating in CREATIVE mode. This means:
         # Set timeout based on mode
         if timeout is None:
             timeout = 300 if self.rigorous else 120
+
+        # Get session for persistence if ID provided
+        session = None
+        if session_id:
+            from ..memory.session import get_session
+
+            session = get_session(session_id)
+            logger.debug(f"Using session: {session_id}")
 
         try:
             # Create the agent
@@ -291,6 +332,7 @@ You are operating in CREATIVE mode. This means:
                     input=prompt,
                     max_turns=100,
                     run_config=run_config,
+                    session=session,
                 )
 
                 message_outputs = []
@@ -317,6 +359,7 @@ You are operating in CREATIVE mode. This means:
                 "response": final_response,
                 "model": self.model,
                 "mode": "rigorous" if self.rigorous else "creative",
+                "session_id": session_id,
             }
 
         except TimeoutError:

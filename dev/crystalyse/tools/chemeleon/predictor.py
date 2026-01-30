@@ -7,6 +7,8 @@ import ase
 import torch
 from pydantic import BaseModel, Field
 
+from ..discovery_tools import cache_computation, get_cache
+
 logger = logging.getLogger(__name__)
 
 # Global model cache
@@ -181,6 +183,18 @@ class ChemeleonPredictor:
 
         start_time = time.time()
 
+        # Cache parameters (checkpoint and num_samples affect result)
+        cache_params = {
+            "checkpoint": checkpoint_path or "default",
+            "num_samples": num_samples,
+        }
+
+        # Check cache first
+        cached = get_cache().get(formula, "chemeleon_structure", cache_params)
+        if cached:
+            logger.debug(f"Cache hit for Chemeleon structure: {formula}")
+            return PredictionResult(**cached)
+
         try:
             # Load model (uses caching via _load_model)
             model = _load_model(task="csp", checkpoint_path=checkpoint_path, prefer_gpu=prefer_gpu)
@@ -211,7 +225,7 @@ class ChemeleonPredictor:
             computation_time = time.time() - start_time
             logger.info(f"Generated {len(structures)} structure(s) in {computation_time:.2f}s")
 
-            return PredictionResult(
+            result = PredictionResult(
                 success=True,
                 formula=formula,
                 predicted_structures=structures,
@@ -219,6 +233,12 @@ class ChemeleonPredictor:
                 method="chemeleon-dng",
                 checkpoint_used=checkpoint_path or "default",
             )
+
+            # Cache successful result
+            cache_computation(formula, "chemeleon_structure", result.model_dump(), cache_params)
+            logger.debug(f"Cached Chemeleon structure for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Structure prediction failed for {formula}: {e}", exc_info=True)

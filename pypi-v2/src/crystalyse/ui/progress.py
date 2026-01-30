@@ -2,7 +2,6 @@
 Provides a phase-aware progress display for the CrystaLyse CLI.
 """
 
-
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel

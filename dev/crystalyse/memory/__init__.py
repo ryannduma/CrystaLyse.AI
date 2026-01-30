@@ -1,38 +1,40 @@
+"""Memory system for Crystalyse.
+
+Provides three components:
+
+1. Session persistence (SQLite-backed via OpenAI SDK)
+   - get_session(): Get/create a session for conversation history
+   - list_sessions(): List all saved sessions
+   - delete_session(): Delete a session
+
+2. Discovery cache (SQLite-backed)
+   - DiscoveryCacheV2: Cache expensive computation results
+   - Keyed by (formula, computation_type, parameters_hash)
+
+3. Project memory (CRYSTALYSE.md files)
+   - load_project_memory(): Load project-specific instructions
+   - find_project_memory(): Find memory files in directory tree
 """
-Simple File-Based Memory System for Crystalyse
 
-A gemini-cli inspired memory system that uses simple files + smart context
-instead of complex databases. Provides 4 layers:
-1. Session Memory - Current conversation context
-2. Discovery Cache - Cached material properties
-3. User Memory - User preferences and notes
-4. Cross-Session Context - Auto-generated insights
-
-Philosophy: Simple files + smart context beats complex architectures.
-"""
-
-from .cross_session_context import CrossSessionContext
-from .crystalyse_memory import CrystaLyseMemory
-from .discovery_cache import DiscoveryCache
-from .memory_tools import (
-    get_memory_tools,
-    save_discovery,
-    save_to_memory,
-    search_discoveries,
-    search_memory,
+from .discovery_cache import CachedDiscovery, DiscoveryCache
+from .project_memory import (
+    find_project_memory,
+    get_project_memory_paths,
+    load_project_memory,
 )
-from .session_memory import SessionMemory
-from .user_memory import UserMemory
+from .session import SessionInfo, delete_session, get_session, list_sessions
 
 __all__ = [
-    "SessionMemory",
+    # Session
+    "get_session",
+    "list_sessions",
+    "delete_session",
+    "SessionInfo",
+    # Discovery Cache
     "DiscoveryCache",
-    "UserMemory",
-    "CrossSessionContext",
-    "CrystaLyseMemory",
-    "save_to_memory",
-    "search_memory",
-    "save_discovery",
-    "search_discoveries",
-    "get_memory_tools",
+    "CachedDiscovery",
+    # Project Memory
+    "load_project_memory",
+    "find_project_memory",
+    "get_project_memory_paths",
 ]

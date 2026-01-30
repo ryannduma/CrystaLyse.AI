@@ -400,9 +400,7 @@ class EnhancedCrystaLyseAgent:
     def _select_model_for_mode(self, mode: str) -> str:
         return {"creative": "o4-mini", "rigorous": "o3", "adaptive": "o4-mini"}.get(mode, "o4-mini")
 
-    def _create_enhanced_instructions(
-        self, mode: str, history: list[dict[str, Any]] | None
-    ) -> str:
+    def _create_enhanced_instructions(self, mode: str, history: list[dict[str, Any]] | None) -> str:
         """Creates enhanced system instructions, now including conversation history."""
         try:
             prompt_path = (

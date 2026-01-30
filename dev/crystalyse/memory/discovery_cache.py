@@ -1,197 +1,217 @@
-"""
-Discovery Cache - Layer 2 of CrystaLyse Simple Memory System
+"""Cache for expensive computational results.
 
-Simple JSON file cache for expensive calculations.
-Fast lookups, no database overhead - just like gemini-cli.
+Uses SQLite for concurrent access and efficient queries. Stores results
+keyed by (formula, computation_type, parameters_hash) for caching different
+computation variants.
 """
 
+import hashlib
 import json
-import logging
-from datetime import datetime
+import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-logger = logging.getLogger(__name__)
+DEFAULT_DB = Path.home() / ".crystalyse" / "sessions.db"
+
+
+def _hash_params(params: dict) -> str:
+    """Create deterministic hash of parameters."""
+    return hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:16]
+
+
+@dataclass
+class CachedDiscovery:
+    """A cached computation result."""
+
+    formula: str
+    computation_type: str
+    parameters_hash: str
+    result: dict
+    created_at: str
 
 
 class DiscoveryCache:
-    """
-    Simple JSON-based cache for material properties and calculations.
+    """Cache expensive MACE/Chemeleon/SMACT computations.
 
-    Stores expensive calculation results to avoid re-running MACE,
-    Chemeleon, and SMACT calculations. Uses simple file operations
-    for maximum reliability and performance.
+    Uses SQLite stored in the same database as sessions for consistency.
+    Supports different computation variants via parameters_hash.
     """
 
-    def __init__(self, cache_dir: Path | None = None):
-        """
-        Initialize discovery cache.
+    def __init__(self, db_path: Path = DEFAULT_DB):
+        """Initialize discovery cache.
 
         Args:
-            cache_dir: Directory for cache files (default: ~/.crystalyse)
+            db_path: Path to SQLite database (shared with sessions)
         """
-        if cache_dir is None:
-            cache_dir = Path.home() / ".crystalyse"
+        self._db_path = db_path
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_schema()
 
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+    def _init_schema(self) -> None:
+        """Create discoveries table if it doesn't exist."""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS discoveries (
+                    id INTEGER PRIMARY KEY,
+                    formula TEXT NOT NULL,
+                    computation_type TEXT NOT NULL,
+                    parameters_hash TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(formula, computation_type, parameters_hash)
+                )
+            """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_discoveries_formula ON discoveries(formula)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_discoveries_type ON discoveries(computation_type)"
+            )
 
-        self.cache_file = self.cache_dir / "discoveries.json"
-        self.cache_data = self._load_cache()
-
-        logger.info(f"DiscoveryCache initialized at {self.cache_file}")
-
-    def _load_cache(self) -> dict[str, Any]:
-        """Load cache from JSON file."""
-        if not self.cache_file.exists():
-            return {}
-
-        try:
-            with open(self.cache_file, encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to load cache file: {e}")
-            return {}
-
-    def _save_cache(self) -> None:
-        """Save cache to JSON file."""
-        try:
-            with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(self.cache_data, f, indent=2, ensure_ascii=False)
-        except OSError as e:
-            logger.error(f"Failed to save cache file: {e}")
-
-    def get_cached_result(self, formula: str) -> dict[str, Any] | None:
-        """
-        Get cached result for a material formula.
+    def get(self, formula: str, computation_type: str, params: dict | None = None) -> dict | None:
+        """Get cached result or None.
 
         Args:
-            formula: Chemical formula (e.g., "LiCoO2")
+            formula: Chemical formula (e.g., "LiFePO4")
+            computation_type: Type of computation (e.g., "mace_energy", "smact_validity")
+            params: Computation parameters (used to differentiate variants)
 
         Returns:
-            Cached properties if available, None otherwise
+            Cached result dict if found, None otherwise
         """
-        result = self.cache_data.get(formula)
-        if result:
-            logger.debug(f"Cache hit for {formula}")
-        else:
-            logger.debug(f"Cache miss for {formula}")
-        return result
+        params_hash = _hash_params(params or {})
+        with sqlite3.connect(self._db_path) as conn:
+            row = conn.execute(
+                """SELECT result_json FROM discoveries
+                   WHERE formula = ? AND computation_type = ? AND parameters_hash = ?""",
+                (formula, computation_type, params_hash),
+            ).fetchone()
+            return json.loads(row[0]) if row else None
 
-    def save_result(self, formula: str, properties: dict[str, Any]) -> None:
-        """
-        Save calculation result to cache.
+    def put(
+        self,
+        formula: str,
+        computation_type: str,
+        result: dict,
+        params: dict | None = None,
+    ) -> None:
+        """Cache a computation result.
 
         Args:
             formula: Chemical formula
-            properties: Material properties to cache
+            computation_type: Type of computation
+            result: Result to cache
+            params: Computation parameters
         """
-        # Add metadata
-        cache_entry = {
-            "formula": formula,
-            "properties": properties,
-            "timestamp": datetime.now().isoformat(),
-            "cached_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
+        params_hash = _hash_params(params or {})
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO discoveries
+                   (formula, computation_type, parameters_hash, result_json)
+                   VALUES (?, ?, ?, ?)""",
+                (formula, computation_type, params_hash, json.dumps(result)),
+            )
 
-        self.cache_data[formula] = cache_entry
-        self._save_cache()
-
-        logger.info(f"Cached result for {formula}")
-
-    def search_similar(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
-        """
-        Search for similar materials in cache.
+    def search(self, query: str, limit: int = 10) -> list[CachedDiscovery]:
+        """Search cached discoveries by formula pattern.
 
         Args:
-            query: Search query
-            limit: Maximum number of results
+            query: Search pattern (e.g., "Li" for lithium compounds)
+            limit: Maximum results to return
 
         Returns:
-            List of similar cached materials
+            List of matching CachedDiscovery objects
         """
-        query_lower = query.lower()
-        matches = []
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT formula, computation_type, parameters_hash, result_json, created_at
+                   FROM discoveries WHERE formula LIKE ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (f"%{query}%", limit),
+            ).fetchall()
+            return [CachedDiscovery(r[0], r[1], r[2], json.loads(r[3]), r[4]) for r in rows]
 
-        for formula, data in self.cache_data.items():
-            if (
-                query_lower in formula.lower()
-                or query_lower in str(data.get("properties", {})).lower()
-            ):
-                matches.append(data)
+    def get_all_for_formula(self, formula: str) -> list[CachedDiscovery]:
+        """Get all cached computations for a formula.
 
-        return matches[:limit]
-
-    def get_statistics(self) -> dict[str, Any]:
-        """
-        Get cache statistics.
+        Args:
+            formula: Exact chemical formula
 
         Returns:
-            Dictionary with cache statistics
+            List of all cached results for this formula
         """
-        return {
-            "total_entries": len(self.cache_data),
-            "cache_file": str(self.cache_file),
-            "cache_size_mb": self.cache_file.stat().st_size / (1024 * 1024)
-            if self.cache_file.exists()
-            else 0,
-        }
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT formula, computation_type, parameters_hash, result_json, created_at
+                   FROM discoveries WHERE formula = ? ORDER BY created_at DESC""",
+                (formula,),
+            ).fetchall()
+            return [CachedDiscovery(r[0], r[1], r[2], json.loads(r[3]), r[4]) for r in rows]
 
-    def clear_cache(self) -> None:
-        """Clear all cached data."""
-        self.cache_data.clear()
-        self._save_cache()
-        logger.info("Discovery cache cleared")
-
-    def export_cache(self, export_path: Path) -> None:
-        """
-        Export cache to a different location.
+    def get_by_type(self, computation_type: str, limit: int = 50) -> list[CachedDiscovery]:
+        """Get cached results by computation type.
 
         Args:
-            export_path: Path to export cache file
-        """
-        try:
-            with open(export_path, "w", encoding="utf-8") as f:
-                json.dump(self.cache_data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Cache exported to {export_path}")
-        except OSError as e:
-            logger.error(f"Failed to export cache: {e}")
-
-    def import_cache(self, import_path: Path, merge: bool = True) -> None:
-        """
-        Import cache from another location.
-
-        Args:
-            import_path: Path to import cache file from
-            merge: Whether to merge with existing cache or replace
-        """
-        try:
-            with open(import_path, encoding="utf-8") as f:
-                imported_data = json.load(f)
-
-            if merge:
-                self.cache_data.update(imported_data)
-            else:
-                self.cache_data = imported_data
-
-            self._save_cache()
-            logger.info(f"Cache imported from {import_path} (merge: {merge})")
-        except (json.JSONDecodeError, OSError) as e:
-            logger.error(f"Failed to import cache: {e}")
-
-    def get_recent_discoveries(self, limit: int = 10) -> list[dict[str, Any]]:
-        """
-        Get recently cached discoveries.
-
-        Args:
-            limit: Maximum number of discoveries to return
+            computation_type: Type of computation (e.g., "mace_energy")
+            limit: Maximum results to return
 
         Returns:
-            List of recent discoveries sorted by timestamp
+            List of cached results for this computation type
         """
-        # Sort by timestamp (newest first)
-        sorted_discoveries = sorted(
-            self.cache_data.values(), key=lambda x: x.get("timestamp", ""), reverse=True
-        )
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT formula, computation_type, parameters_hash, result_json, created_at
+                   FROM discoveries WHERE computation_type = ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (computation_type, limit),
+            ).fetchall()
+            return [CachedDiscovery(r[0], r[1], r[2], json.loads(r[3]), r[4]) for r in rows]
 
-        return sorted_discoveries[:limit]
+    def delete(self, formula: str, computation_type: str, params: dict | None = None) -> bool:
+        """Delete a specific cached result.
+
+        Args:
+            formula: Chemical formula
+            computation_type: Type of computation
+            params: Computation parameters
+
+        Returns:
+            True if deleted, False if not found
+        """
+        params_hash = _hash_params(params or {})
+        with sqlite3.connect(self._db_path) as conn:
+            cursor = conn.execute(
+                """DELETE FROM discoveries
+                   WHERE formula = ? AND computation_type = ? AND parameters_hash = ?""",
+                (formula, computation_type, params_hash),
+            )
+            return cursor.rowcount > 0
+
+    def clear(self) -> int:
+        """Clear all cached discoveries.
+
+        Returns:
+            Number of entries deleted
+        """
+        with sqlite3.connect(self._db_path) as conn:
+            cursor = conn.execute("DELETE FROM discoveries")
+            return cursor.rowcount
+
+    def stats(self) -> dict:
+        """Get cache statistics.
+
+        Returns:
+            Dictionary with total count and counts by type
+        """
+        with sqlite3.connect(self._db_path) as conn:
+            total = conn.execute("SELECT COUNT(*) FROM discoveries").fetchone()[0]
+            by_type = conn.execute(
+                """SELECT computation_type, COUNT(*) FROM discoveries
+                   GROUP BY computation_type ORDER BY COUNT(*) DESC"""
+            ).fetchall()
+            return {
+                "total": total,
+                "by_type": {row[0]: row[1] for row in by_type},
+            }

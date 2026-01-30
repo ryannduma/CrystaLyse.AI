@@ -333,9 +333,7 @@ def chat(
 
 @app.command(name="analyse-provenance")
 def analyse_provenance(
-    session_id: str | None = typer.Option(
-        None, "--session", help="Specific session ID to analyse"
-    ),
+    session_id: str | None = typer.Option(None, "--session", help="Specific session ID to analyse"),
     latest: bool = typer.Option(False, "--latest", help="Analyse the most recent session"),
     provenance_dir: str = typer.Option(
         "./provenance_output", "--dir", help="Provenance directory to search"

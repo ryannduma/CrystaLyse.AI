@@ -2,6 +2,11 @@
 
 This is a simplified configuration module for the skills-based architecture.
 MCP server configuration has been removed in favor of direct tool imports.
+
+Configuration is loaded in this priority order:
+1. Environment variables (highest priority)
+2. ~/.crystalyse/config.toml (user preferences)
+3. Built-in defaults (lowest priority)
 """
 
 import os
@@ -18,7 +23,21 @@ class CrystaLyseConfig:
 
     def __init__(self):
         self.base_dir = Path(__file__).parent
+        self._user_prefs = None
         self.load_from_env()
+
+    @property
+    def user_prefs(self):
+        """Lazy load user preferences."""
+        if self._user_prefs is None:
+            try:
+                from .user_config.preferences import load_preferences
+
+                self._user_prefs = load_preferences()
+            except ImportError:
+                # Preferences module not yet available, use defaults
+                self._user_prefs = None
+        return self._user_prefs
 
     @classmethod
     def load(cls):
@@ -26,23 +45,37 @@ class CrystaLyseConfig:
         return cls()
 
     def load_from_env(self):
-        """Load configuration from environment variables with sensible defaults."""
+        """Load configuration from environment variables with user preferences as fallback."""
+        # Try to load user preferences for defaults
+        prefs = self.user_prefs
 
         # API Configuration
         self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY") or os.getenv("OPENAI_API_KEY")
 
-        # Performance Configuration
-        self.parallel_batch_size = int(os.getenv("CRYSTALYSE_BATCH_SIZE", "10"))
-        self.max_candidates = int(os.getenv("CRYSTALYSE_MAX_CANDIDATES", "100"))
+        # Performance Configuration (env > user prefs > defaults)
+        default_batch = prefs.analysis.parallel_batch_size if prefs else 10
+        default_candidates = prefs.analysis.max_candidates if prefs else 100
+        self.parallel_batch_size = int(os.getenv("CRYSTALYSE_BATCH_SIZE", str(default_batch)))
+        self.max_candidates = int(os.getenv("CRYSTALYSE_MAX_CANDIDATES", str(default_candidates)))
         self.structure_samples = int(os.getenv("CRYSTALYSE_STRUCTURE_SAMPLES", "5"))
 
+        # Default mode from user preferences
+        default_mode = prefs.analysis.default_mode if prefs else "creative"
+        self.default_mode = os.getenv("CRYSTALYSE_DEFAULT_MODE", default_mode)
+
         # Development Configuration
+        default_verbosity = prefs.display.verbosity if prefs else "normal"
+        self.verbosity = os.getenv("CRYSTALYSE_VERBOSITY", default_verbosity)
         self.enable_metrics = os.getenv("CRYSTALYSE_METRICS", "true").lower() == "true"
         self.debug_mode = os.getenv("CRYSTALYSE_DEBUG", "false").lower() == "true"
 
-        # Visualisation preferences - Default to CIF-only for simplicity
+        # Visualisation preferences (env > user prefs > defaults)
+        default_html = prefs.display.enable_html_viz if prefs else False
         self.visualization = {
-            "enable_html": os.getenv("CRYSTALYSE_ENABLE_HTML_VIZ", "false").lower() == "true",
+            "enable_html": os.getenv(
+                "CRYSTALYSE_ENABLE_HTML_VIZ", str(default_html).lower()
+            ).lower()
+            == "true",
             "cif_only": os.getenv("CRYSTALYSE_CIF_ONLY", "true").lower() == "true",
             "default_color_scheme": os.getenv("CRYSTALYSE_COLOR_SCHEME", "vesta"),
         }
@@ -68,11 +101,28 @@ class CrystaLyseConfig:
             == "true",
         }
 
-        # Skills Configuration
+        # Skills Configuration (env > user prefs > defaults)
+        default_timeout = prefs.skills.script_timeout_secs if prefs else 300
+        default_sandbox = prefs.skills.enable_sandboxing if prefs else True
         self.skills = {
-            "script_timeout": int(os.getenv("CRYSTALYSE_SKILL_TIMEOUT", "300")),
-            "enable_sandboxing": os.getenv("CRYSTALYSE_SKILL_SANDBOX", "true").lower() == "true",
+            "script_timeout": int(os.getenv("CRYSTALYSE_SKILL_TIMEOUT", str(default_timeout))),
+            "enable_sandboxing": os.getenv(
+                "CRYSTALYSE_SKILL_SANDBOX", str(default_sandbox).lower()
+            ).lower()
+            == "true",
         }
+
+        # Database preferences
+        if prefs:
+            self.database_prefs = {
+                "preferred_providers": prefs.databases.preferred_providers,
+                "max_results": prefs.databases.max_results_per_query,
+            }
+        else:
+            self.database_prefs = {
+                "preferred_providers": ["mp", "aflow", "oqmd"],
+                "max_results": 50,
+            }
 
     def get_model(self, rigorous: bool = False) -> str:
         """Get the appropriate model based on mode.

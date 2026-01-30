@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, Field
 
+from ..discovery_tools import cache_computation, get_cache
+
 logger = logging.getLogger(__name__)
 
 
@@ -133,9 +135,18 @@ class MACEStressCalculator:
                     success=False, formula="unknown", error=f"Validation failed: {msg}"
                 )
 
-            # Convert to atoms
+            # Convert to atoms to get formula
             atoms = dict_to_atoms(structure)
             formula = atoms.get_chemical_formula()
+
+            # Cache parameters
+            cache_params = {"model": model_type, "size": size}
+
+            # Check cache first
+            cached = get_cache().get(formula, "mace_stress", cache_params)
+            if cached:
+                logger.debug(f"Cache hit for MACE stress: {formula}")
+                return StressResult(**cached)
 
             # Get MACE calculator
             calc = get_mace_calculator(model_type=model_type, size=size, device=device)
@@ -172,7 +183,7 @@ class MACEStressCalculator:
             max_shear_ev_ang3 = (eigenvalues.max() - eigenvalues.min()) / 2.0
             max_shear_gpa = max_shear_ev_ang3 * 160.21766208
 
-            return StressResult(
+            result = StressResult(
                 success=True,
                 formula=formula,
                 stress_tensor_3x3=stress_3x3.tolist(),
@@ -181,6 +192,12 @@ class MACEStressCalculator:
                 von_mises_stress=float(von_mises_gpa),
                 max_shear_stress=float(max_shear_gpa),
             )
+
+            # Cache successful result
+            cache_computation(formula, "mace_stress", result.model_dump(), cache_params)
+            logger.debug(f"Cached MACE stress for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Stress calculation failed: {e}")
@@ -238,6 +255,21 @@ class MACEStressCalculator:
             atoms = dict_to_atoms(structure)
             formula = atoms.get_chemical_formula()
 
+            # Cache parameters
+            cache_params = {
+                "model": model_type,
+                "size": size,
+                "eos_type": eos_type,
+                "strain_range": strain_range,
+                "n_points": n_points,
+            }
+
+            # Check cache first
+            cached = get_cache().get(formula, "mace_eos", cache_params)
+            if cached:
+                logger.debug(f"Cache hit for MACE EOS: {formula}")
+                return EOSResult(**cached)
+
             # Get MACE calculator
             calc = get_mace_calculator(model_type=model_type, size=size, device=device)
 
@@ -269,7 +301,7 @@ class MACEStressCalculator:
             except Exception:
                 b0_prime = None
 
-            return EOSResult(
+            result = EOSResult(
                 success=True,
                 formula=formula,
                 eos_type=eos_type,
@@ -280,6 +312,12 @@ class MACEStressCalculator:
                 volumes=volumes.tolist(),
                 energies=energies,
             )
+
+            # Cache successful result
+            cache_computation(formula, "mace_eos", result.model_dump(), cache_params)
+            logger.debug(f"Cached MACE EOS for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"EOS fitting failed: {e}")

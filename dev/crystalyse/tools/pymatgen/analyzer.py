@@ -1,5 +1,7 @@
 """PyMatgen analysis tools - space group, coordination, oxidation states."""
 
+import hashlib
+import json
 import logging
 from typing import Any
 
@@ -10,6 +12,8 @@ from pymatgen.analysis.local_env import VoronoiNN
 from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+from ..discovery_tools import cache_computation, get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +150,21 @@ class PyMatgenAnalyzer:
         try:
             structure = _parse_structure(structure_input)
 
+            # Create cache key from formula and structure hash
+            formula = structure.composition.reduced_formula
+            # Hash the structure to differentiate polymorphs
+            struct_hash = hashlib.sha256(
+                json.dumps(structure.as_dict(), sort_keys=True).encode()
+            ).hexdigest()[:12]
+            cache_key = f"{formula}_{struct_hash}"
+            cache_params = {"symprec": symprec, "angle_tolerance": angle_tolerance}
+
+            # Check cache first
+            cached = get_cache().get(cache_key, "pymatgen_spacegroup", cache_params)
+            if cached:
+                logger.debug(f"Cache hit for PyMatgen spacegroup: {formula}")
+                return SpaceGroupResult(**cached)
+
             analyzer = SpacegroupAnalyzer(
                 structure, symprec=symprec, angle_tolerance=angle_tolerance
             )
@@ -160,7 +179,7 @@ class PyMatgenAnalyzer:
             conventional_structure = analyzer.get_conventional_standard_structure()
             symmetry_ops = analyzer.get_symmetry_operations()
 
-            return SpaceGroupResult(
+            result = SpaceGroupResult(
                 success=True,
                 space_group_symbol=space_group_symbol,
                 space_group_number=space_group_number,
@@ -182,6 +201,12 @@ class PyMatgenAnalyzer:
                 symmetrized_cif=conventional_structure.to(fmt="cif"),
                 primitive_cif=primitive_structure.to(fmt="cif"),
             )
+
+            # Cache successful result
+            cache_computation(cache_key, "pymatgen_spacegroup", result.model_dump(), cache_params)
+            logger.debug(f"Cached PyMatgen spacegroup for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Space group analysis failed: {e}")

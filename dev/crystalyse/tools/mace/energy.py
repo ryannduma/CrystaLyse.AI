@@ -2,10 +2,13 @@
 
 import logging
 import warnings
+from collections import Counter
 from typing import Any
 
 import numpy as np
 from pydantic import BaseModel
+
+from ..discovery_tools import cache_computation, get_cache
 
 # Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
 warnings.filterwarnings(
@@ -160,6 +163,29 @@ def dict_to_atoms(structure_dict: dict) -> Any:
     )
 
 
+def get_formula_from_structure(structure_dict: dict) -> str:
+    """Extract chemical formula from structure dictionary.
+
+    Args:
+        structure_dict: Structure dict with 'numbers' (atomic numbers) or 'symbols'
+
+    Returns:
+        Chemical formula string (e.g., "Li4Fe4P4O16" -> "LiFePO4" reduced)
+    """
+    from ase.data import chemical_symbols
+
+    if "symbols" in structure_dict:
+        symbols = structure_dict["symbols"]
+    elif "numbers" in structure_dict:
+        symbols = [chemical_symbols[n] for n in structure_dict["numbers"]]
+    else:
+        return "unknown"
+
+    counts = Counter(symbols)
+    # Create formula string (sorted alphabetically)
+    return "".join(f"{el}{cnt if cnt > 1 else ''}" for el, cnt in sorted(counts.items()))
+
+
 def atoms_to_dict(atoms: Any) -> dict:
     """Convert ASE Atoms object to structure dictionary."""
     return {
@@ -188,6 +214,16 @@ class MACECalculator:  # noqa: F811
                     success=False, formula="unknown", error=f"Validation failed: {msg}"
                 )
 
+            # Extract formula for caching
+            formula = get_formula_from_structure(structure)
+            cache_params = {"model": self.model_type, "size": self.size}
+
+            # Check cache first
+            cached = get_cache().get(formula, "mace_energy", cache_params)
+            if cached:
+                logger.debug(f"Cache hit for MACE energy: {formula}")
+                return EnergyResult(**cached, from_cache=True) if "from_cache" not in cached else EnergyResult(**cached)
+
             atoms = dict_to_atoms(structure)
             calc = get_mace_calculator(
                 model_type=self.model_type, size=self.size, device=self.device
@@ -214,13 +250,19 @@ class MACECalculator:  # noqa: F811
             # Calculate formation energy
             formation_energy = (compound_energy - total_reference_energy) / len(atoms)
 
-            return EnergyResult(
+            result = EnergyResult(
                 success=True,
                 formula=atoms.get_chemical_formula(),
                 formation_energy=float(formation_energy),
                 energy_per_atom=float(formation_energy),
                 total_energy=float(compound_energy),
             )
+
+            # Cache successful result
+            cache_computation(formula, "mace_energy", result.model_dump(), cache_params)
+            logger.debug(f"Cached MACE energy for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Formation energy calculation failed: {e}")
@@ -239,6 +281,21 @@ class MACECalculator:  # noqa: F811
             valid, msg = validate_structure(structure)
             if not valid:
                 return RelaxationResult(success=False, error=f"Validation failed: {msg}")
+
+            # Extract formula for caching
+            formula = get_formula_from_structure(structure)
+            cache_params = {
+                "model": self.model_type,
+                "size": self.size,
+                "fmax": fmax,
+                "optimizer": optimizer,
+            }
+
+            # Check cache first
+            cached = get_cache().get(formula, "mace_relax", cache_params)
+            if cached:
+                logger.debug(f"Cache hit for MACE relax: {formula}")
+                return RelaxationResult(**cached)
 
             atoms = dict_to_atoms(structure)
             calc = get_mace_calculator(
@@ -282,7 +339,7 @@ class MACECalculator:  # noqa: F811
                 np.max(np.linalg.norm(atoms.positions - initial_positions, axis=1))
             )
 
-            return RelaxationResult(
+            result = RelaxationResult(
                 success=True,
                 converged=bool(converged),
                 initial_energy=initial_energy,
@@ -292,6 +349,12 @@ class MACECalculator:  # noqa: F811
                 n_steps=len(energies) - 1,
                 relaxed_structure=atoms_to_dict(atoms),
             )
+
+            # Cache successful result
+            cache_computation(formula, "mace_relax", result.model_dump(), cache_params)
+            logger.debug(f"Cached MACE relax for: {formula}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Relaxation failed: {e}")
