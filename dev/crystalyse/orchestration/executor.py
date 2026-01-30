@@ -81,6 +81,18 @@ class ParallelToolExecutor:
         cancellation_token: CancellationToken,
     ) -> ToolResult:
         """Execute a single tool with appropriate locking."""
+        try:
+            return await self._execute_with_lock_inner(tool_call, cancellation_token)
+        finally:
+            # Clean up the cancellation token's watcher task to avoid leaks
+            cancellation_token.cleanup()
+
+    async def _execute_with_lock_inner(
+        self,
+        tool_call: ToolCall,
+        cancellation_token: CancellationToken,
+    ) -> ToolResult:
+        """Inner execution logic."""
         tool_spec = self._tools.get(tool_call.name)
         if not tool_spec:
             return ToolResult(

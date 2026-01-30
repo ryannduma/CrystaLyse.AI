@@ -23,12 +23,15 @@ async def test_child_inherits_cancellation():
     parent = CancellationToken()
     child = parent.child()
 
-    assert not child.is_cancelled()
+    try:
+        assert not child.is_cancelled()
 
-    parent.cancel()
-    await asyncio.sleep(0.01)  # Let propagation happen
+        parent.cancel()
+        await asyncio.sleep(0.01)  # Let propagation happen
 
-    assert child.is_cancelled()
+        assert child.is_cancelled()
+    finally:
+        child.cleanup()
 
 
 @pytest.mark.asyncio
@@ -37,10 +40,13 @@ async def test_child_can_cancel_independently():
     parent = CancellationToken()
     child = parent.child()
 
-    child.cancel()
+    try:
+        child.cancel()
 
-    assert child.is_cancelled()
-    assert not parent.is_cancelled()
+        assert child.is_cancelled()
+        assert not parent.is_cancelled()
+    finally:
+        child.cleanup()
 
 
 @pytest.mark.asyncio
@@ -56,3 +62,71 @@ async def test_wait_cancelled():
     await asyncio.wait_for(token.wait_cancelled(), timeout=1.0)
 
     assert token.is_cancelled()
+
+
+@pytest.mark.asyncio
+async def test_child_scope_context_manager():
+    """Context manager cleans up child token automatically."""
+    parent = CancellationToken()
+
+    async with parent.child_scope() as child:
+        assert not child.is_cancelled()
+        # Watcher task exists
+        assert child._watcher is not None
+        assert not child._watcher.done()
+
+    # After exiting, watcher should be cancelled
+    await asyncio.sleep(0.01)  # Let cancellation propagate
+    assert child._watcher.done()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cancels_watcher():
+    """cleanup() cancels the watcher task."""
+    parent = CancellationToken()
+    child = parent.child()
+
+    assert child._watcher is not None
+    assert not child._watcher.done()
+
+    child.cleanup()
+
+    await asyncio.sleep(0.01)  # Let cancellation propagate
+    assert child._watcher.done()
+
+
+@pytest.mark.asyncio
+async def test_is_cancelled_checks_parent_immediately():
+    """is_cancelled() checks parent state without waiting for watcher."""
+    parent = CancellationToken()
+    child = parent.child()
+
+    try:
+        # Cancel parent
+        parent.cancel()
+
+        # Child should detect immediately via is_cancelled() check
+        # (without waiting for watcher task)
+        assert child.is_cancelled()
+    finally:
+        child.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_wait_cancelled_with_parent():
+    """wait_cancelled() returns when parent is cancelled."""
+    parent = CancellationToken()
+    child = parent.child()
+
+    try:
+
+        async def cancel_parent():
+            await asyncio.sleep(0.02)
+            parent.cancel()
+
+        asyncio.create_task(cancel_parent())
+        await asyncio.wait_for(child.wait_cancelled(), timeout=1.0)
+
+        assert child.is_cancelled()
+    finally:
+        child.cleanup()
