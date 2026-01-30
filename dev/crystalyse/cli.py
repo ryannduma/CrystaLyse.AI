@@ -298,6 +298,35 @@ def chat(
 
 
 @app.command()
+def tui(
+    rigorous: bool = typer.Option(
+        False, "--rigorous", "-r", help="Use rigorous mode for all queries."
+    ),
+    session_id: str | None = typer.Option(
+        None, "--session-id", "-s", help="Resume existing session by ID."
+    ),
+):
+    """
+    Launch the Terminal User Interface (TUI).
+
+    Provides a rich terminal interface for interactive materials discovery
+    with scrollable chat history, keyboard shortcuts, and streaming responses.
+
+    Requires: pip install crystalyse[tui]
+    """
+    try:
+        from crystalyse.tui import run_tui
+
+        effective_rigorous = rigorous or state["rigorous"]
+        run_tui(rigorous=effective_rigorous, session_id=session_id)
+    except ImportError as e:
+        console.print("[red]TUI requires textual library.[/red]")
+        console.print("[dim]Install with: pip install crystalyse[tui][/dim]")
+        console.print(f"[dim]Error: {e}[/dim]")
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
 def skills():
     """List all available skills and their scripts."""
     from crystalyse.skills.executor import get_available_skills

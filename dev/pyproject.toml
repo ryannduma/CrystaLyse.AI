@@ -50,6 +50,10 @@ visualization = [
     "pymatviz>=0.8.5,<0.17.0",
 ]
 
+tui = [
+    "textual>=0.47.0",
+]
+
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",

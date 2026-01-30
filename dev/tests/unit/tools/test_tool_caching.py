@@ -4,8 +4,9 @@ Tests that MACE, Chemeleon, SMACT, and PyMatgen tools properly
 check cache before computing and store results after computing.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestMACECaching:
@@ -98,8 +99,6 @@ class TestCacheIntegration:
             "unit": "eV",
             "method": "mace",
         }
-
-        from crystalyse.tools.mace.energy import MACECalculator
 
         # This import will fail if MACE is not installed, which is fine for unit tests
         # We're just testing the caching logic, not the actual calculation

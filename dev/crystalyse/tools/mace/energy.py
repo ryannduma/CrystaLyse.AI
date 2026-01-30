@@ -222,7 +222,11 @@ class MACECalculator:  # noqa: F811
             cached = get_cache().get(formula, "mace_energy", cache_params)
             if cached:
                 logger.debug(f"Cache hit for MACE energy: {formula}")
-                return EnergyResult(**cached, from_cache=True) if "from_cache" not in cached else EnergyResult(**cached)
+                return (
+                    EnergyResult(**cached, from_cache=True)
+                    if "from_cache" not in cached
+                    else EnergyResult(**cached)
+                )
 
             atoms = dict_to_atoms(structure)
             calc = get_mace_calculator(

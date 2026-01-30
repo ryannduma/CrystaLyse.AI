@@ -1,8 +1,6 @@
 """Tests for TOML-based user preferences."""
 
-import pytest
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 
 class TestUserPreferences:
@@ -126,7 +124,6 @@ class TestSavePreferences:
     def test_save_preserves_values(self, tmp_path):
         """Test that saved values can be loaded back."""
         from crystalyse.user_config.preferences import (
-            AnalysisPrefs,
             UserPreferences,
             load_preferences,
             save_preferences,

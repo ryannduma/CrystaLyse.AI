@@ -1,6 +1,6 @@
 """Memory system for Crystalyse.
 
-Provides three components:
+Provides four components:
 
 1. Session persistence (SQLite-backed via OpenAI SDK)
    - get_session(): Get/create a session for conversation history
@@ -14,8 +14,19 @@ Provides three components:
 3. Project memory (CRYSTALYSE.md files)
    - load_project_memory(): Load project-specific instructions
    - find_project_memory(): Find memory files in directory tree
+
+4. Context compaction
+   - ContextManager: Summarise old messages when approaching token limits
+   - CompactionConfig: Configure compaction thresholds
 """
 
+from .compaction import (
+    CompactionConfig,
+    CompactionResult,
+    ContextManager,
+    Message,
+    estimate_tokens,
+)
 from .discovery_cache import CachedDiscovery, DiscoveryCache
 from .project_memory import (
     find_project_memory,
@@ -37,4 +48,10 @@ __all__ = [
     "load_project_memory",
     "find_project_memory",
     "get_project_memory_paths",
+    # Context Compaction
+    "ContextManager",
+    "CompactionConfig",
+    "CompactionResult",
+    "Message",
+    "estimate_tokens",
 ]
