@@ -133,11 +133,44 @@ python scripts/predict_csp.py "BaTiO3" --num-structures 100 --batch-size 20
 **CSP requires**: Exact formula → atomic numbers list
 **DNG ignores**: atom_types parameter (only uses num_atoms distribution)
 
+## Interpreting Confidence Scores
+
+| Score | Interpretation | Action |
+|-------|----------------|--------|
+| > 0.9 | High confidence | Trust prediction |
+| 0.7 - 0.9 | Moderate | Validate against known phases |
+| 0.5 - 0.7 | Low | Multiple polymorphs likely, check all |
+| < 0.5 | Very low | Structure may be unreliable |
+
+**If confidence < 0.7**: Generate multiple structures (`--num-structures 5`) and compare.
+
+## Limitations
+
+**Chemeleon CANNOT compute:**
+
+- Band gaps or electronic properties
+- Formation energies (use MACE after prediction)
+- Thermodynamic stability
+- Mechanical properties
+- Defect formation energies
+
+**Chemeleon only predicts structure geometry.** For properties, use other skills after prediction.
+
 ## Provenance
 
 When reporting results, always include:
+
 - Input composition or element set
 - Model used (CSP vs DNG)
 - Confidence score for each structure
 - Checkpoint version used
 - **If Z > 101 elements present**: Note potential data corruption
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent
+2. Write predicted structures (CIF/JSON) to the artifact path if specified
+3. Return a summary with: formula, space group, confidence score, structure file path
+4. Report any errors or low-confidence warnings clearly

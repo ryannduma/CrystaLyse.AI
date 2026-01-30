@@ -137,11 +137,33 @@ python scripts/validate.py "NaCl" --oxidation-states-set icsd24
 
 **Gotcha**: Default changed from `smact14` to `icsd24` in SMACT v3.0+
 
+## Limitations
+
+**SMACT CANNOT assess:**
+
+- Thermodynamic stability (use hull distance after structure prediction)
+- Kinetic stability
+- Synthesizability beyond charge balance
+- Crystal structure
+- Any material property
+
+**SMACT only checks charge neutrality and electronegativity.** A valid SMACT result means the composition is chemically plausible, NOT that it's stable or synthesizable.
+
 ## Provenance Requirements
 
 When reporting results, always include:
+
 - Input formula (exactly as provided)
 - SMACT version used (in output JSON)
 - Any assumptions about oxidation states
 - Whether the result is valid or invalid with reasoning
 - **If you overrode SMACT**: Document why and what evidence supports it
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent
+2. For batch validation, write full results to the artifact path if specified
+3. Return a summary with: valid/invalid count, any failed formulas with reasons
+4. Report elements with missing oxidation states (At, Rn, Fr)

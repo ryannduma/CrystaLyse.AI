@@ -180,3 +180,13 @@ Note: These conditions should be optimized for specific equipment.
 3. **Add "experimental"**: Distinguishes from computational studies
 4. **Use chemical formulas**: More precise than common names
 5. **Specify property**: "band gap" not "electronic properties"
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent (search queries, focus areas)
+2. Write full search results to artifact path if specified
+3. Return a summary with: paper count, key findings with citations (author, year, DOI)
+4. Report confidence level (peer-reviewed vs preprint vs blog)
+5. Flag if no results found or results are conflicting

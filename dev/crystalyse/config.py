@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 # Model configuration - two modes only
-CREATIVE_MODEL = "o4-mini"
-RIGOROUS_MODEL = "o3"
+CREATIVE_MODEL = "gpt-5-mini"  # Fast, cost-efficient ($0.25/$2 per 1M tokens)
+RIGOROUS_MODEL = "gpt-5.2"  # Flagship for coding/agentic tasks ($1.75/$14 per 1M tokens)
 
 
 class CrystaLyseConfig:

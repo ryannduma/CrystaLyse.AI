@@ -169,6 +169,7 @@ skip = [
     "*.pkl",
     "*.pkl.gz",
     "*.cif",
+    "*.toml",
     "htmlcov",
     ".mypy_cache",
     ".ruff_cache",
@@ -178,17 +179,7 @@ skip = [
     "dist",
     "build",
 ]
-ignore-words-list = [
-    "mace",     # ML model name
-    "eneg",     # electronegativity abbreviation
-    "coo",      # coordinate
-    "smact",    # library name
-    "nd",       # numpy ndarray
-    "te",       # tellurium element
-    "ba",       # barium element
-    "ser",      # serial
-    "ot",       # other
-]
+ignore-words-list = "mace,eneg,coo,smact,nd,te,ba,ser,ot"
 check-filenames = true
 
 # Pyright configuration

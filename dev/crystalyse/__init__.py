@@ -6,7 +6,7 @@ agent architecture powered by OpenAI models with true agentic behaviour.
 
 Key Features:
     - Skills-Based Architecture: SKILL.md files provide procedural knowledge
-    - Two Modes: Creative (o4-mini) for fast exploration, Rigorous (o3) for thorough analysis
+    - Two Modes: Creative (gpt-5-mini) for fast exploration, Rigorous (gpt-5.2) for thorough analysis
     - Direct Tool Imports: No MCP overhead, direct Python integrations
     - SMACT Integration: Proper chemistry validation using established libraries
     - Chemeleon CSP: Crystal structure prediction with up to 10 polymorphs

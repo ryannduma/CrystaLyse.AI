@@ -82,6 +82,20 @@ python scripts/forces.py structure.json
 
 Uses the MACE-MP-0 foundation model by default (trained on Materials Project).
 
+### Model Selection
+
+| Model | Speed | Accuracy | Use When |
+|-------|-------|----------|----------|
+| `small` | Fast (3x) | Lower | Quick screening of 100+ candidates |
+| `medium` | Balanced | Good | Default for most work |
+| `large` | Slow | Best | Final calculations, publications |
+
+**Rule of thumb**: Use `small` for screening, `medium` for exploration, `large` for final numbers.
+
+```bash
+python scripts/formation_energy.py structure.json --model-size medium
+```
+
 Custom model:
 ```bash
 python scripts/formation_energy.py structure.json --model /path/to/model.pt
@@ -149,6 +163,17 @@ python scripts/formation_energy.py structure.json --model "mace_*.model"
 - Phonon/vibrational analysis
 - High-precision property extraction
 
+## Limitations
+
+**MACE CANNOT compute:**
+- Band gaps (gives total energies, not electronic structure)
+- Phonons (requires DFPT, not classical potential)
+- Carrier mobility
+- Optical properties
+- Magnetic ordering
+
+**If asked for these:** Query databases, cite literature, or state "cannot compute without DFT."
+
 ## Provenance
 
 When reporting results, always include:
@@ -159,3 +184,11 @@ When reporting results, always include:
 - Convergence criteria used (fmax, steps)
 - **dtype used** (float32 or float64)
 - **If stress needed**: Note whether compile was disabled
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+1. Follow the task instructions from the lead agent
+2. Write full results (energies, structures) to the artifact path if specified
+3. Return a summary with: formation energy, convergence status, any warnings
+4. Report any errors or gaps clearly (e.g., "failed to converge after 500 steps")

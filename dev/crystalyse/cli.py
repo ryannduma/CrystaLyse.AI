@@ -2,8 +2,8 @@
 Crystalyse -- Intelligent Scientific Agent for Materials Design
 
 This CLI uses a skills-based architecture with two modes:
-- Creative (default): Fast exploration using o4-mini
-- Rigorous (--rigorous): Thorough analysis using o3
+- Creative (default): Fast exploration using gpt-5-mini
+- Rigorous (--rigorous): Thorough analysis using gpt-5.2
 """
 
 import asyncio
@@ -98,7 +98,7 @@ def display_results(results: dict):
 def analyse(
     query: str = typer.Argument(..., help="A materials discovery query."),
     rigorous: bool = typer.Option(
-        False, "--rigorous", "-r", help="Use rigorous mode (o3 model, slower but more thorough)."
+        False, "--rigorous", "-r", help="Use rigorous mode (gpt-5.2 model, slower but more thorough)."
     ),
     project: str | None = typer.Option(None, "--project", "-p", help="Project name for workspace."),
     clarify: bool = typer.Option(
@@ -108,8 +108,8 @@ def analyse(
     """
     Run a materials discovery query.
 
-    By default, uses creative mode (o4-mini) for fast exploration.
-    Use --rigorous for thorough analysis with the o3 model.
+    By default, uses creative mode (gpt-5-mini) for fast exploration.
+    Use --rigorous for thorough analysis with the gpt-5.2 model.
 
     Examples:
         crystalyse analyse "Find stable perovskites"
@@ -336,7 +336,7 @@ def main_callback(
         "crystalyse_session", "-p", "--project", help="Project name for workspace."
     ),
     rigorous: bool = typer.Option(
-        False, "--rigorous", "-r", help="Use rigorous mode (o3 model, thorough analysis)."
+        False, "--rigorous", "-r", help="Use rigorous mode (gpt-5.2 model, thorough analysis)."
     ),
     version: bool | None = typer.Option(
         None,
@@ -351,8 +351,8 @@ def main_callback(
     Crystalyse v2.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
 
     Two modes:
-    - Creative (default): Fast exploration with o4-mini
-    - Rigorous (--rigorous): Thorough analysis with o3
+    - Creative (default): Fast exploration with gpt-5-mini
+    - Rigorous (--rigorous): Thorough analysis with gpt-5.2
     """
     state["project"] = project
     state["rigorous"] = rigorous

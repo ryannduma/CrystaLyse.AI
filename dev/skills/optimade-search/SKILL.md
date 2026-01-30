@@ -159,3 +159,12 @@ Retrieved: 2024-01-15
 2. **Use multiple providers**: MP and AFLOW have different coverage
 3. **Check `nsites`**: Small cells are more likely to be well-characterized
 4. **Cross-reference**: Same formula may have multiple polymorphs
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent (filter, providers, fields)
+2. Write full query results (all entries) to artifact path if specified
+3. Return a summary with: total count, top entries with IDs, any gaps in coverage
+4. Report any provider errors or rate limits encountered

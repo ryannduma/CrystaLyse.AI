@@ -154,11 +154,32 @@ primitive = sga.get_primitive_standard_structure()
 conventional = sga.get_conventional_standard_structure()
 ```
 
+## Limitations
+
+**Pymatgen analysis CANNOT:**
+
+- Predict new structures (use Chemeleon)
+- Calculate formation energies (use MACE)
+- Perform band structure calculations (requires DFT)
+- Search external databases (use OPTIMADE)
+
+**Pymatgen is for structure manipulation and thermodynamic analysis**, not prediction or computation.
+
 ## Provenance
 
 When reporting pymatgen results:
+
 - Structure source and any transformations applied
 - Whether merge_tol was used (and value)
 - Which hull distance method was used
 - Oxidation state assignment method
 - PyMatGen version for reproducibility
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent
+2. Write transformed structures or analysis results to artifact path if specified
+3. Return a summary with: key metrics (hull distance, space group), any warnings
+4. Report if oxi_state_guesses returned empty list or merge_tol was needed

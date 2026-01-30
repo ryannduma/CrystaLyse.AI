@@ -244,15 +244,27 @@ print(json.dumps(result))
 ## Provenance
 
 When reporting Python analysis results, include:
+
 1. The code used (summarized)
 2. Input files/data
 3. Library versions (if critical)
 4. Any assumptions made
 
 Example:
-```
+
+```text
 Analysis: Fe-O bond lengths
 Method: CrystalNN neighbor analysis (pymatgen)
 Input: predicted_structure.cif
 Result: Average Fe-O = 2.01 Å (range: 1.95-2.08 Å)
 ```
+
+## For Workers
+
+If you're a worker subagent executing this skill:
+
+1. Follow the task instructions from the lead agent (specific analysis to perform)
+2. Write full analysis results to artifact path if specified
+3. Return a summary with: key metrics, any warnings or errors
+4. Print results as JSON for easy parsing by the lead agent
+5. Report any library import failures or data loading issues

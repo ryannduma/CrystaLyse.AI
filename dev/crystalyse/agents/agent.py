@@ -33,8 +33,8 @@ from ..workspace import workspace_tools
 logger = logging.getLogger(__name__)
 
 # Model configuration
-CREATIVE_MODEL = "o4-mini"
-RIGOROUS_MODEL = "o3"
+CREATIVE_MODEL = "gpt-5-mini"  # Fast, cost-efficient ($0.25/$2 per 1M tokens)
+RIGOROUS_MODEL = "gpt-5.2"  # Flagship for coding/agentic tasks ($1.75/$14 per 1M tokens)
 
 
 class MaterialsAgent:
@@ -44,8 +44,8 @@ class MaterialsAgent:
     This agent uses skills (SKILL.md files with scripts) instead of MCP servers
     for tool execution. Two modes are supported:
 
-    - creative (default): Uses o4-mini for fast exploration
-    - rigorous: Uses o3 for thorough, validated analysis
+    - creative (default): Uses gpt-5-mini for fast exploration
+    - rigorous: Uses gpt-5.2 for thorough, validated analysis
 
     The mode is controlled via the --rigorous flag in the CLI.
     """
@@ -60,8 +60,8 @@ class MaterialsAgent:
         Initialize the MaterialsAgent.
 
         Args:
-            rigorous: If True, use o3 model for thorough analysis.
-                      If False (default), use o4-mini for fast exploration.
+            rigorous: If True, use gpt-5.2 model for thorough analysis.
+                      If False (default), use gpt-5-mini for fast exploration.
             config: Configuration object. If None, loads from defaults.
             project_name: Name for this session/project.
         """
@@ -177,13 +177,22 @@ class MaterialsAgent:
         except ImportError as e:
             logger.debug(f"Web search tool not available: {e}")
 
+        # Artifact tools for session management
+        try:
+            from ..tools.artifacts import list_artifacts, read_artifact, write_artifact
+
+            tools.extend([write_artifact, read_artifact, list_artifacts])
+            logger.debug("Added artifact tools")
+        except ImportError as e:
+            logger.debug(f"Artifact tools not available: {e}")
+
         return tools
 
     def _create_instructions(self) -> str:
         """Create the system instructions for the agent."""
         # Load base prompt
         try:
-            prompt_path = self.config.base_dir / "prompts" / "unified_agent_prompt.md"
+            prompt_path = self.config.base_dir / "prompts" / "lead_agent_prompt.md"
             with open(prompt_path) as f:
                 base_instructions = f.read()
         except Exception as e:
