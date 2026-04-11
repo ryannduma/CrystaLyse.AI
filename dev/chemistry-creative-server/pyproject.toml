@@ -21,7 +21,8 @@ dependencies = [
     # Pinned to v0.1.2 which includes fix for missing subpackages
     "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
     "mace-torch>=0.3.0",
-    "torch>=2.1.0",
+    # Cap below 2.11 — torch 2.11 requires CUDA 13 drivers. See dev/pyproject.toml.
+    "torch>=2.1.0,<2.11",
     "pymatgen>=2.4.1.0",
 ]
 
