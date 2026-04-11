@@ -6,7 +6,7 @@ import asyncio
 import logging
 import sys
 import warnings
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 # Suppress specific e3nn warning about weights_only parameter
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- Type Enums for CLI choices ---
-class AgentMode(str, Enum):
+class AgentMode(StrEnum):
     creative = "creative"
     rigorous = "rigorous"
     adaptive = "adaptive"

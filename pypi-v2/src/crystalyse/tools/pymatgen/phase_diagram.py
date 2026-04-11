@@ -10,7 +10,7 @@ from pathlib import Path
 from pymatgen.core import Composition
 from pymatgen.analysis.phase_diagram import PDEntry, PhaseDiagram
 
-from .phase_diagram_downloader import get_phase_diagram_path_with_fallbacks
+from .phase_diagram_downloader import get_phase_diagram_path
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +40,16 @@ def _load_phase_diagram() -> Optional[PhaseDiagram]:
     if _PPD_DATA is not None:
         return _PPD_DATA
 
-    # Use the new downloader with fallback support
+    # Resolve via CRYSTALYSE_PPD_PATH env var or auto-download to the canonical
+    # cache at ~/.cache/crystalyse/phase_diagrams/. Do not add per-user absolute
+    # paths here — they silently leak the packager's home directory into every
+    # PyPI tarball and can mask the cache for anyone who happens to have a
+    # matching directory on disk.
     try:
-        ppd_path = get_phase_diagram_path_with_fallbacks()
+        ppd_path = get_phase_diagram_path()
         _PPD_PATH = str(ppd_path)
         logger.info(f"Loading phase diagram from: {_PPD_PATH}")
-    except FileNotFoundError as e:
+    except (FileNotFoundError, RuntimeError) as e:
         logger.warning(f"Phase diagram file not found: {e}")
         logger.warning("Energy above hull calculations will not be available.")
         return None
