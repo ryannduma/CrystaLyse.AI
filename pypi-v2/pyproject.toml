@@ -53,7 +53,14 @@ dependencies = [
 
     # AI-Powered Chemistry Tools
     "smact>=3.0.0",
-    "torch>=2.1.0",
+    # Capped below 2.11: torch 2.11 bumped its CUDA runtime to 13.0, which
+    # requires an NVIDIA driver new enough to support CUDA 13 (e.g. driver
+    # 555+). Drivers pinned at CUDA 12.x — common on HPC / clusters — then
+    # fall back silently to CPU and every Chemeleon / MACE call takes the
+    # slow path. torch 2.10.x still ships cu12x wheels on PyPI and works on
+    # any driver that supports CUDA >= 12.0, covering a much broader range
+    # of real-world machines.
+    "torch>=2.1.0,<2.11",
     "mace-torch>=0.3.0",
     "chemeleon-dng>=0.1.2",
 

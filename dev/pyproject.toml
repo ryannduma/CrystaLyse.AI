@@ -24,7 +24,16 @@ dependencies = [
     # Can use GitHub source for now until PyPI package is published
     "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
 
-    "torch>=2.1.0",
+    # Cap below 2.11 because torch 2.11.0 bumped its CUDA runtime to 13.0,
+    # which requires an NVIDIA driver new enough to support CUDA 13 (driver
+    # reporting maxCuda >= 13.0). Drivers pinned at CUDA 12.x — which is the
+    # common HPC case, e.g. NVIDIA 550.x maxes out at CUDA 12.4 — fall back
+    # silently to CPU and every Chemeleon / MACE call takes the slow path.
+    # torch 2.10.x still ships cu12x wheels on PyPI and works on any driver
+    # that supports CUDA >= 12.0, so it covers a much broader range of
+    # real-world machines. Raise this ceiling once the CUDA 13 driver floor
+    # is actually the common case in the communities we ship to.
+    "torch>=2.1.0,<2.11",
     "smact>=2.7.0",
     "mace-torch>=0.3.0",
 ]

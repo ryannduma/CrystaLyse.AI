@@ -13,7 +13,8 @@ dependencies = [
     # Chemistry libraries (also declared in crystalyse, but explicit here for clarity)
     "pymatgen",
     "ase",
-    "torch",
+    # Cap below 2.11 — torch 2.11 requires CUDA 13 drivers. See dev/pyproject.toml.
+    "torch<2.11",
     "numpy",
     "smact",
     "mace-torch",
