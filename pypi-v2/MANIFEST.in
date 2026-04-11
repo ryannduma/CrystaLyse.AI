@@ -19,8 +19,13 @@ global-exclude .DS_Store
 recursive-exclude src/crystalyse/tests *
 recursive-exclude tests *
 
-# Exclude workspace and cache directories
-prune src/crystalyse/workspace
+# Exclude cache directories.
+#
+# Do NOT re-add ``prune src/crystalyse/workspace`` here: that line was the
+# root cause of issue #31 (ModuleNotFoundError: No module named
+# 'crystalyse.workspace'). The ``workspace`` subpackage hosts the per-project
+# filesystem tools (read_file, write_file, list_files) that the agent
+# registers via the OpenAI Agents SDK — it must be shipped in every release.
 prune .pytest_cache
 prune .mypy_cache
 prune .ruff_cache

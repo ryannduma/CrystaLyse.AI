@@ -176,55 +176,15 @@ def get_phase_diagram_path(custom_path: Optional[str] = None) -> Path:
     return data_path
 
 
-# Fallback paths for backward compatibility (checked in order)
-FALLBACK_PATHS = [
-    Path("/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz"),
-    Path("/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz"),
-    Path(__file__).parent.parent.parent.parent.parent / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-    Path.home() / "updatecrystalyse" / "CrystaLyse.AI" / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-]
-
-
-def get_phase_diagram_path_with_fallbacks(custom_path: Optional[str] = None) -> Path:
-    """
-    Get phase diagram path with fallback to legacy locations.
-
-    This function tries multiple strategies in order:
-    1. Custom path (argument or CRYSTALYSE_PPD_PATH env var)
-    2. Auto-download to cache
-    3. Legacy fallback paths (for development/existing installations)
-
-    Args:
-        custom_path: Optional custom phase diagram data file path
-
-    Returns:
-        Path to phase diagram data file
-
-    Raises:
-        FileNotFoundError: If file not found anywhere
-    """
-    # Try standard method first (custom path or auto-download)
-    try:
-        return get_phase_diagram_path(custom_path)
-    except (FileNotFoundError, RuntimeError) as e:
-        logger.warning(f"Standard lookup failed: {e}")
-        logger.info("Trying fallback paths for backward compatibility...")
-
-    # Try fallback paths
-    for fallback_path in FALLBACK_PATHS:
-        if fallback_path.exists():
-            logger.info(f"Using fallback path: {fallback_path}")
-            return fallback_path
-
-    # Nothing worked
-    raise FileNotFoundError(
-        f"Phase diagram data not found.\n"
-        f"Tried:\n"
-        f"  1. Custom path: {custom_path or os.getenv('CRYSTALYSE_PPD_PATH') or 'None'}\n"
-        f"  2. Auto-download to: {DEFAULT_CACHE_DIR / PHASE_DIAGRAM_FILENAME}\n"
-        f"  3. Fallback paths: {FALLBACK_PATHS}\n\n"
-        f"To fix:\n"
-        f"  - Set CRYSTALYSE_PPD_PATH environment variable to the file location\n"
-        f"  - Or ensure internet connection for auto-download\n"
-        f"  - Or manually download from: {FIGSHARE_URL}"
-    )
+# NOTE: An earlier revision of this module defined a ``FALLBACK_PATHS`` list
+# and a ``get_phase_diagram_path_with_fallbacks`` helper that searched a set of
+# hardcoded absolute paths under the packager's home directory (e.g.
+# ``/home/ryan/updatecrystalyse/…``). Those entries shipped into every PyPI
+# tarball and leaked the developer's username. They were also unsafe: on a
+# machine that happened to have a matching directory, a failed auto-download
+# would silently fall through to a pickle from a completely different checkout.
+#
+# The single supported resolution path is now ``get_phase_diagram_path()``:
+# explicit ``CRYSTALYSE_PPD_PATH`` (env var or argument), then the canonical
+# ``~/.cache/crystalyse/phase_diagrams/`` cache via auto-download. Anyone who
+# needs to point at an arbitrary location should set the env var.

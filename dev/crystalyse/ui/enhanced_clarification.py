@@ -12,7 +12,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------- Pydantic Models -----------------------
-class ExpertiseLevel(str, Enum):
+class ExpertiseLevel(StrEnum):
     NOVICE = "novice"
     INTERMEDIATE = "intermediate"
     EXPERT = "expert"
 
 
-class SuggestedMode(str, Enum):
+class SuggestedMode(StrEnum):
     CREATIVE = "creative"
     ADAPTIVE = "adaptive"
     RIGOROUS = "rigorous"

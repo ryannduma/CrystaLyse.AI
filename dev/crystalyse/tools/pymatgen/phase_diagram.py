@@ -40,20 +40,35 @@ def _load_phase_diagram() -> PhaseDiagram | None:
     if _PPD_DATA is not None:
         return _PPD_DATA
 
-    # Try to find the phase diagram file
-    from crystalyse.tools.downloader import ensure_phase_diagram_data, get_phase_diagram_path
+    # Try to find the phase diagram file.
+    #
+    # Resolution order (highest priority first):
+    #   1. CRYSTALYSE_PPD_PATH — explicit user override for any location
+    #   2. ~/.cache/crystalyse/… — canonical cache managed by downloader
+    #   3. <repo-root>/ppd-mp_all_entries_uncorrected_250409.pkl.gz — sibling of
+    #      pyproject.toml (i.e. CrystaLyse.AI/), so editable-installed developers
+    #      can drop a local copy inside their checkout without touching the cache
+    #   4. Auto-download into the cache (ensure_phase_diagram_data)
+    #
+    # Do NOT add absolute, user-specific, or checkout-specific paths here: they
+    # silently mask the cache when the user runs from a different checkout.
+    from crystalyse.tools.downloader import (
+        PHASE_DIAGRAM_FILENAME,
+        ensure_phase_diagram_data,
+        get_phase_diagram_path,
+    )
 
     cache_path = get_phase_diagram_path()
 
+    # Source-relative fallback: climb from this file up to the CrystaLyse.AI
+    # repo root (phase_diagram.py → pymatgen → tools → crystalyse → dev → repo).
+    repo_root = Path(__file__).resolve().parents[4]
+    repo_local_path = repo_root / PHASE_DIAGRAM_FILENAME
+
     possible_paths = [
-        cache_path,
-        "/home/ryan/updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        "/home/ryan/mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        Path(__file__).parent.parent.parent.parent.parent.parent
-        / "ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        Path.home() / "updatecrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
-        Path.home() / "mycrystalyse/CrystaLyse.AI/ppd-mp_all_entries_uncorrected_250409.pkl.gz",
         os.getenv("CRYSTALYSE_PPD_PATH", ""),
+        cache_path,
+        repo_local_path,
     ]
 
     for path in possible_paths:

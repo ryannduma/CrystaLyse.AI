@@ -192,6 +192,27 @@ openai-agents-python/
 *.pkl.gz
 icsd-scripts/
 
+# Reference checkouts of other projects (kept alongside CrystaLyse.AI for offline
+# reading / grepping). These must NOT be tracked or pushed. Paths are anchored
+# with a leading "/" so they only match the top of the repo — a legitimate
+# subpackage named e.g. `mace` deeper in the tree would still be tracked.
+/amset/
+/any-llm/
+/atomate2/
+/codex/
+/fireworks/
+/gemini-cli/
+/jobflow/
+/jobflow-remote/
+/litellm/
+/mace/
+/opencode/
+/optimade-python-tools/
+/pymatgen/
+/python-sdk/
+/skills/
+/synthesis-agent/
+
 # Chemeleon checkpoint files
 chemeleon_*.ckpt
 *.ckpt

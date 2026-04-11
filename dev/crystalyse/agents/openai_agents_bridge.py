@@ -226,7 +226,9 @@ class EnhancedCrystaLyseAgent:
                         workspace_tools.read_file,
                         workspace_tools.write_file,
                         workspace_tools.list_files,
-                        # NOTE: request_user_clarification removed - queries are pre-processed
+                        # No user-clarification tool here: the adaptive
+                        # clarification system in crystalyse.ui.enhanced_clarification
+                        # pre-processes queries before the agent runs.
                     ],
                     model_settings=ModelSettings(tool_choice="auto"),
                     mcp_servers=mcp_servers,
