@@ -1,0 +1,93 @@
+"""
+Smoke tests: top-level modules must be importable.
+
+These are not coverage theatre — they exist because issue #31
+(``ModuleNotFoundError: No module named 'crystalyse.workspace'``) manifested
+as ``crystalyse --help`` failing to import the CLI module at startup, and the
+test suite had no unit test that actually imported ``crystalyse.cli``. The
+bug therefore survived CI and made it into a PyPI release.
+
+Importing a module executes its top-level statements (imports, class
+definitions, module-level constants), which is enough to catch:
+
+- Missing subpackages dropped by setuptools packaging (the #31 failure mode).
+- Broken absolute imports after a file move.
+- Syntax errors introduced by auto-formatters or merge conflicts.
+- Missing runtime dependencies declared in wrong extras group.
+
+Each module gets its own test so a failure names the guilty party precisely.
+"""
+
+from __future__ import annotations
+
+import importlib
+
+import pytest
+
+# Modules that are on the startup path for ``crystalyse <command>``. If any of
+# these fail to import, the CLI is broken from the user's point of view.
+TOP_LEVEL_STARTUP_MODULES = [
+    # Entrypoint module registered in pyproject.toml [project.scripts].
+    "crystalyse.cli",
+    # Built and wired into the CLI's non-interactive discover flow.
+    "crystalyse.agents.openai_agents_bridge",
+    # Imported at module load by the CLI's chat experience.
+    "crystalyse.ui.enhanced_clarification",
+    # Registered as the agent's read_file/write_file/list_files tools.
+    "crystalyse.workspace.workspace_tools",
+]
+
+
+@pytest.mark.parametrize("module_name", TOP_LEVEL_STARTUP_MODULES)
+def test_top_level_module_imports(module_name: str) -> None:
+    """Importing must not raise — covers the entire CLI startup path."""
+    importlib.import_module(module_name)
+
+
+def test_cli_exposes_typer_app() -> None:
+    """The Typer app registered as the ``crystalyse`` console script must
+    actually be a ``typer.Typer`` instance. Guards against someone renaming
+    or accidentally removing the CLI entrypoint referenced in pyproject.toml
+    ``[project.scripts] crystalyse = "crystalyse.cli:main"``.
+    """
+    import typer
+
+    from crystalyse import cli
+
+    assert isinstance(cli.app, typer.Typer)
+    assert callable(cli.main)
+
+
+def test_agent_mode_strenum_values() -> None:
+    """``AgentMode`` is a StrEnum whose members behave as strings.
+
+    Regression guard for the UP042 migration in this PR: the previous
+    ``class AgentMode(str, Enum)`` pattern caused ``f"{mode}"`` to render as
+    ``"AgentMode.creative"`` instead of ``"creative"``. The switch to
+    ``StrEnum`` fixes that, and this test encodes the fix.
+    """
+    from crystalyse.cli import AgentMode
+
+    assert AgentMode.creative == "creative"
+    assert AgentMode.rigorous == "rigorous"
+    assert AgentMode.adaptive == "adaptive"
+    # StrEnum members render as their value, not as "AgentMode.<name>".
+    assert f"{AgentMode.creative}" == "creative"
+    assert str(AgentMode.rigorous) == "rigorous"
+
+
+def test_expertise_and_suggested_mode_strenum_values() -> None:
+    """``ExpertiseLevel`` and ``SuggestedMode`` got the same UP042 migration."""
+    from crystalyse.ui.enhanced_clarification import ExpertiseLevel, SuggestedMode
+
+    assert ExpertiseLevel.NOVICE == "novice"
+    assert ExpertiseLevel.INTERMEDIATE == "intermediate"
+    assert ExpertiseLevel.EXPERT == "expert"
+
+    assert SuggestedMode.CREATIVE == "creative"
+    assert SuggestedMode.ADAPTIVE == "adaptive"
+    assert SuggestedMode.RIGOROUS == "rigorous"
+
+    # Previously rendered as "SuggestedMode.CREATIVE" in Rich prompts — that
+    # was a latent display bug the StrEnum migration also fixed.
+    assert f"{SuggestedMode.CREATIVE}" == "creative"
