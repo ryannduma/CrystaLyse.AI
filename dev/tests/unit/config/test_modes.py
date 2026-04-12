@@ -235,10 +235,14 @@ class TestBehaviouralEquivalence:
             ("adaptive", "auto"),
         ],
     )
-    def test_old_and_new_get_same_model_default(self, old_name: str, new_name: str) -> None:
+    def test_old_and_new_get_same_model_default(
+        self, old_name: str, new_name: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Both old and new mode names resolve to the same default model."""
         from crystalyse.config.models import resolve_model_name
 
+        # resolve_model_name calls validate_env() which needs the API key
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake")
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             old_mode = resolve_mode_name(old_name)

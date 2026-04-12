@@ -52,9 +52,9 @@ class TestModelsList:
 
 
 class TestModelsCheck:
-    def test_models_check_with_openai_key_set(self) -> None:
+    def test_models_check_with_openai_key_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Acceptance criterion: with OPENAI_API_KEY set, OpenAI entries show OK."""
-        # OPENAI_API_KEY is set in the saturn env (verified by init.sh)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake")
         result = runner.invoke(app, ["models", "check"])
         # OpenAI entries should show as set
         assert "openai_o4_mini" in result.output
@@ -94,8 +94,9 @@ class TestModelsCheck:
 
 
 class TestModelFlagResolution:
-    def test_registry_name_resolves(self) -> None:
+    def test_registry_name_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A registry name should resolve to the model_id string."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake")
         result = resolve_model_name("openai_o4_mini")
         assert result == "o4-mini"
 
@@ -104,8 +105,9 @@ class TestModelFlagResolution:
         result = resolve_model_name("litellm/openrouter/anthropic/claude-opus-4.5")
         assert result == "litellm/openrouter/anthropic/claude-opus-4.5"
 
-    def test_mode_default_fallback(self) -> None:
+    def test_mode_default_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When name is None and mode is given, use MODE_DEFAULTS."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake")
         result = resolve_model_name(None, mode="validate")
         assert result == "o3"
 
