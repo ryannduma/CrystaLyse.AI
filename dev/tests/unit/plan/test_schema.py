@@ -440,6 +440,72 @@ Body text.
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Feature 2.2: Reference example plan round-trip
+# ---------------------------------------------------------------------------
+
+
+class TestReferenceExample:
+    """Feature 2.2: the spec's reference example plan file parses and round-trips."""
+
+    EXAMPLE_PATH = (
+        Path(__file__).resolve().parents[3]
+        / "crystalyse"
+        / "plan"
+        / "examples"
+        / "2026-04-12T14-30-00_quaternary-oxide-discovery.md"
+    )
+
+    def test_example_file_exists(self):
+        assert self.EXAMPLE_PATH.exists(), f"Reference example missing: {self.EXAMPLE_PATH}"
+
+    def test_example_parses(self):
+        plan = Plan.from_markdown(self.EXAMPLE_PATH)
+        assert plan.metadata.schema_version == "1.0"
+        assert plan.metadata.intended_mode == "validate"
+        assert plan.metadata.model == "openai_o3"
+        assert plan.metadata.budget.tool_scope == "chemistry_unified"
+        assert plan.metadata.budget.polymorph_count == 30
+
+    def test_example_query_hash_valid(self):
+        plan = Plan.from_markdown(self.EXAMPLE_PATH)
+        assert plan.metadata.query_hash == compute_query_hash(plan.metadata.query)
+
+    def test_example_body_has_expected_sections(self):
+        plan = Plan.from_markdown(self.EXAMPLE_PATH)
+        headings = [line for line in plan.body.splitlines() if line.startswith("## ")]
+        assert len(headings) >= 5
+        heading_text = " ".join(headings)
+        assert "Research" in heading_text
+        assert "validate" in heading_text.lower() or "Why" in heading_text
+        assert "Planned steps" in heading_text
+        assert "Assumptions" in heading_text
+
+    def test_example_round_trips(self, tmp_path):
+        """Serialize → re-parse → metadata and body match."""
+        original = Plan.from_markdown(self.EXAMPLE_PATH)
+        md = original.to_markdown()
+        tmp_file = tmp_path / "round-trip.md"
+        tmp_file.write_text(md, encoding="utf-8")
+
+        restored = Plan.from_markdown(tmp_file)
+        assert restored.metadata == original.metadata
+        assert restored.body.strip() == original.body.strip()
+
+    def test_example_filename_follows_naming_convention(self):
+        """Filename is <ISO timestamp>_<slug>.md."""
+        name = self.EXAMPLE_PATH.name
+        assert name.endswith(".md")
+        parts = name[:-3].split("_", 1)
+        assert len(parts) == 2, f"Expected <timestamp>_<slug>.md, got {name}"
+        timestamp_part, slug_part = parts
+        # timestamp should look like ISO-ish: YYYY-MM-DDTHH-MM-SS
+        assert len(timestamp_part) == 19
+        # slug should be lowercase hyphen-separated
+        assert slug_part == slug_part.lower()
+        assert " " not in slug_part
+
+
 class TestEdgeCases:
     def test_intended_mode_rejects_old_names(self):
         """Old mode names (creative/rigorous/adaptive) are not accepted."""
