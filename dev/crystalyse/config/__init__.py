@@ -60,8 +60,8 @@ class CrystaLyseConfig:
 
         # Mode-specific timeouts (keyed by canonical mode names)
         self.mode_timeouts = {
-            "explore": 120,   # 2 minutes for fast exploration
-            "auto": 180,      # 3 minutes for balanced approach
+            "explore": 120,  # 2 minutes for fast exploration
+            "auto": 180,  # 3 minutes for balanced approach
             "validate": 300,  # 5 minutes for comprehensive validation
         }
 
@@ -87,8 +87,7 @@ class CrystaLyseConfig:
         self.provenance = {
             "output_dir": Path(os.getenv("CRYSTALYSE_PROVENANCE_DIR", "./provenance_output")),
             "capture_raw": os.getenv("CRYSTALYSE_CAPTURE_RAW", "true").lower() == "true",
-            "capture_mcp_logs": os.getenv("CRYSTALYSE_CAPTURE_MCP_LOGS", "false").lower()
-            == "true",
+            "capture_mcp_logs": os.getenv("CRYSTALYSE_CAPTURE_MCP_LOGS", "false").lower() == "true",
             "session_prefix": os.getenv("CRYSTALYSE_SESSION_PREFIX", "crystalyse"),
             "show_summary": os.getenv("CRYSTALYSE_SHOW_PROVENANCE_SUMMARY", "true").lower()
             == "true",

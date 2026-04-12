@@ -11,13 +11,12 @@ from unittest import mock
 import pytest
 
 from crystalyse.config.models import (
-    MODEL_REGISTRY,
     MODE_DEFAULTS,
+    MODEL_REGISTRY,
     ModelBackend,
     ModelConfig,
     resolve_model_name,
 )
-
 
 # ---------------------------------------------------------------------------
 # Registry import and structure

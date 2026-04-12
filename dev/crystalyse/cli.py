@@ -30,7 +30,7 @@ from rich.text import Text
 
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
-from crystalyse.config.models import MODEL_REGISTRY, resolve_model_name
+from crystalyse.config.models import MODEL_REGISTRY
 from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 from crystalyse.ui.chat_ui import ChatExperience
 from crystalyse.workspace import workspace_tools
@@ -231,13 +231,9 @@ def models_check():
             continue
 
         if os.getenv(cfg.api_key_env_var):
-            console.print(
-                f"  [green]✓[/green] {cfg.name} — {cfg.api_key_env_var} is set"
-            )
+            console.print(f"  [green]✓[/green] {cfg.name} — {cfg.api_key_env_var} is set")
         else:
-            console.print(
-                f"  [red]✗[/red] {cfg.name} — {cfg.api_key_env_var} is NOT set"
-            )
+            console.print(f"  [red]✗[/red] {cfg.name} — {cfg.api_key_env_var} is NOT set")
             any_missing = True
 
     if any_missing:
@@ -267,7 +263,9 @@ def discover(
         False, "--hide-summary", help="Hide provenance summary table (data still captured)"
     ),
     mode: str | None = typer.Option(
-        None, "--mode", help="Agent operating mode (explore, validate, auto; or legacy: creative, rigorous, adaptive)."
+        None,
+        "--mode",
+        help="Agent operating mode (explore, validate, auto; or legacy: creative, rigorous, adaptive).",
     ),
     project: str | None = typer.Option(
         None, "--project", "-p", help="Project name for workspace (overrides global option)."
@@ -527,7 +525,10 @@ def main_callback(
         "crystalyse_session", "-p", "--project", help="Project name for workspace."
     ),
     mode: str = typer.Option(
-        "auto", "--mode", help="Agent operating mode (explore, validate, auto).", case_sensitive=False
+        "auto",
+        "--mode",
+        help="Agent operating mode (explore, validate, auto).",
+        case_sensitive=False,
     ),
     model: str | None = typer.Option(None, "--model", help="Language model to use."),
     version: bool | None = typer.Option(

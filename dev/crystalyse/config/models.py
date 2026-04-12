@@ -92,9 +92,8 @@ class ModelConfig:
         if self.backend is ModelBackend.OPENAI_COMPATIBLE:
             # Lazy import: only needed for OPENAI_COMPATIBLE entries, and
             # avoids pulling openai into the module scope on plain imports.
-            from openai import AsyncOpenAI
-
             from agents import OpenAIChatCompletionsModel
+            from openai import AsyncOpenAI
 
             client = AsyncOpenAI(
                 base_url=self.base_url,
@@ -225,9 +224,7 @@ def resolve_model_name(
             raise ValueError("resolve_model_name() needs either a model name or a mode.")
         default_name = MODE_DEFAULTS.get(mode)
         if default_name is None:
-            raise ValueError(
-                f"Unknown mode {mode!r}.  Valid modes: {sorted(MODE_DEFAULTS)}"
-            )
+            raise ValueError(f"Unknown mode {mode!r}.  Valid modes: {sorted(MODE_DEFAULTS)}")
         return resolve_model_name(default_name)
 
     if isinstance(name_or_config, ModelConfig):

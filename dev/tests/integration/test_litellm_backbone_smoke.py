@@ -20,6 +20,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+# Guard: skip entire module if litellm is not installed (CI installs [dev]
+# extras only, not [litellm]).  This avoids ModuleNotFoundError at import
+# time when the SDK's LitellmModel tries to `import litellm`.
+litellm = pytest.importorskip(
+    "litellm", reason="litellm not installed — install with pip install 'crystalyse[litellm]'"
+)
+
 # ---------------------------------------------------------------------------
 # Import-smoke tests
 # ---------------------------------------------------------------------------
@@ -81,7 +88,9 @@ class TestResolverAgentIntegration:
         agent = Agent(name="smoke", model=resolved, instructions="test")
         assert agent.model == resolved
 
-    def test_litellm_prefix_produces_agent_compatible_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_litellm_prefix_produces_agent_compatible_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """resolve_model_name for a LiteLLM entry produces a 'litellm/...' string."""
         from agents import Agent
 
@@ -135,9 +144,7 @@ class TestMockedLitellmResponse:
             usage=usage,
         )
 
-    async def test_agent_with_litellm_model_runs_one_turn(
-        self, mock_litellm_response
-    ) -> None:
+    async def test_agent_with_litellm_model_runs_one_turn(self, mock_litellm_response) -> None:
         """Create an Agent with LitellmModel, mock acompletion, run one turn.
 
         This is the load-bearing test: it confirms the full pipeline from
@@ -169,9 +176,7 @@ class TestMockedLitellmResponse:
             # Verify we got a result back through the pipeline
             assert result.final_output is not None
 
-    async def test_resolver_to_litellm_model_pipeline(
-        self, mock_litellm_response
-    ) -> None:
+    async def test_resolver_to_litellm_model_pipeline(self, mock_litellm_response) -> None:
         """Full pipeline: resolve_model_name → LitellmModel → Agent → run."""
         from agents import Agent, Runner
         from agents.extensions.models.litellm_model import LitellmModel
@@ -180,8 +185,6 @@ class TestMockedLitellmResponse:
 
         # Resolve a LiteLLM-backed registry entry
         cfg = MODEL_REGISTRY["anthropic_claude_opus"]
-        resolved = cfg.resolve.__wrapped__(cfg) if hasattr(cfg.resolve, "__wrapped__") else None
-
         # Build the model manually (resolve() would check env var)
         model = LitellmModel(model=f"litellm/{cfg.model_id}")
         agent = Agent(
@@ -193,12 +196,14 @@ class TestMockedLitellmResponse:
         with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acomp:
             mock_acomp.return_value = mock_litellm_response
 
-            result = await Runner.run(agent, input="Test", max_turns=1)
+            await Runner.run(agent, input="Test", max_turns=1)
 
             assert mock_acomp.called
             # Verify the model string passed to litellm includes the provider prefix
             call_kwargs = mock_acomp.call_args
-            called_model = call_kwargs.kwargs.get("model") or call_kwargs.args[0] if call_kwargs.args else None
+            called_model = (
+                call_kwargs.kwargs.get("model") or call_kwargs.args[0] if call_kwargs.args else None
+            )
             if called_model:
                 assert "anthropic" in called_model.lower() or "litellm" in called_model.lower()
 

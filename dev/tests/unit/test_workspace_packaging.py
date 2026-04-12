@@ -109,9 +109,7 @@ class TestWorkspaceToolsSurface:
     )
     def test_clarification_models_present(self, workspace_tools, attr: str) -> None:
         """These models are part of the workspace tools public API."""
-        assert hasattr(workspace_tools, attr), (
-            f"workspace_tools.{attr} missing"
-        )
+        assert hasattr(workspace_tools, attr), f"workspace_tools.{attr} missing"
 
     @pytest.mark.parametrize(
         "attr",

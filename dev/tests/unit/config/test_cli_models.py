@@ -9,8 +9,6 @@ Covers acceptance criteria from spec §4.6:
 
 from __future__ import annotations
 
-import os
-
 import pytest
 from typer.testing import CliRunner
 
@@ -35,9 +33,7 @@ class TestModelsList:
         result = runner.invoke(app, ["models", "list"])
         # Every registry entry name should appear in the output
         for name in MODEL_REGISTRY:
-            assert name in result.output, (
-                f"Registry entry {name!r} not found in models list output"
-            )
+            assert name in result.output, f"Registry entry {name!r} not found in models list output"
 
     def test_models_list_shows_backend_values(self) -> None:
         result = runner.invoke(app, ["models", "list"])

@@ -96,8 +96,7 @@ def ensure_crystalyse_root(
 
     if not create_if_missing:
         raise FileNotFoundError(
-            "No .crystalyse/ directory found. "
-            "Run 'crystalyse init' or pass create_if_missing=True."
+            "No .crystalyse/ directory found. Run 'crystalyse init' or pass create_if_missing=True."
         )
 
     target = (base or Path.cwd()).resolve()
@@ -143,9 +142,7 @@ def _scaffold_crystalyse_dir(project_root: Path) -> Path:
     # Write an empty config.toml if none exists.
     config_toml = crystalyse_dir / "config.toml"
     if not config_toml.exists():
-        config_toml.write_text(
-            "# CrystaLyse project settings — see docs/configuration.md\n"
-        )
+        config_toml.write_text("# CrystaLyse project settings — see docs/configuration.md\n")
 
     logger.info("Created .crystalyse/ directory at %s", crystalyse_dir)
     return project_root

@@ -421,8 +421,11 @@ class SlashCommandHandler:
                 style = "bold green" if is_current else "dim"
                 marker = "→ " if is_current else "  "
                 model_table.add_row(
-                    f"{marker}{cfg.name}", cfg.backend.value,
-                    cfg.model_id, usable, style=style,
+                    f"{marker}{cfg.name}",
+                    cfg.backend.value,
+                    cfg.model_id,
+                    usable,
+                    style=style,
                 )
 
             mode_info = f"Current: {current_model or 'auto'} (mode: {current_mode})"

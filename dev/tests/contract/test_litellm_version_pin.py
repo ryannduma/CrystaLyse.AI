@@ -92,7 +92,6 @@ def _litellm_dep_specs_in(path: Path) -> list[str]:
     specs: list[str] = []
 
     in_litellm_extra = False
-    bracket_depth = 0
 
     for raw_line in text.splitlines():
         stripped = raw_line.lstrip()
@@ -105,7 +104,6 @@ def _litellm_dep_specs_in(path: Path) -> list[str]:
         # Detect entry into the litellm extras block
         if re.match(r"^\s*litellm\s*=\s*\[", raw_line):
             in_litellm_extra = True
-            bracket_depth = 1
             # The opening bracket is on this line; check for deps on same line
             for match in _LITELLM_DEP_RE.finditer(raw_line):
                 specs.append(match.group("spec"))
@@ -133,8 +131,7 @@ def test_litellm_dep_discovery_finds_something() -> None:
     assert dev_py.exists(), f"dev/pyproject.toml not found at {dev_py}"
     specs = _litellm_dep_specs_in(dev_py)
     assert specs, (
-        f"no litellm dep parsed from the [litellm] extra in {dev_py} — "
-        f"regex or layout drifted"
+        f"no litellm dep parsed from the [litellm] extra in {dev_py} — regex or layout drifted"
     )
 
 
@@ -152,10 +149,7 @@ def test_litellm_version_pin(pyproject_path: Path) -> None:
     """
     text = pyproject_path.read_text()
     if not _has_litellm_extra(text):
-        pytest.skip(
-            f"no [litellm] extra in "
-            f"{pyproject_path.relative_to(PROJECT_ROOT)}"
-        )
+        pytest.skip(f"no [litellm] extra in {pyproject_path.relative_to(PROJECT_ROOT)}")
 
     specs = _litellm_dep_specs_in(pyproject_path)
     assert specs, (

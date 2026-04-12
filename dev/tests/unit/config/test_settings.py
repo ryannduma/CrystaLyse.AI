@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from crystalyse.config.settings import CrystalyseSettings, load_settings
+import pytest
 
+from crystalyse.config.settings import CrystalyseSettings, load_settings
 
 # ---------------------------------------------------------------------------
 # CrystalyseSettings defaults
@@ -47,11 +48,8 @@ class TestCrystalyseSettingsDefaults:
 
         assert dataclasses.is_dataclass(s)
         # Frozen dataclass raises FrozenInstanceError on assignment
-        try:
+        with pytest.raises(AttributeError):
             s.default_model = "something"  # type: ignore[misc]
-            assert False, "Should have raised"
-        except AttributeError:
-            pass  # Expected: frozen dataclass
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +111,7 @@ class TestLoadSettingsProjectConfig:
         crystalyse_dir = tmp_path / ".crystalyse"
         crystalyse_dir.mkdir()
         (crystalyse_dir / "config.toml").write_text(
-            'default_model = "openai_o3"\n'
-            'unknown_key = "ignored"\n'
+            'default_model = "openai_o3"\nunknown_key = "ignored"\n'
         )
 
         s = load_settings(
@@ -136,8 +133,7 @@ class TestLoadSettingsUserConfig:
         user_crystalyse = user_home / ".crystalyse"
         user_crystalyse.mkdir(parents=True)
         (user_crystalyse / "config.toml").write_text(
-            'default_model = "user_model"\n'
-            "plans_cleanup_days = 14\n"
+            'default_model = "user_model"\nplans_cleanup_days = 14\n'
         )
 
         s = load_settings(
@@ -163,17 +159,14 @@ class TestLoadSettingsPrecedence:
         user_crystalyse = user_home / ".crystalyse"
         user_crystalyse.mkdir(parents=True)
         (user_crystalyse / "config.toml").write_text(
-            'default_model = "user_model"\n'
-            'default_mode = "auto"\n'
-            "plans_cleanup_days = 14\n"
+            'default_model = "user_model"\ndefault_mode = "auto"\nplans_cleanup_days = 14\n'
         )
 
         # Project config (overrides user for model and cleanup_days)
         project_crystalyse = tmp_path / "project" / ".crystalyse"
         project_crystalyse.mkdir(parents=True)
         (project_crystalyse / "config.toml").write_text(
-            'default_model = "project_model"\n'
-            "plans_cleanup_days = 3\n"
+            'default_model = "project_model"\nplans_cleanup_days = 3\n'
         )
 
         s = load_settings(
@@ -192,15 +185,11 @@ class TestLoadSettingsPrecedence:
         """If both set the same key, project always wins."""
         user_home = tmp_path / "home"
         (user_home / ".crystalyse").mkdir(parents=True)
-        (user_home / ".crystalyse" / "config.toml").write_text(
-            'plan_mode = "off"\n'
-        )
+        (user_home / ".crystalyse" / "config.toml").write_text('plan_mode = "off"\n')
 
         project = tmp_path / "proj"
         (project / ".crystalyse").mkdir(parents=True)
-        (project / ".crystalyse" / "config.toml").write_text(
-            'plan_mode = "on"\n'
-        )
+        (project / ".crystalyse" / "config.toml").write_text('plan_mode = "on"\n')
 
         s = load_settings(project_root=project, user_home=user_home)
         assert s.plan_mode == "on"

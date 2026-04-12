@@ -43,9 +43,9 @@ MODE_MCP_SERVERS: dict[Mode, str] = {
 
 # Per-mode timeout defaults (seconds).
 MODE_TIMEOUTS: dict[Mode, int] = {
-    Mode.EXPLORE: 120,   # 2 minutes for fast exploration
+    Mode.EXPLORE: 120,  # 2 minutes for fast exploration
     Mode.VALIDATE: 300,  # 5 minutes for comprehensive validation
-    Mode.AUTO: 180,      # 3 minutes for balanced approach
+    Mode.AUTO: 180,  # 3 minutes for balanced approach
 }
 
 
@@ -63,9 +63,7 @@ def resolve_mode_name(user_input: str) -> Mode:
 
     if mode is None:
         valid = sorted(MODE_ALIASES.keys())
-        raise ValueError(
-            f"Unknown mode {user_input!r}. Valid modes: {', '.join(valid)}"
-        )
+        raise ValueError(f"Unknown mode {user_input!r}. Valid modes: {', '.join(valid)}")
 
     if key in _DEPRECATED_ALIASES:
         warnings.warn(

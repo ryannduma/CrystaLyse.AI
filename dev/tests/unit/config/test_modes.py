@@ -15,14 +15,13 @@ import warnings
 import pytest
 
 from crystalyse.config.modes import (
+    _DEPRECATED_ALIASES,
     MODE_ALIASES,
     MODE_MCP_SERVERS,
     MODE_TIMEOUTS,
     Mode,
-    _DEPRECATED_ALIASES,
     resolve_mode_name,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mode enum basics

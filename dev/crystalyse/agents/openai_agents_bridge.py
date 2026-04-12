@@ -212,7 +212,8 @@ class EnhancedCrystaLyseAgent:
                 from ..config.models import resolve_model_name as _resolve_model
 
                 selected_model = (
-                    _resolve_model(self.model) if self.model
+                    _resolve_model(self.model)
+                    if self.model
                     else self._select_model_for_mode(self.mode)
                 )
 

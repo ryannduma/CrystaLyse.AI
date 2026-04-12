@@ -88,11 +88,11 @@ def _openai_agents_dep_specs_in(path: Path) -> list[str]:
         if stripped.startswith("#"):
             continue
         # Detect TOML section/key transitions
-        if re.match(r'^keywords\s*=', stripped):
+        if re.match(r"^keywords\s*=", stripped):
             in_keywords = True
             continue
         # A new key assignment or section header exits keywords context
-        if in_keywords and (re.match(r'^\w', stripped) or stripped.startswith('[')):
+        if in_keywords and (re.match(r"^\w", stripped) or stripped.startswith("[")):
             in_keywords = False
         if in_keywords:
             continue
@@ -126,10 +126,7 @@ def test_openai_agents_version_pin(pyproject_path: Path) -> None:
     """
     specs = _openai_agents_dep_specs_in(pyproject_path)
     if not specs:
-        pytest.skip(
-            f"no openai-agents dep in "
-            f"{pyproject_path.relative_to(PROJECT_ROOT)}"
-        )
+        pytest.skip(f"no openai-agents dep in {pyproject_path.relative_to(PROJECT_ROOT)}")
 
     for spec in specs:
         assert EXPECTED_FLOOR in spec, (

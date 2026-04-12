@@ -14,13 +14,11 @@ from pathlib import Path
 import pytest
 
 from crystalyse.config.workspace import (
-    _GITIGNORE_TEMPLATE,
     _SCAFFOLD_DIRS,
     _scaffold_crystalyse_dir,
     ensure_crystalyse_root,
     find_crystalyse_root,
 )
-
 
 # ---------------------------------------------------------------------------
 # find_crystalyse_root
@@ -138,9 +136,7 @@ class TestEnsureCrystalyseRoot:
     def test_creates_silently_when_non_interactive(self, tmp_path: Path) -> None:
         """Acceptance criterion: ensure_crystalyse_root(interactive=False)
         creates the directory silently (for non-interactive/CI runs)."""
-        result = ensure_crystalyse_root(
-            base=tmp_path, interactive=False, create_if_missing=True
-        )
+        result = ensure_crystalyse_root(base=tmp_path, interactive=False, create_if_missing=True)
         assert result == tmp_path
         assert (tmp_path / ".crystalyse").is_dir()
         assert (tmp_path / ".crystalyse" / "config.toml").is_file()
@@ -148,9 +144,7 @@ class TestEnsureCrystalyseRoot:
 
     def test_raises_when_create_if_missing_false(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError, match="No .crystalyse/ directory found"):
-            ensure_crystalyse_root(
-                base=tmp_path, create_if_missing=False
-            )
+            ensure_crystalyse_root(base=tmp_path, create_if_missing=False)
 
     def test_walks_upward_before_creating(self, tmp_path: Path) -> None:
         """If a parent has .crystalyse/, don't create a new one."""

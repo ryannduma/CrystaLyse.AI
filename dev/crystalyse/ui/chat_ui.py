@@ -15,7 +15,6 @@ from crystalyse.ui.ascii_art import get_responsive_logo
 from crystalyse.ui.provenance_bridge import PROVENANCE_AVAILABLE, CrystaLyseProvenanceHandler
 from crystalyse.ui.slash_commands import SlashCommandHandler
 from crystalyse.ui.trace_handler import ToolTraceHandler
-from crystalyse.workspace import workspace_tools
 
 logger = logging.getLogger(__name__)
 

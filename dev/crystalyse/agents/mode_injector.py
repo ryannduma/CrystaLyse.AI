@@ -160,5 +160,3 @@ THE CURRENT SESSION MODE IS: {mode.upper()}
 """
 
     return base_instructions + mode_enforcement
-
-
