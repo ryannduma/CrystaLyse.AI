@@ -105,3 +105,94 @@ def build_research_agent(
     )
 
     return agent, exit_tool
+
+
+async def enter_research_phase(
+    query: str,
+    model_name: str,
+    plans_dir: Path,
+    budget: ResearchPhaseBudget | None = None,
+) -> ResearchPhaseResult:
+    """Run the research phase end-to-end: build agent, run it, return the plan.
+
+    The agent writes a plan file to *plans_dir* via ``write_file`` and
+    calls ``exit_plan_mode`` to signal completion.  This driver builds
+    the agent, runs it with budget constraints, and parses the resulting
+    plan from disk.
+
+    Parameters
+    ----------
+    query:
+        The user's original query.
+    model_name:
+        Model name (resolved or raw passthrough).
+    plans_dir:
+        The ``.crystalyse/plans/`` directory.  Created if it doesn't exist.
+    budget:
+        Soft budget limits.  Defaults to ``ResearchPhaseBudget()``.
+
+    Returns
+    -------
+    ResearchPhaseResult
+        Contains the parsed ``Plan`` on success, or error details on failure.
+    """
+    import asyncio
+
+    from agents import Runner
+
+    if budget is None:
+        budget = ResearchPhaseBudget()
+
+    plans_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build the agent
+    try:
+        agent, _exit_tool = build_research_agent(query, model_name, plans_dir)
+    except Exception as exc:
+        return ResearchPhaseResult(
+            plan=None, exit_status="error", errors=[f"Failed to build research agent: {exc}"]
+        )
+
+    # Run the agent with budget constraints.
+    # max_turns maps to budget.max_tool_calls (each tool call is ~1 turn).
+    # Wall-time is enforced via asyncio timeout.
+    try:
+        await asyncio.wait_for(
+            Runner.run(
+                starting_agent=agent,
+                input=f"Create a plan for: {query}",
+                max_turns=budget.max_tool_calls,
+            ),
+            timeout=budget.max_wall_time_seconds,
+        )
+    except TimeoutError:
+        # Budget exceeded — try to find whatever partial plan exists
+        pass
+    except Exception as exc:
+        return ResearchPhaseResult(
+            plan=None, exit_status="error", errors=[f"Research phase runner failed: {exc}"]
+        )
+
+    # Find the most recent plan file in plans_dir
+    plan_files = sorted(plans_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    # Skip latest.md symlink
+    plan_files = [p for p in plan_files if not (p.name == "latest.md" and p.is_symlink())]
+
+    if not plan_files:
+        return ResearchPhaseResult(
+            plan=None,
+            exit_status="error",
+            errors=["Research phase completed but no plan file was written to plans directory"],
+        )
+
+    # Parse the newest plan
+    try:
+        plan = Plan.from_markdown(plan_files[0])
+    except (ValueError, Exception) as exc:
+        return ResearchPhaseResult(
+            plan=None,
+            exit_status="error",
+            errors=[f"Plan file exists but failed to parse: {exc}"],
+        )
+
+    return ResearchPhaseResult(plan=plan, exit_status="plan_ready")

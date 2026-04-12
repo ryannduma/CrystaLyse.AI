@@ -359,20 +359,61 @@ def discover(
         return
 
     # --- Plan mode heuristic ---
-    if plan is not None or plan is None:
-        # Determine if plan mode should activate
-        from crystalyse.config.settings import load_settings
-        from crystalyse.plan.heuristic import should_auto_enter_plan_mode
+    from crystalyse.config.settings import load_settings
+    from crystalyse.plan.heuristic import should_auto_enter_plan_mode
 
-        settings = load_settings()
-        use_plan_mode = should_auto_enter_plan_mode(query, settings, cli_plan_flag=plan)
-        if use_plan_mode:
-            console.print("[cyan]📋 Plan mode activated[/cyan]")
-            console.print(
-                "[dim]The query will go through a research phase before execution.[/dim]\n"
-            )
-            # TODO: Wire research phase → plan creation → approval → execution
-            # For now, fall through to normal discovery
+    settings = load_settings()
+    use_plan_mode = should_auto_enter_plan_mode(query, settings, cli_plan_flag=plan)
+    if use_plan_mode:
+        from crystalyse.config.workspace import find_crystalyse_root
+        from crystalyse.plan.commands import is_plan_auto_approvable
+        from crystalyse.plan.research_phase import enter_research_phase
+
+        console.print("[cyan]📋 Plan mode activated[/cyan]")
+        console.print("[dim]The query will go through a research phase before execution.[/dim]\n")
+
+        root = find_crystalyse_root() or Path(".")
+        plans_dir = root / ".crystalyse" / "plans"
+        model_name = state["model"] or "openai_o4_mini"
+
+        async def _run_research():
+            return await enter_research_phase(query, model_name, plans_dir)
+
+        research_result = asyncio.run(_run_research())
+
+        if research_result.plan is None:
+            console.print("[red]Research phase failed:[/red]")
+            for err in research_result.errors:
+                console.print(f"  [red]• {err}[/red]")
+            raise typer.Exit(code=1)
+
+        generated_plan = research_result.plan
+        console.print(f"[green]✓ Plan generated:[/green] {generated_plan.path.name}")
+        console.print(
+            f"[dim]Mode: {generated_plan.metadata.intended_mode} | "
+            f"Budget: {generated_plan.metadata.budget.polymorph_count} polymorphs, "
+            f"{generated_plan.metadata.budget.tool_scope}[/dim]\n"
+        )
+
+        # Auto-approve check if flag is set
+        if auto_approve_plan:
+            approvable, reasons = is_plan_auto_approvable(generated_plan, force=force)
+            if not approvable:
+                console.print("[red]Plan exceeds auto-approval thresholds:[/red]")
+                for reason in reasons:
+                    console.print(f"  [red]• {reason}[/red]")
+                console.print("[yellow]Use --force to override, or approve interactively.[/yellow]")
+                raise typer.Exit(code=1)
+            console.print("[green]✓ Plan auto-approved (within budget thresholds)[/green]\n")
+        else:
+            # Non-interactive: show the plan and exit (user must re-run with --plan-file)
+            console.print("[cyan]Plan written. To execute, re-run with:[/cyan]")
+            console.print(f'  crystalyse discover "{query}" --plan-file {generated_plan.path}')
+            return
+
+        # TODO: Execute the approved plan against the agent
+        console.print("[yellow]Plan approved — execution wiring deferred to PR 5.[/yellow]")
+        return
 
     console.print(f"[cyan]Starting non-interactive discovery:[/cyan] {query}")
     console.print(f"[dim]Mode: {effective_mode.value} | Project: {effective_project}[/dim]\n")
