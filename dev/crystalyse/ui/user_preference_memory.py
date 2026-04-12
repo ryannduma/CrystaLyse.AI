@@ -45,7 +45,7 @@ class UserProfile:
 
     # Preference tracking
     preferred_clarification_style: str = "focused_questions"
-    preferred_mode: str = "adaptive"
+    preferred_mode: str = "auto"
     speed_preference: float = 0.5  # 0.0=thorough, 1.0=fast
 
     # Usage patterns
@@ -196,7 +196,7 @@ class UserPreferenceMemory:
         # Start with defaults
         strategy = {
             "clarification_method": "focused_questions",
-            "initial_mode": "adaptive",
+            "initial_mode": "auto",
             "confidence_threshold": 0.75,
             "skip_clarification": False,
             "personalization_confidence": 0.0,
@@ -239,10 +239,10 @@ class UserPreferenceMemory:
 
         # Adjust for speed preferences
         if profile.speed_preference > 0.8:
-            strategy["initial_mode"] = "creative"
+            strategy["initial_mode"] = "explore"
             strategy["skip_clarification"] = True
         elif profile.speed_preference < 0.2:
-            strategy["initial_mode"] = "rigorous"
+            strategy["initial_mode"] = "validate"
 
         logger.info(f"Personalized strategy for {user_id}: {strategy}")
         return strategy

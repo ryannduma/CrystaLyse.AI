@@ -6,7 +6,6 @@ import asyncio
 import logging
 import sys
 import warnings
-from enum import StrEnum
 from pathlib import Path
 
 # Suppress specific e3nn warning about weights_only parameter
@@ -31,6 +30,7 @@ from rich.text import Text
 
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
+from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 from crystalyse.ui.chat_ui import ChatExperience
 from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
 from crystalyse.workspace import workspace_tools
@@ -47,17 +47,14 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
-# --- Type Enums for CLI choices ---
-class AgentMode(StrEnum):
-    creative = "creative"
-    rigorous = "rigorous"
-    adaptive = "adaptive"
+# All accepted mode strings for CLI help text.
+_VALID_MODE_STRINGS = sorted(MODE_ALIASES.keys())
 
 
 # --- State for global options ---
-state = {
+state: dict = {
     "project": "crystalyse_session",
-    "mode": AgentMode.adaptive,
+    "mode": Mode.AUTO,
     "model": None,
     "query": "",
 }
@@ -115,7 +112,7 @@ async def non_interactive_clarification(request: workspace_tools.ClarificationRe
         # Simulate guided discovery responses
         simulated_answers = {
             "approach_preference": "explore",
-            "_mode": "creative",
+            "_mode": Mode.EXPLORE.value,
             "_method": "guided_discovery_simulated",
             "_user_type": "novice",
         }
@@ -256,8 +253,8 @@ def discover(
     hide_summary: bool = typer.Option(
         False, "--hide-summary", help="Hide provenance summary table (data still captured)"
     ),
-    mode: AgentMode | None = typer.Option(
-        None, "--mode", help="Agent operating mode (overrides global option)."
+    mode: str | None = typer.Option(
+        None, "--mode", help="Agent operating mode (explore, validate, auto; or legacy: creative, rigorous, adaptive)."
     ),
     project: str | None = typer.Option(
         None, "--project", "-p", help="Project name for workspace (overrides global option)."
@@ -273,10 +270,10 @@ def discover(
         crystalyse discover "Find stable perovskites"
         crystalyse discover "Predict Li-ion cathodes" --provenance-dir ./my_research
         crystalyse discover "Quick test" --hide-summary
-        crystalyse discover "Analysis" --mode rigorous
+        crystalyse discover "Analysis" --mode validate
     """
     # Determine effective mode and project (local overrides global)
-    effective_mode = mode if mode is not None else state["mode"]
+    effective_mode = resolve_mode_name(mode) if mode is not None else state["mode"]
     effective_project = project if project is not None else state["project"]
 
     console.print(f"[cyan]Starting non-interactive discovery:[/cyan] {query}")
@@ -571,8 +568,8 @@ def main_callback(
     project: str = typer.Option(
         "crystalyse_session", "-p", "--project", help="Project name for workspace."
     ),
-    mode: AgentMode = typer.Option(
-        AgentMode.adaptive, "--mode", help="Agent operating mode.", case_sensitive=False
+    mode: str = typer.Option(
+        "auto", "--mode", help="Agent operating mode (explore, validate, auto).", case_sensitive=False
     ),
     model: str | None = typer.Option(None, "--model", help="Language model to use."),
     version: bool | None = typer.Option(
@@ -588,7 +585,7 @@ def main_callback(
     Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorganic Materials Design
     """
     state["project"] = project
-    state["mode"] = mode
+    state["mode"] = resolve_mode_name(mode)
     state["model"] = model
 
     # Configure logging

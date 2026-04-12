@@ -25,7 +25,7 @@ class SessionContext:
     created_at: float
     last_accessed: float
     query_count: int
-    mode: str  # "rigorous" or "creative"
+    mode: str  # "validate", "explore", or "auto"
 
     # Material discovery context
     discovered_materials: list

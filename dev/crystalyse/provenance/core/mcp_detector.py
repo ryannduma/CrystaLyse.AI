@@ -81,8 +81,8 @@ class MCPDetector:
                 elif data["server_type"] == "chemistry-unified-server":
                     return "comprehensive_materials_analysis"
 
-            # Check analysis mode for creative pipeline
-            if data.get("analysis_mode") == "creative":
+            # Check analysis mode for creative/explore pipeline
+            if data.get("analysis_mode") in ("explore", "creative"):
                 return "creative_discovery_pipeline"
 
             # Match against known signatures

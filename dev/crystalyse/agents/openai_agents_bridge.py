@@ -33,6 +33,7 @@ except ImportError as e:
     logging.warning(f"OpenAI Agents SDK not available: {e}")
 
 from ..config import Config
+from ..config.modes import MODE_MCP_SERVERS, resolve_mode_name
 from ..ui.trace_handler import ToolTraceHandler
 from ..workspace import workspace_tools
 from .mode_injector import (
@@ -62,12 +63,12 @@ class EnhancedCrystaLyseAgent:
         self,
         config: Config | None = None,
         project_name: str = "crystalyse_session",
-        mode: str = "adaptive",
+        mode: str = "auto",
         model: str | None = None,
     ):
         self.config = config or Config.load()
         self.project_name = project_name
-        self.mode = mode
+        self.mode = resolve_mode_name(mode).value
         self.model = model
         self.session_id = f"{project_name}_{mode}"
 
@@ -132,12 +133,10 @@ class EnhancedCrystaLyseAgent:
         servers = []
         stack = AsyncExitStack()
         try:
-            server_configs = {
-                "creative": "chemistry_creative",
-                "rigorous": "chemistry_unified",
-                "adaptive": "chemistry_unified",
-            }
-            chem_server_name = server_configs.get(self.mode, "chemistry_unified")
+            from ..config.modes import Mode
+
+            mode_enum = Mode(self.mode)
+            chem_server_name = MODE_MCP_SERVERS.get(mode_enum, "chemistry_unified")
 
             # Start Servers
             for server_name in [chem_server_name, "visualization"]:
@@ -404,7 +403,9 @@ class EnhancedCrystaLyseAgent:
                 return {"status": "failed", "error": str(e), "query": query}
 
     def _select_model_for_mode(self, mode: str) -> str:
-        return {"creative": "o4-mini", "rigorous": "o3", "adaptive": "o4-mini"}.get(mode, "o4-mini")
+        from ..config.models import resolve_model_name
+
+        return resolve_model_name(None, mode=mode)
 
     def _create_enhanced_instructions(self, mode: str, history: list[dict[str, Any]] | None) -> str:
         """Creates enhanced system instructions, now including conversation history."""
@@ -420,16 +421,10 @@ class EnhancedCrystaLyseAgent:
                 "You are CrystaLyse, an advanced autonomous materials discovery agent."
             )
 
-        mode_enhancements = {
-            "creative": '\n## Creative Mode: Focus on rapid exploration and novel ideas.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="creative" - the tool will FAIL without it!',
-            "rigorous": '\n## Rigorous Mode: Focus on comprehensive validation and accuracy.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="rigorous" - the tool will FAIL without it!',
-            "adaptive": '\n## Adaptive Mode: Balance exploration and validation based on context.\n**CRITICAL ERROR PREVENTION**: comprehensive_materials_analysis REQUIRES mode="adaptive" - the tool will FAIL without it!',
-        }
-
         if history:
             history_str = "\n\n## Conversation History\n"
             for msg in history:
                 history_str += f"- {msg['role'].title()}: {msg['content']}\n"
             base_instructions += history_str
 
-        return base_instructions + mode_enhancements.get(mode, "")
+        return base_instructions

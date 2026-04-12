@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from crystalyse.config import Config
+from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 
 
 class SlashCommandHandler:
@@ -77,7 +78,7 @@ class SlashCommandHandler:
             "/memory [show|clear|refresh]", "Manage agent memory and conversation history"
         )
         help_table.add_row(
-            "/mode [show|creative|rigorous|adaptive]", "View or change agent operating mode"
+            "/mode [show|explore|validate|auto]", "View or change agent operating mode"
         )
         help_table.add_row("/model [show|o3|o4-mini|o3-mini]", "View or change language model")
         help_table.add_row("/about", "Show version and system information")
@@ -198,7 +199,7 @@ class SlashCommandHandler:
         stats_table.add_row("", "")  # Separator
         stats_table.add_row("Configuration", "", style="bold yellow")
         stats_table.add_row("  Model", self.config.get("model", "gpt-4"))
-        stats_table.add_row("  Mode", self.config.get("mode", "rigorous"))
+        stats_table.add_row("  Mode", self.config.get("mode", Mode.VALIDATE.value))
         stats_table.add_row("  Language", "British English")
 
         # MCP Servers
@@ -344,15 +345,15 @@ class SlashCommandHandler:
             mode_table.add_column("Description", width=40)
 
             modes = [
-                ("creative", "o4-mini", "⚡ Fast", "Rapid exploration without SMACT validation"),
-                ("adaptive", "o4-mini", "🏃 Balanced", "Intelligent tool selection (DEFAULT)"),
-                ("rigorous", "o3", "🔬 Thorough", "Complete validation pipeline with reasoning"),
+                (Mode.EXPLORE, "o4-mini", "⚡ Fast", "Rapid exploration without SMACT validation"),
+                (Mode.AUTO, "o4-mini", "🏃 Balanced", "Intelligent tool selection (DEFAULT)"),
+                (Mode.VALIDATE, "o3", "🔬 Thorough", "Complete validation pipeline with reasoning"),
             ]
 
             for mode, model, speed, desc in modes:
-                style = "bold green" if mode == current_mode else "dim"
-                marker = "→ " if mode == current_mode else "  "
-                mode_table.add_row(f"{marker}{mode}", model, speed, desc, style=style)
+                style = "bold green" if mode.value == current_mode else "dim"
+                marker = "→ " if mode.value == current_mode else "  "
+                mode_table.add_row(f"{marker}{mode.value}", model, speed, desc, style=style)
 
             self.console.print(
                 Panel(
@@ -362,8 +363,9 @@ class SlashCommandHandler:
                 )
             )
 
-        elif args[0] in ["creative", "rigorous", "adaptive"]:
-            new_mode = args[0]
+        elif args[0] in MODE_ALIASES:
+            resolved = resolve_mode_name(args[0])
+            new_mode = resolved.value
             if self.chat_experience:
                 old_mode = self.chat_experience.mode
                 self.chat_experience.mode = new_mode
@@ -379,7 +381,8 @@ class SlashCommandHandler:
                 self.console.print("[red]Cannot change mode: No active chat session[/red]")
         else:
             self.console.print(f"[red]Unknown mode: {args[0]}[/red]")
-            self.console.print("[dim]Available modes: creative, rigorous, adaptive[/dim]")
+            canonical = ", ".join(m.value for m in Mode)
+            self.console.print(f"[dim]Available modes: {canonical}[/dim]")
 
     def _model(self, args: list[str]):
         """View or change language model."""

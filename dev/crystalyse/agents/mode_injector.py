@@ -68,7 +68,7 @@ class GlobalModeManager:
     """
 
     _instance = None
-    _current_mode = "adaptive"
+    _current_mode = "auto"
     _mode_locked = False  # When True, prevents dynamic mode changes
 
     def __new__(cls):
@@ -82,11 +82,12 @@ class GlobalModeManager:
         Set the global mode and optionally lock it to prevent dynamic changes.
 
         Args:
-            mode: The mode to set ("creative", "adaptive", "rigorous")
+            mode: The mode to set ("explore", "validate", "auto")
             lock_mode: If True, prevents dynamic mode switching
         """
-        valid_modes = ["creative", "adaptive", "rigorous"]
-        if mode not in valid_modes:
+        from ..config.modes import MODE_ALIASES
+
+        if mode not in MODE_ALIASES:
             logger.warning(f"Invalid mode '{mode}', keeping current mode '{cls._current_mode}'")
             return
 

@@ -58,11 +58,11 @@ class CrystaLyseConfig:
         self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
         self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY")
 
-        # Mode-specific timeouts
+        # Mode-specific timeouts (keyed by canonical mode names)
         self.mode_timeouts = {
-            "creative": 120,  # 2 minutes for fast exploration
-            "adaptive": 180,  # 3 minutes for balanced approach
-            "rigorous": 300,  # 5 minutes for comprehensive validation
+            "explore": 120,   # 2 minutes for fast exploration
+            "auto": 180,      # 3 minutes for balanced approach
+            "validate": 300,  # 5 minutes for comprehensive validation
         }
 
         # Performance Configuration
