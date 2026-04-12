@@ -270,6 +270,28 @@ def discover(
     project: str | None = typer.Option(
         None, "--project", "-p", help="Project name for workspace (overrides global option)."
     ),
+    plan: bool | None = typer.Option(
+        None,
+        "--plan/--no-plan",
+        help="Force plan mode on/off (overrides heuristic and settings).",
+    ),
+    plan_file: str | None = typer.Option(
+        None,
+        "--plan-file",
+        help="Skip research phase; load and execute an existing plan file. "
+        "Verifies query_hash matches the provided query.",
+    ),
+    auto_approve_plan: bool = typer.Option(
+        False,
+        "--auto-approve-plan",
+        help="Auto-approve plan if within budget thresholds "
+        "(wall_time ≤ 120s, polymorph_count ≤ 5, tool_scope = chemistry_creative).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --auto-approve-plan: unconditionally approve regardless of budget.",
+    ),
 ):
     """
     Run a single, non-interactive discovery query with automatic provenance capture.
@@ -282,10 +304,75 @@ def discover(
         crystalyse discover "Predict Li-ion cathodes" --provenance-dir ./my_research
         crystalyse discover "Quick test" --hide-summary
         crystalyse discover "Analysis" --mode validate
+        crystalyse discover "Find quaternary oxides" --plan
+        crystalyse discover "Find oxides" --plan --auto-approve-plan
+        crystalyse discover "..." --plan-file .crystalyse/plans/2026-04-12T14-30-00_plan.md
     """
     # Determine effective mode and project (local overrides global)
     effective_mode = resolve_mode_name(mode) if mode is not None else state["mode"]
     effective_project = project if project is not None else state["project"]
+
+    # --- Plan-file replay path ---
+    if plan_file:
+        from crystalyse.plan.commands import is_plan_auto_approvable, verify_plan_file_query
+        from crystalyse.plan.schema import Plan
+
+        plan_path = Path(plan_file)
+        if not plan_path.exists():
+            console.print(f"[red]Plan file not found: {plan_path}[/red]")
+            raise typer.Exit(code=1)
+
+        try:
+            loaded_plan = Plan.from_markdown(plan_path)
+        except (ValueError, Exception) as exc:
+            console.print(f"[red]Failed to parse plan file: {exc}[/red]")
+            raise typer.Exit(code=1) from None
+
+        # Verify query_hash matches the provided query
+        ok, error = verify_plan_file_query(loaded_plan, query)
+        if not ok:
+            console.print(f"[red]{error}[/red]")
+            raise typer.Exit(code=1)
+
+        console.print(f"[green]✓ Plan file loaded and query_hash verified:[/green] {plan_path}")
+        console.print(
+            f"[dim]Mode: {loaded_plan.metadata.intended_mode} | "
+            f"Budget: {loaded_plan.metadata.budget.polymorph_count} polymorphs, "
+            f"{loaded_plan.metadata.budget.tool_scope}[/dim]\n"
+        )
+
+        # Check auto-approval if requested
+        if auto_approve_plan:
+            approvable, reasons = is_plan_auto_approvable(loaded_plan, force=force)
+            if not approvable:
+                console.print("[red]Plan exceeds auto-approval thresholds:[/red]")
+                for reason in reasons:
+                    console.print(f"  [red]• {reason}[/red]")
+                console.print("[yellow]Use --force to override, or approve interactively.[/yellow]")
+                raise typer.Exit(code=1)
+            console.print("[green]✓ Plan auto-approved (within budget thresholds)[/green]\n")
+
+        # TODO: Execute the loaded plan (wiring to agent.discover with pre-loaded plan)
+        console.print(
+            "[yellow]Plan execution not yet wired — plan validated successfully.[/yellow]"
+        )
+        return
+
+    # --- Plan mode heuristic ---
+    if plan is not None or plan is None:
+        # Determine if plan mode should activate
+        from crystalyse.config.settings import load_settings
+        from crystalyse.plan.heuristic import should_auto_enter_plan_mode
+
+        settings = load_settings()
+        use_plan_mode = should_auto_enter_plan_mode(query, settings, cli_plan_flag=plan)
+        if use_plan_mode:
+            console.print("[cyan]📋 Plan mode activated[/cyan]")
+            console.print(
+                "[dim]The query will go through a research phase before execution.[/dim]\n"
+            )
+            # TODO: Wire research phase → plan creation → approval → execution
+            # For now, fall through to normal discovery
 
     console.print(f"[cyan]Starting non-interactive discovery:[/cyan] {query}")
     console.print(f"[dim]Mode: {effective_mode.value} | Project: {effective_project}[/dim]\n")

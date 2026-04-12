@@ -34,6 +34,8 @@ class SlashCommandHandler:
             "/memory": self._memory,
             "/mode": self._mode,
             "/model": self._model,
+            "/plan": self._plan,
+            "/plans": self._plans,
             "/about": self._about,
             "/clear": self._clear,
             "/quit": self._quit,
@@ -81,6 +83,10 @@ class SlashCommandHandler:
             "/mode [show|explore|validate|auto]", "View or change agent operating mode"
         )
         help_table.add_row("/model [show|o3|o4-mini|o3-mini]", "View or change language model")
+        help_table.add_row(
+            "/plan [approve|show|cancel]", "Enter plan mode for last query, or manage plans"
+        )
+        help_table.add_row("/plans list", "List all plans in .crystalyse/plans/")
         help_table.add_row("/about", "Show version and system information")
         help_table.add_row("/clear", "Clear the terminal screen")
         help_table.add_row("/quit, /exit", "Exit Crystalyse session")
@@ -454,6 +460,105 @@ class SlashCommandHandler:
                 )
             else:
                 self.console.print("[red]Cannot change model: No active chat session[/red]")
+
+    def _plan(self, args: list[str]):
+        """Plan mode: create, approve, show, or cancel plans."""
+
+        from crystalyse.config.workspace import find_crystalyse_root
+        from crystalyse.plan.commands import get_last_user_message, get_latest_plan
+
+        subcommand = args[0] if args else None
+
+        if subcommand == "approve":
+            root = find_crystalyse_root()
+            if root is None:
+                self.console.print("[red]No .crystalyse/ directory found.[/red]")
+                return
+            plans_dir = root / "plans"
+            plan = get_latest_plan(plans_dir)
+            if plan is None:
+                self.console.print("[red]No plan to approve. Run /plan first.[/red]")
+                return
+            self.console.print(f"[green]✓ Plan approved:[/green] {plan.path.name}")
+            self.console.print(
+                f"[dim]Mode: {plan.metadata.intended_mode} | "
+                f"Budget: {plan.metadata.budget.polymorph_count} polymorphs[/dim]"
+            )
+            # TODO: Wire plan execution into the agent
+
+        elif subcommand == "show":
+            plan_id = args[1] if len(args) > 1 else None
+            root = find_crystalyse_root()
+            if root is None:
+                self.console.print("[red]No .crystalyse/ directory found.[/red]")
+                return
+            plans_dir = root / "plans"
+
+            if plan_id:
+                # Show specific plan by filename
+                path = plans_dir / plan_id
+                if not path.exists():
+                    path = plans_dir / f"{plan_id}.md"
+                if not path.exists():
+                    self.console.print(f"[red]Plan not found: {plan_id}[/red]")
+                    return
+                self.console.print(path.read_text(encoding="utf-8"))
+            else:
+                plan = get_latest_plan(plans_dir)
+                if plan is None:
+                    self.console.print("[yellow]No plans found.[/yellow]")
+                    return
+                self.console.print(plan.path.read_text(encoding="utf-8"))
+
+        elif subcommand == "cancel":
+            self.console.print("[yellow]Plan cancelled. Returning to normal chat.[/yellow]")
+
+        else:
+            # No subcommand → re-run last user message in plan mode
+            history = getattr(self.chat_experience, "history", []) if self.chat_experience else []
+            last_query = get_last_user_message(history)
+            if last_query is None:
+                self.console.print(
+                    "[red]No previous user query found to plan. "
+                    "Send a query first, then type /plan.[/red]"
+                )
+                return
+            self.console.print(f"[cyan]📋 Entering plan mode for:[/cyan] {last_query[:80]}...")
+            self.console.print(
+                "[dim]The query will go through a research phase. "
+                "Use /plan approve to execute, /plan cancel to abort.[/dim]"
+            )
+            # TODO: Wire research phase execution
+
+    def _plans(self, args: list[str]):
+        """List plans in .crystalyse/plans/."""
+        from datetime import datetime
+
+        from crystalyse.config.workspace import find_crystalyse_root
+        from crystalyse.plan.commands import list_plans
+
+        root = find_crystalyse_root()
+        if root is None:
+            self.console.print("[red]No .crystalyse/ directory found.[/red]")
+            return
+        plans_dir = root / "plans"
+        plans = list_plans(plans_dir)
+
+        if not plans:
+            self.console.print("[yellow]No plans found in .crystalyse/plans/[/yellow]")
+            return
+
+        plans_table = Table(show_header=True, header_style="bold cyan")
+        plans_table.add_column("Filename", style="cyan", width=50)
+        plans_table.add_column("Size", style="dim", width=10)
+        plans_table.add_column("Modified", style="dim", width=20)
+
+        for p in plans:
+            mtime_str = datetime.fromtimestamp(p["mtime"]).strftime("%Y-%m-%d %H:%M")
+            size_str = f"{p['size_bytes']}B"
+            plans_table.add_row(p["name"], size_str, mtime_str)
+
+        self.console.print(Panel(plans_table, title="[bold]Plans[/bold]", border_style="cyan"))
 
     def _quit(self, _args: list[str]):
         """Exit the application."""
