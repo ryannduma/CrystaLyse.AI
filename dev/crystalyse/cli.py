@@ -30,6 +30,7 @@ from rich.text import Text
 
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
+from crystalyse.config.models import MODEL_REGISTRY, resolve_model_name
 from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 from crystalyse.ui.chat_ui import ChatExperience
 from crystalyse.workspace import workspace_tools
@@ -149,6 +150,104 @@ def display_provenance_summary(provenance: dict):
 
     console.print("\n")
     console.print(table)
+
+
+# --- Models subcommand group ---
+models_app = typer.Typer(
+    name="models",
+    help="Inspect and validate available model backbones.",
+    no_args_is_help=True,
+)
+app.add_typer(models_app, name="models")
+
+
+@models_app.command(name="list")
+def models_list():
+    """Print the MODEL_REGISTRY as a Rich table.
+
+    Shows every registered backbone with its backend, model ID, context
+    window, supported modes, required env var, and whether the env var is
+    currently set.
+    """
+    import os
+
+    from rich.table import Table
+
+    table = Table(
+        title="CrystaLyse Model Registry",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Backend", style="yellow")
+    table.add_column("Model ID", style="white")
+    table.add_column("Context", justify="right")
+    table.add_column("Modes", style="dim")
+    table.add_column("Env Var", style="dim")
+    table.add_column("Usable", justify="center")
+
+    for cfg in MODEL_REGISTRY.values():
+        # Check if env var is set (empty env var means no key required)
+        if not cfg.api_key_env_var:
+            usable = "[green]✓[/green]"
+            env_display = "[dim]none[/dim]"
+        elif os.getenv(cfg.api_key_env_var):
+            usable = "[green]✓[/green]"
+            env_display = cfg.api_key_env_var
+        else:
+            usable = "[red]✗[/red]"
+            env_display = cfg.api_key_env_var
+
+        modes_str = ", ".join(sorted(cfg.supported_modes))
+        ctx_str = f"{cfg.context_window:,}"
+
+        table.add_row(
+            cfg.name,
+            cfg.backend.value,
+            cfg.model_id,
+            ctx_str,
+            modes_str,
+            env_display,
+            usable,
+        )
+
+    console.print(table)
+
+
+@models_app.command(name="check")
+def models_check():
+    """Validate env vars for every model in the registry.
+
+    Prints per-model status and exits with non-zero if any model that
+    requires an API key is missing it.
+    """
+    import os
+
+    any_missing = False
+
+    for cfg in MODEL_REGISTRY.values():
+        if not cfg.api_key_env_var:
+            console.print(f"  [green]✓[/green] {cfg.name} — no API key required")
+            continue
+
+        if os.getenv(cfg.api_key_env_var):
+            console.print(
+                f"  [green]✓[/green] {cfg.name} — {cfg.api_key_env_var} is set"
+            )
+        else:
+            console.print(
+                f"  [red]✗[/red] {cfg.name} — {cfg.api_key_env_var} is NOT set"
+            )
+            any_missing = True
+
+    if any_missing:
+        console.print(
+            "\n[yellow]Some models are unavailable. "
+            "Set the missing env vars or use --model to select a usable one.[/yellow]"
+        )
+        raise typer.Exit(code=1)
+    else:
+        console.print("\n[green]All models are usable.[/green]")
 
 
 # --- Typer Commands ---

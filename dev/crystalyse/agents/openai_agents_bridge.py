@@ -209,7 +209,12 @@ class EnhancedCrystaLyseAgent:
                 # Use persistent session created in __init__
                 # This ensures conversation continuity across multiple discover() calls (interactive chat)
                 session = self.session
-                selected_model = self.model or self._select_model_for_mode(self.mode)
+                from ..config.models import resolve_model_name as _resolve_model
+
+                selected_model = (
+                    _resolve_model(self.model) if self.model
+                    else self._select_model_for_mode(self.mode)
+                )
 
                 # Create mode-aware instructions
                 base_instructions = self._create_enhanced_instructions(self.mode, history)
