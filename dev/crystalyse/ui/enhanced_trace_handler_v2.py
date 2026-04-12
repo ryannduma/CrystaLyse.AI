@@ -363,7 +363,7 @@ class EnhancedTraceHandlerV2(ToolTraceHandler):
             if isinstance(data, dict):
                 # Comprehensive materials analysis
                 if "generated_structures" in data:
-                    if data.get("mode") == "creative":
+                    if data.get("mode") in ("explore", "creative"):
                         return "creative_discovery_pipeline"
                     return "comprehensive_materials_analysis"
 

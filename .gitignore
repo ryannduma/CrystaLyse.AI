@@ -182,6 +182,9 @@ CLAUDE.md
 .claude/
 AGENTS.md
 
+# Crystalyse runtime + sprint coordination (see weekend-revision-plan.md §1.5)
+.crystalyse/
+
 # Runtime output directory
 all-runtime-output/
 

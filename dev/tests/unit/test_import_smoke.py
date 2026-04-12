@@ -31,8 +31,6 @@ TOP_LEVEL_STARTUP_MODULES = [
     "crystalyse.cli",
     # Built and wired into the CLI's non-interactive discover flow.
     "crystalyse.agents.openai_agents_bridge",
-    # Imported at module load by the CLI's chat experience.
-    "crystalyse.ui.enhanced_clarification",
     # Registered as the agent's read_file/write_file/list_files tools.
     "crystalyse.workspace.workspace_tools",
 ]
@@ -58,36 +56,28 @@ def test_cli_exposes_typer_app() -> None:
     assert callable(cli.main)
 
 
-def test_agent_mode_strenum_values() -> None:
-    """``AgentMode`` is a StrEnum whose members behave as strings.
+def test_mode_strenum_values() -> None:
+    """``Mode`` is a StrEnum whose members behave as strings.
 
-    Regression guard for the UP042 migration in this PR: the previous
-    ``class AgentMode(str, Enum)`` pattern caused ``f"{mode}"`` to render as
-    ``"AgentMode.creative"`` instead of ``"creative"``. The switch to
-    ``StrEnum`` fixes that, and this test encodes the fix.
+    Regression guard: StrEnum members render as their value, not as
+    ``"Mode.EXPLORE"``. The mode rename (creative->explore, rigorous->validate,
+    adaptive->auto) preserved this property.
     """
-    from crystalyse.cli import AgentMode
+    from crystalyse.config.modes import Mode
 
-    assert AgentMode.creative == "creative"
-    assert AgentMode.rigorous == "rigorous"
-    assert AgentMode.adaptive == "adaptive"
-    # StrEnum members render as their value, not as "AgentMode.<name>".
-    assert f"{AgentMode.creative}" == "creative"
-    assert str(AgentMode.rigorous) == "rigorous"
+    assert Mode.EXPLORE == "explore"
+    assert Mode.VALIDATE == "validate"
+    assert Mode.AUTO == "auto"
+    # StrEnum members render as their value, not as "Mode.<name>".
+    assert f"{Mode.EXPLORE}" == "explore"
+    assert str(Mode.VALIDATE) == "validate"
 
 
-def test_expertise_and_suggested_mode_strenum_values() -> None:
-    """``ExpertiseLevel`` and ``SuggestedMode`` got the same UP042 migration."""
-    from crystalyse.ui.enhanced_clarification import ExpertiseLevel, SuggestedMode
+def test_deleted_clarification_module_not_importable() -> None:
+    """The clarification system was deleted in PR 1 Feature 1.4.
 
-    assert ExpertiseLevel.NOVICE == "novice"
-    assert ExpertiseLevel.INTERMEDIATE == "intermediate"
-    assert ExpertiseLevel.EXPERT == "expert"
-
-    assert SuggestedMode.CREATIVE == "creative"
-    assert SuggestedMode.ADAPTIVE == "adaptive"
-    assert SuggestedMode.RIGOROUS == "rigorous"
-
-    # Previously rendered as "SuggestedMode.CREATIVE" in Rich prompts — that
-    # was a latent display bug the StrEnum migration also fixed.
-    assert f"{SuggestedMode.CREATIVE}" == "creative"
+    This test verifies it stays deleted — if someone re-adds it without
+    going through the proper planning process, this test will catch it.
+    """
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("crystalyse.ui.enhanced_clarification")

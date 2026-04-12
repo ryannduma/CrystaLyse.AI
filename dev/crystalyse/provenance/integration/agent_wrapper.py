@@ -85,7 +85,7 @@ class CrystaLyseWithProvenance:
 
         # Set timeout based on mode if not specified
         if timeout is None:
-            timeout = {"creative": 180, "balanced": 300, "rigorous": 600}.get(self.mode, 300)
+            timeout = {"explore": 180, "auto": 300, "validate": 600}.get(self.mode, 300)
 
         # Initialize trace handler
         trace_handler = ProvenanceTraceHandler(

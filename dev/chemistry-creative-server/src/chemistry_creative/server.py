@@ -361,7 +361,7 @@ async def comprehensive_materials_analysis(
     )
 
     # Add metadata to match unified server format
-    results["analysis_mode"] = "creative"
+    results["analysis_mode"] = mode
     results["server_type"] = "chemistry-creative"
     results["temperature_range"] = temperature_range
     results["target_applications"] = applications

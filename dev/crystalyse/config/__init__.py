@@ -1,4 +1,16 @@
-"""Central configuration management for CrystaLyse.AI"""
+"""Central configuration management for CrystaLyse.AI
+
+This module was originally ``crystalyse/config.py``.  It was promoted to a
+package (``crystalyse/config/``) to house the model registry
+(``crystalyse.config.models``) and mode definitions (``crystalyse.config.modes``)
+alongside the existing ``CrystaLyseConfig`` class.
+
+All legacy imports continue to work::
+
+    from crystalyse.config import CrystaLyseConfig
+    from crystalyse.config import Config, config, DEFAULT_MODEL
+    from crystalyse.config import get_agent_config
+"""
 
 import os
 import shutil
@@ -46,11 +58,11 @@ class CrystaLyseConfig:
         self.max_turns = int(os.getenv("CRYSTALYSE_MAX_TURNS", "1000"))
         self.openai_api_key = os.getenv("OPENAI_MDG_API_KEY")
 
-        # Mode-specific timeouts
+        # Mode-specific timeouts (keyed by canonical mode names)
         self.mode_timeouts = {
-            "creative": 120,  # 2 minutes for fast exploration
-            "adaptive": 180,  # 3 minutes for balanced approach
-            "rigorous": 300,  # 5 minutes for comprehensive validation
+            "explore": 120,  # 2 minutes for fast exploration
+            "auto": 180,  # 3 minutes for balanced approach
+            "validate": 300,  # 5 minutes for comprehensive validation
         }
 
         # Performance Configuration
@@ -116,10 +128,6 @@ class CrystaLyseConfig:
 
         # Add environment variables
         config["env"] = os.environ.copy()
-
-        # Note: PYTHONPATH manipulation removed in favor of proper dependency declaration
-        # MCP server packages now declare 'crystalyse' as a dependency in their pyproject.toml
-        # This ensures clean imports without manual path manipulation
 
         if self.debug_mode:
             config["env"]["CRYSTALYSE_DEBUG"] = "true"

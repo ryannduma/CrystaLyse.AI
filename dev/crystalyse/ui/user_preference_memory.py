@@ -1,9 +1,16 @@
-"""
-User Preference Memory for Crystalyse
+"""User preference memory — DEPRECATED in v1.x.
 
-Implements cross-session learning to personalize the clarification and mode selection
-experience based on user interaction patterns and preferences.
+This module is currently unwired. It was previously used by the clarification
+system (deleted in PR 1 of the revision sprint) to tune clarification depth
+and default modes based on per-user interaction history. The plan mode
+introduced in PR 2 does not use this module.
+
+The module remains in the codebase because the API is stable and we may
+revive it in v2 if personalisation becomes useful. Do not delete it without
+first confirming no follow-up release plans to re-enable it.
 """
+
+__all__: list[str] = []
 
 import json
 import logging
@@ -45,7 +52,7 @@ class UserProfile:
 
     # Preference tracking
     preferred_clarification_style: str = "focused_questions"
-    preferred_mode: str = "adaptive"
+    preferred_mode: str = "auto"
     speed_preference: float = 0.5  # 0.0=thorough, 1.0=fast
 
     # Usage patterns
@@ -196,7 +203,7 @@ class UserPreferenceMemory:
         # Start with defaults
         strategy = {
             "clarification_method": "focused_questions",
-            "initial_mode": "adaptive",
+            "initial_mode": "auto",
             "confidence_threshold": 0.75,
             "skip_clarification": False,
             "personalization_confidence": 0.0,
@@ -239,10 +246,10 @@ class UserPreferenceMemory:
 
         # Adjust for speed preferences
         if profile.speed_preference > 0.8:
-            strategy["initial_mode"] = "creative"
+            strategy["initial_mode"] = "explore"
             strategy["skip_clarification"] = True
         elif profile.speed_preference < 0.2:
-            strategy["initial_mode"] = "rigorous"
+            strategy["initial_mode"] = "validate"
 
         logger.info(f"Personalized strategy for {user_id}: {strategy}")
         return strategy

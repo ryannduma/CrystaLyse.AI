@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "openai>=1.0.0",
-    "openai-agents>=0.6.0",
+    # Bumped to 0.13.6 for LitellmModel + MultiProvider prefix routing + Agent.output_type.
+    # The <0.14 ceiling keeps us within the tested API surface; if 0.14 ships with
+    # breaking changes, update the contract test together with the pin.
+    "openai-agents>=0.13.6,<0.14",
 
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
@@ -64,6 +67,14 @@ docs = [
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.24.0",
     "mkdocs-minify-plugin>=0.7.0",
+]
+
+litellm = [
+    # Pinned to match the openai-agents 0.13.6 ceiling.  Versions >1.82.6 break
+    # the SDK's provider translation layer (Anthropic message ordering, Gemini
+    # thought fields, etc.).  Do not relax without updating the contract test
+    # at dev/tests/contract/test_litellm_version_pin.py.
+    "litellm>=1.81.0,<=1.82.6",
 ]
 
 all = [

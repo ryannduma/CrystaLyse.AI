@@ -336,7 +336,7 @@ class DualOutputFormatter:
             result: Full result dictionary from agent.discover_materials()
             execution_time: Time taken for query execution
             model: Model used (e.g., "o4-mini", "o3")
-            mode: Mode used (e.g., "creative", "rigorous")
+            mode: Mode used (e.g., "explore", "validate")
 
         Returns:
             Path to the created directory
@@ -421,12 +421,12 @@ class DualOutputFormatter:
         Args:
             result: Full result dictionary from agent
             output_dir: Directory to save CIF files to
-            mode: Analysis mode ("creative" or "rigorous")
+            mode: Analysis mode ("explore" or "validate")
 
         Returns:
             Number of CIF files saved and extracted CIF data
         """
-        if mode == "creative":
+        if mode == "explore":
             # Use creative formatter for creative mode
             from crystalyse.output.creative_formatter import CreativeFormatter
 
@@ -1128,7 +1128,7 @@ def create_dual_output(
         result: Full result dictionary from agent.discover_materials()
         execution_time: Time taken for query execution
         model: Model used (e.g., "o4-mini", "o3")
-        mode: Mode used (e.g., "creative", "rigorous")
+        mode: Mode used (e.g., "explore", "validate")
         output_dir: Base directory for output
 
     Returns:

@@ -45,7 +45,7 @@ requires-python = ">=3.11"
 dependencies = [
     # Core AI and Agent Framework
     "openai>=1.0.0",
-    "openai-agents>=0.0.16",
+    "openai-agents>=0.13.6,<0.14",
 
     # Chemistry Core Libraries
     "pymatgen>=2024.1.0",
@@ -120,6 +120,11 @@ dev = [
     "mypy>=1.0.0",
     "build>=1.0.0",
     "twine>=4.0.0",
+]
+
+# Multi-provider LLM support via LiteLLM
+litellm = [
+    "litellm>=1.81.0,<=1.82.6",
 ]
 
 # All optional dependencies

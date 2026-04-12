@@ -54,7 +54,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
     Usage:
         handler = CrystaLyseProvenanceHandler(
             config=config,
-            mode="creative",
+            mode="explore",
             console=console
         )
 
@@ -66,7 +66,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         self,
         console: Console | None = None,
         config: Optional["CrystaLyseConfig"] = None,
-        mode: str = "adaptive",
+        mode: str = "auto",
         session_id: str | None = None,
         **kwargs,
     ):
@@ -76,7 +76,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
         Args:
             console: Rich console for visual output
             config: CrystaLyse configuration object (auto-loaded if None)
-            mode: Discovery mode (creative/adaptive/rigorous)
+            mode: Discovery mode (explore/auto/validate)
             session_id: Override automatic session ID generation
             **kwargs: Additional arguments passed to ProvenanceTraceHandler
         """
@@ -201,7 +201,7 @@ class CrystaLyseProvenanceHandler(ProvenanceTraceHandler):
 
 
 def create_provenance_handler(
-    mode: str = "adaptive",
+    mode: str = "auto",
     config: Optional["CrystaLyseConfig"] = None,
     console: Console | None = None,
     session_id: str | None = None,
