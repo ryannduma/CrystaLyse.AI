@@ -162,20 +162,3 @@ THE CURRENT SESSION MODE IS: {mode.upper()}
     return base_instructions + mode_enforcement
 
 
-class DynamicModeSuppressor:
-    """
-    Suppresses dynamic mode switching when mode is explicitly set.
-    """
-
-    @staticmethod
-    def should_suppress_dynamic_switching() -> bool:
-        """Check if dynamic mode switching should be suppressed."""
-        return GlobalModeManager.is_locked()
-
-    @staticmethod
-    def log_suppressed_switch(attempted_mode: str, reason: str):
-        """Log when a dynamic mode switch is suppressed."""
-        current_mode = GlobalModeManager.get_mode()
-        logger.info(
-            f"Dynamic mode switch suppressed: {current_mode} -> {attempted_mode} (reason: {reason}) - Mode is locked"
-        )

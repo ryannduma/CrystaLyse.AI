@@ -1,9 +1,16 @@
-"""
-User Preference Memory for Crystalyse
+"""User preference memory — DEPRECATED in v1.x.
 
-Implements cross-session learning to personalize the clarification and mode selection
-experience based on user interaction patterns and preferences.
+This module is currently unwired. It was previously used by the clarification
+system (deleted in PR 1 of the revision sprint) to tune clarification depth
+and default modes based on per-user interaction history. The plan mode
+introduced in PR 2 does not use this module.
+
+The module remains in the codebase because the API is stable and we may
+revive it in v2 if personalisation becomes useful. Do not delete it without
+first confirming no follow-up release plans to re-enable it.
 """
+
+__all__: list[str] = []
 
 import json
 import logging

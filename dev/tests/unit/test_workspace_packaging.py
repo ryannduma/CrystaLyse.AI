@@ -108,9 +108,9 @@ class TestWorkspaceToolsSurface:
         ],
     )
     def test_clarification_models_present(self, workspace_tools, attr: str) -> None:
-        """Imported at module load by crystalyse.ui.enhanced_clarification."""
+        """These models are part of the workspace tools public API."""
         assert hasattr(workspace_tools, attr), (
-            f"workspace_tools.{attr} missing — imported by enhanced_clarification"
+            f"workspace_tools.{attr} missing"
         )
 
     @pytest.mark.parametrize(

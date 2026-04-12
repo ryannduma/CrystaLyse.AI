@@ -32,7 +32,6 @@ from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 from crystalyse.ui.chat_ui import ChatExperience
-from crystalyse.ui.enhanced_clarification import IntegratedClarificationSystem
 from crystalyse.workspace import workspace_tools
 
 # --- Setup ---
@@ -56,7 +55,6 @@ state: dict = {
     "project": "crystalyse_session",
     "mode": Mode.AUTO,
     "model": None,
-    "query": "",
 }
 
 
@@ -75,90 +73,6 @@ def approval_callback(path: Path, content: str) -> bool:
     console.print(panel)
 
     return Confirm.ask("Do you approve this file write operation?", default=True)
-
-
-# --- Non-Interactive Clarification Handler ---
-async def non_interactive_clarification(request: workspace_tools.ClarificationRequest) -> dict:
-    """
-    Handles clarification for non-interactive mode by making smart assumptions.
-    """
-    # Use the adaptive clarification system even in non-interactive mode
-    system = IntegratedClarificationSystem(console, user_id="non_interactive")
-    analysis = system._analyze_query(state["query"])
-
-    # Check if we should skip clarification entirely (high-confidence queries)
-    should_skip = await system._should_skip_clarification(analysis, request)
-
-    if should_skip:
-        # Skip clarification and return smart assumptions
-        return await system._handle_high_confidence_skip(state["query"], request, analysis)
-
-    # For non-expert queries, use the adaptive clarification system
-    # but simulate responses for non-interactive mode
-    if analysis.expertise_level == "novice":
-        # Show educational guidance and make reasonable choices
-        console.print(
-            Panel(
-                "🔎 Discovery Mode: I'll help you explore battery materials!\n\n"
-                "Since this is non-interactive mode, I'm assuming you want:\n"
-                "• General exploration of battery technologies\n"
-                "• Focus on common, practical options\n"
-                "• Earth-abundant materials (cost-effective)",
-                title="[bold cyan]🎓 Educational Guidance[/bold cyan]",
-                border_style="cyan",
-            )
-        )
-
-        # Simulate guided discovery responses
-        simulated_answers = {
-            "approach_preference": "explore",
-            "_mode": Mode.EXPLORE.value,
-            "_method": "guided_discovery_simulated",
-            "_user_type": "novice",
-        }
-
-        # Fill in reasonable defaults for any specific questions
-        for question in request.questions:
-            if question.options:
-                # Choose educational/accessible option
-                if "Li-ion" in question.options:
-                    simulated_answers[question.id] = "Li-ion"  # Most common
-                elif "Cathode" in question.options:
-                    simulated_answers[question.id] = "Cathode"  # Most common
-                elif "High capacity" in question.options:
-                    simulated_answers[question.id] = "High capacity"  # Good starting point
-                else:
-                    simulated_answers[question.id] = question.options[0]
-            else:
-                simulated_answers[question.id] = ""
-
-        return simulated_answers
-
-    # For intermediate/expert queries in non-interactive mode, use assumptions
-    console.print("[dim]Making smart assumptions based on your technical query...[/dim]")
-
-    # Generate assumptions without asking for confirmation
-    assumptions = await system._generate_smart_assumptions(request.questions, analysis)
-    suggested_mode = system._suggest_initial_mode(analysis)
-
-    assumption_lines = "\n".join(
-        f"• {q.text}: {assumptions.get(q.id, '[Not specified]')}" for q in request.questions
-    )
-
-    console.print(
-        Panel(
-            f"Based on the query, the following assumptions were made:\n{assumption_lines}"
-            f"\n\n→ Proceeding with [bold]{suggested_mode}[/bold] mode.",
-            title="[bold blue]🤖 Auto-Clarification[/bold blue]",
-            border_style="blue",
-        )
-    )
-
-    return {
-        **assumptions,
-        "_mode": suggested_mode,
-        "_method": "assumed_in_non_interactive_mode",
-    }
 
 
 # --- Helper Functions ---
@@ -280,9 +194,7 @@ def discover(
     console.print(f"[dim]Mode: {effective_mode.value} | Project: {effective_project}[/dim]\n")
 
     # Set up non-interactive handlers
-    state["query"] = query
     workspace_tools.APPROVAL_CALLBACK = approval_callback
-    workspace_tools.CLARIFICATION_CALLBACK = non_interactive_clarification
 
     async def _run():
         # Load config and customise provenance settings if needed
@@ -337,9 +249,8 @@ def chat(
     Start an interactive chat session for materials discovery.
 
     Features:
-    • Adaptive clarification based on expertise level
-    • Cross-session learning and personalization
     • Mode switching and smart defaults
+    • Provenance-tracked tool calls
     """
     workspace_tools.APPROVAL_CALLBACK = approval_callback
 
@@ -508,58 +419,6 @@ def analyse_provenance(
 
     # Show file locations
     console.print(f"\n[dim]Session files located at: {session_dir}[/dim]")
-
-
-@app.command()
-def user_stats(
-    user: str = typer.Option("default", "--user", "-u", help="User ID to show stats for"),
-):
-    """
-    Display learning statistics and preferences for a user.
-    """
-    from crystalyse.ui.user_preference_memory import UserPreferenceMemory
-
-    memory = UserPreferenceMemory()
-    stats = memory.get_user_statistics(user)
-
-    if stats["interaction_count"] == 0:
-        console.print(f"[yellow]No interaction history found for user '{user}'[/yellow]")
-        return
-
-    console.print(
-        Panel(
-            f"""[bold cyan]CrystaLyse Learning Profile[/bold cyan]
-
-"""
-            f"User ID: {stats['user_id']}\n"
-            f"Total Interactions: {stats['interaction_count']}\n"
-            f"Detected Expertise: {stats['expertise_level']} ({stats['expertise_score']:.2f})\n"
-            f"Speed Preference: {stats['speed_preference']:.2f} (0=thorough, 1=fast)\n"
-            f"Preferred Mode: {stats['preferred_mode']}\n"
-            f"Days Since First Use: {stats['days_since_creation']}\n"
-            f"Personalization Active: {'Yes' if stats['personalization_active'] else 'No (need 3+ interactions)'}\n\n"
-            f"Domain Expertise:\n"
-            + (
-                "\n".join(
-                    f"  {domain}: {score:.2f}"
-                    for domain, score in stats["domain_expertise"].items()
-                )
-                if stats["domain_expertise"]
-                else "  No domain-specific data yet\n"
-            )
-            + "\n\nSuccessful Mode Performance:\n"
-            + (
-                "\n".join(
-                    f"  {mode}: {score:.2f} avg satisfaction"
-                    for mode, score in stats["successful_modes"].items()
-                )
-                if stats["successful_modes"]
-                else "  No mode performance data yet"
-            ),
-            title="[bold green]📊 User Learning Statistics[/bold green]",
-            border_style="green",
-        )
-    )
 
 
 @app.callback()
