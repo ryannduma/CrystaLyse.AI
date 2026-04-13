@@ -12,7 +12,7 @@ dependencies = [
     "openai-agents>=0.13.6,<0.14",
 
     "pymatgen>=2024.1.0",
-    "ase>=3.22.0",
+    "ase>=3.26.0",
     "numpy>=1.24.0,<3.0.0",
     "pandas>=2.0.0",
     "typing-extensions>=4.5.0",
