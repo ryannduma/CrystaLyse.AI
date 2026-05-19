@@ -14,7 +14,7 @@ dependencies = [
     "pymatgen",
     "ase",
     # Cap below 2.11 — torch 2.11 requires CUDA 13 drivers. See dev/pyproject.toml.
-    "torch<2.11",
+    "torch<2.13",
     "numpy",
     "smact",
     "mace-torch",
