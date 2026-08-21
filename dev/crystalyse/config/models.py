@@ -326,8 +326,9 @@ def resolve_model_name(
     if isinstance(name_or_config, ModelConfig):
         return name_or_config.resolve()
 
-    # String path: look up in the registry first.
-    cfg = MODEL_REGISTRY.get(name_or_config)
+    # String path: look up in the effective registry (built-ins plus any
+    # config.toml overrides) first.
+    cfg = get_effective_registry()[0].get(name_or_config)
     if cfg is not None:
         return cfg.resolve()
 
@@ -363,4 +364,37 @@ def resolve_model_config(
         if name_or_config is None:
             return None
 
-    return MODEL_REGISTRY.get(name_or_config)
+    return get_effective_registry()[0].get(name_or_config)
+
+
+# ---------------------------------------------------------------------------
+# Effective registry (built-ins + config.toml overrides)
+# ---------------------------------------------------------------------------
+
+_EFFECTIVE_REGISTRY: dict[str, ModelConfig] | None = None
+_EFFECTIVE_PROVENANCE: dict[str, str] | None = None
+
+
+def get_effective_registry(
+    *, refresh: bool = False
+) -> tuple[dict[str, ModelConfig], dict[str, str]]:
+    """Return the registry actually used for resolution, plus provenance.
+
+    ``MODEL_REGISTRY`` holds the built-in entries and stays the code-owned
+    capability table.  This adds any ``[models.*]`` tables from
+    ``.crystalyse/config.toml`` on top -- see
+    :mod:`crystalyse.config.model_overrides`.
+
+    The result is cached per process because config files do not change
+    mid-run; pass ``refresh=True`` to reload (used by tests).
+
+    If the config files are invalid the underlying ``ModelOverrideError``
+    propagates: a bad model override is a startup error, not something to
+    paper over by falling back to the built-in value.
+    """
+    global _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE
+    if refresh or _EFFECTIVE_REGISTRY is None:
+        from .model_overrides import load_model_registry
+
+        _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE = load_model_registry()
+    return _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE

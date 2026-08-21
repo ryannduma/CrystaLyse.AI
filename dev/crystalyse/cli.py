@@ -30,7 +30,7 @@ from rich.text import Text
 
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
-from crystalyse.config.models import MODEL_REGISTRY
+from crystalyse.config.models import MODEL_REGISTRY, get_effective_registry
 from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name
 from crystalyse.ui.chat_ui import ChatExperience
 from crystalyse.workspace import workspace_tools
@@ -163,11 +163,17 @@ app.add_typer(models_app, name="models")
 
 @models_app.command(name="list")
 def models_list():
-    """Print the MODEL_REGISTRY as a Rich table.
+    """Print the effective model registry as a Rich table.
 
     Shows every registered backbone with its backend, model ID, context
     window, supported modes, required env var, and whether the env var is
     currently set.
+
+    The Source column reports provenance -- whether an entry is built into
+    the package, a built-in with fields overridden from
+    ``.crystalyse/config.toml``, or defined entirely in config.  Knowing
+    where a value came from is the same principle this project applies to
+    scientific results.
     """
     import os
 
@@ -184,9 +190,11 @@ def models_list():
     table.add_column("Context", justify="right")
     table.add_column("Modes", style="dim")
     table.add_column("Env Var", style="dim")
+    table.add_column("Source", style="dim")
     table.add_column("Usable", justify="center")
 
-    for cfg in MODEL_REGISTRY.values():
+    registry, provenance = get_effective_registry()
+    for cfg in registry.values():
         # Check if env var is set (empty env var means no key required)
         if not cfg.api_key_env_var:
             usable = "[green]✓[/green]"
@@ -208,6 +216,7 @@ def models_list():
             ctx_str,
             modes_str,
             env_display,
+            provenance.get(cfg.name, "built-in"),
             usable,
         )
 
