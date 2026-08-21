@@ -16,8 +16,8 @@ hatch — power users can always type a full LiteLLM model string.
 
 Version pins enforced by contract tests in ``dev/tests/contract/``:
 
-- ``openai-agents>=0.13.6,<0.14``
-- ``litellm>=1.81.0,<=1.82.6``
+- ``openai-agents>=0.22.0,<0.23``
+- ``litellm==1.83.0``
 """
 
 from __future__ import annotations
