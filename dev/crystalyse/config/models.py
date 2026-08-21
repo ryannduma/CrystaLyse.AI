@@ -209,7 +209,37 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         model_id="anthropic/claude-opus-5",
         api_key_env_var="ANTHROPIC_API_KEY",
         context_window=1_000_000,
+        # Deliberately no reasoning_effort: Claude 5 models think adaptively by
+        # default (a plain call already returns thinking content), and Opus is
+        # the most expensive tier at $5/$25 per Mtok.  Set reasoning_effort
+        # here to pin the effort explicitly, at higher token cost.
         notes="Strong reasoning, long context.  Requires direct Anthropic API key.",
+    ),
+    "anthropic_claude_sonnet": ModelConfig(
+        name="anthropic_claude_sonnet",
+        backend=ModelBackend.LITELLM,
+        model_id="anthropic/claude-sonnet-5",
+        api_key_env_var="ANTHROPIC_API_KEY",
+        context_window=1_000_000,
+        reasoning_effort="medium",
+        notes=(
+            "Mid-cost Anthropic tier: $2/$10 per Mtok vs Opus 5's $5/$25. "
+            "Use for bulk screening where Opus-level reasoning is not needed."
+        ),
+    ),
+    "anthropic_claude_haiku": ModelConfig(
+        name="anthropic_claude_haiku",
+        backend=ModelBackend.LITELLM,
+        model_id="anthropic/claude-haiku-4-5-20251001",
+        api_key_env_var="ANTHROPIC_API_KEY",
+        context_window=200_000,
+        # Claude 4.x thinking API: budget_tokens, not adaptive+effort.
+        thinking_budget_tokens=2048,
+        supported_modes=frozenset({"explore", "auto"}),
+        notes=(
+            "Cheapest Anthropic tier: $1/$5 per Mtok. Explore/auto only -- "
+            "not validate, where the reasoning gap matters most."
+        ),
     ),
     # ---- OpenRouter (any model behind one key) ----
     "openrouter_claude_opus": ModelConfig(
