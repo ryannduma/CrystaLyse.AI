@@ -25,7 +25,10 @@ class CrystaLyseVisualizer:
 
     @staticmethod
     def save_cif_file(
-        cif_content: str, formula: str, output_dir: str, _title: str = "Crystal Structure"
+        cif_content: str,
+        formula: str,
+        output_dir: str,
+        title: str = "Crystal Structure",  # noqa: ARG004  (accepted for API compatibility)
     ) -> VisualizationResult:
         """
         Save CIF file to output directory.
@@ -87,8 +90,8 @@ class CrystaLyseVisualizer:
         cif_content: str,
         formula: str,
         output_dir: str,
-        _title: str = "Crystal Structure Analysis",
-        _color_scheme: str = "vesta",
+        title: str = "Crystal Structure Analysis",  # noqa: ARG004
+        color_scheme: str = "vesta",  # noqa: ARG004
     ) -> VisualizationResult:
         """
         Create comprehensive analysis suite (placeholder for Phase 1).
