@@ -16,12 +16,18 @@ from pydantic import BaseModel, Field
 
 try:
     from smact import Element
-    from smact.screening import ml_rep_generator, smact_filter, smact_validity
+    from smact.screening import (
+        ICSD24FilterConfig,
+        ml_rep_generator,
+        smact_filter,
+        smact_validity,
+    )
 
     SMACT_AVAILABLE = True
 except ImportError:
     SMACT_AVAILABLE = False
     smact_validity = None
+    ICSD24FilterConfig = None
     ml_rep_generator = None
     smact_filter = None
     Element = None
@@ -144,17 +150,32 @@ class SMACTScreener:
                     error_message=f"Invalid oxidation set. Choose from: {SMACTScreener.AVAILABLE_OXIDATION_SETS}",
                 )
 
-            # Run SMACT validity check
+            # Run SMACT validity check.
+            #
+            # smact 4.0 replaced the loose ``include_zero`` / ``consensus`` /
+            # ``commonality`` keywords with an ``ICSD24FilterConfig`` object.
+            # The field names and defaults are unchanged, but the filter is
+            # honoured *only* when ``oxidation_states_set is None`` -- passing
+            # ``oxidation_states_set="icsd24"`` makes smact ignore it silently
+            # (verified: consensus=50 changed 0/19 compositions with the set
+            # named, 7/19 with it None).  "icsd24" is smact's own default set,
+            # so map it to None and let the filter apply; pass any other named
+            # set straight through, where the filter is correctly irrelevant.
+            icsd_filter = ICSD24FilterConfig(
+                include_zero=include_zero,
+                consensus=consensus,
+                commonality=commonality,
+            )
             is_valid = smact_validity(
                 composition=composition,
                 use_pauling_test=use_pauling_test,
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 metallicity_threshold=metallicity_threshold,
-                oxidation_states_set=oxidation_states_set,
-                include_zero=include_zero,
-                consensus=consensus,
-                commonality=commonality,
+                oxidation_states_set=(
+                    None if oxidation_states_set == "icsd24" else oxidation_states_set
+                ),
+                icsd_filter=icsd_filter,
             )
 
             return CompositionValidityResult(
