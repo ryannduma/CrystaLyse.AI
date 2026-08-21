@@ -1,6 +1,6 @@
 """Visualization MCP Server for Crystalyse"""
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .tools import (
     create_3dmol_visualization,
@@ -10,7 +10,7 @@ from .tools import (
     create_rigorous_visualization,
 )
 
-mcp = FastMCP("visualization")
+mcp = MCPServer("visualization")
 
 # Register tools
 mcp.tool()(create_3dmol_visualization)

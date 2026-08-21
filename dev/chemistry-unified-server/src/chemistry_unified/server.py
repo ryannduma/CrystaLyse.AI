@@ -14,7 +14,7 @@ import warnings
 from typing import Any
 
 import numpy as np
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
 # This warning appears when MACE loads e3nn components
@@ -58,8 +58,8 @@ logger = logging.getLogger(__name__)
 # Suppress warnings
 warnings.filterwarnings("ignore", message=".*Pauling electronegativity.*")
 
-# Initialize FastMCP server
-mcp = FastMCP("Chemistry Unified")
+# Initialize the MCP server
+mcp = MCPServer("Chemistry Unified")
 
 # Initialize tool instances
 smact_validator = SMACTValidator()
