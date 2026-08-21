@@ -57,17 +57,11 @@ from provenance_system import ProvenanceTraceHandler
 from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
 
 # Initialize with provenance
-trace_handler = ProvenanceTraceHandler(
-    output_dir="./provenance_output",
-    capture_mcp_logs=True
-)
+trace_handler = ProvenanceTraceHandler(output_dir="./provenance_output", capture_mcp_logs=True)
 
 # Run discovery with tracking
 agent = EnhancedCrystaLyseAgent(mode="creative")
-result = await agent.discover(
-    "Find stable binary oxides", 
-    trace_handler=trace_handler
-)
+result = await agent.discover("Find stable binary oxides", trace_handler=trace_handler)
 
 # Get captured data
 summary = trace_handler.finalize()
