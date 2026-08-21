@@ -7,6 +7,8 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel
 
+from ._stdout_guard import quiet_stdout
+
 # Suppress e3nn warning about TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD
 warnings.filterwarnings(
     "ignore", category=UserWarning, module="e3nn", message=".*TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD.*"
@@ -65,7 +67,10 @@ def _import_dependencies():
         raise ImportError("ASE is required for atomic simulations") from e
 
     try:
-        from mace.calculators import MACECalculator, mace_mp, mace_off
+        # quiet_stdout: mace prints a cuequivariance notice to stdout, which
+        # would corrupt the MCP servers' JSON-RPC stream.
+        with quiet_stdout():
+            from mace.calculators import MACECalculator, mace_mp, mace_off
 
         global mace_mp, mace_off, MACECalculator  # noqa: F811
         logger.info("MACE calculators imported successfully")

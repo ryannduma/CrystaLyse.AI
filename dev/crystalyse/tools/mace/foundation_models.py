@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ._stdout_guard import quiet_stdout
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,9 +39,14 @@ class FoundationModelListResult(BaseModel):
 
 
 try:
-    from mace.calculators import MACECalculator as MACECalc
-    from mace.calculators import mace_mp, mace_off
-    from mace.calculators.foundations_models import download_mace_mp_checkpoint, mace_mp_urls
+    # quiet_stdout: keep mace's cuequivariance print off the MCP stdio stream.
+    with quiet_stdout():
+        from mace.calculators import MACECalculator as MACECalc
+        from mace.calculators import mace_mp, mace_off
+        from mace.calculators.foundations_models import (
+            download_mace_mp_checkpoint,
+            mace_mp_urls,
+        )
 
     MACE_AVAILABLE = True
 except ImportError:
