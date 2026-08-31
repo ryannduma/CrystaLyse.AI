@@ -1,6 +1,6 @@
 # MACE - Machine Learning Force Fields
 
-MACE is a state-of-the-art force field framework that provides fast and accurate energy calculations for crystal structures. It serves as the primary energy evaluation engine in both Crystalyse analysis modes.
+MACE is a state-of-the-art force field framework that provides fast and accurate energy calculations for crystal structures. It serves as the primary energy evaluation engine in every Crystalyse analysis mode.
 
 ## Overview
 
@@ -11,14 +11,19 @@ MACE employs machine learning to predict formation energies, total energies, and
 ## Integration in Crystalyse
 
 ### Availability by Mode
-- **Creative Mode**: ✅ Formation energy calculations
-- **Rigorous Mode**: ✅ Comprehensive energy analysis with uncertainty quantification
+- **explore**: ✅ Formation energy calculations
+- **validate**: ✅ Formation energies, relaxation, stress and EOS fitting
+- **auto**: ✅ Same server as validate
 
 ### MCP Server Integration
-- **Creative Mode**: Chemistry Creative Server (`chemistry-creative-server`)
-- **Rigorous Mode**: Chemistry Unified Server (`chemistry-unified-server`)
+- **explore**: Chemistry Creative Server (`chemistry-creative-server`)
+- **validate** and **auto**: Chemistry Unified Server (`chemistry-unified-server`)
 
-Both servers provide identical MACE energy calculation capabilities.
+Both servers construct `MACECalculator()` with no arguments, so the underlying model and
+accuracy are identical in every mode. The unified server additionally exposes
+`relax_structure`, `calculate_stress`, `fit_equation_of_state` and
+`list_foundation_models`. The legacy mode names `creative`, `rigorous` and `adaptive` still
+resolve, with a `DeprecationWarning`.
 
 ## Core Functionality
 
@@ -26,12 +31,15 @@ Both servers provide identical MACE energy calculation capabilities.
 
 MACE follows a systematic approach to energy evaluation:
 
-1. **Structure Input**: Accept crystal structures from Chemeleon (CIF format)
-2. **Format Conversion**: Convert CIF to MACE-compatible input format
-3. **ML Inference**: Apply trained ML force field models
-4. **Energy Prediction**: Calculate formation energies and total energies
-5. **Uncertainty Quantification**: Provide confidence estimates for predictions
-6. **Result Output**: Return energies with structural metadata
+1. **Structure Input**: Accept crystal structures from Chemeleon, as a structure dict or
+   as CIF text
+2. **Format Conversion**: Parse into an ASE `Atoms` object
+3. **ML Inference**: Attach the cached MACE calculator and evaluate
+4. **Energy Prediction**: Calculate total energy, formation energy per atom, and forces
+5. **Result Output**: Return energies with structural metadata
+
+There is no uncertainty quantification step. See
+[What MACE Does Not Report](#what-mace-does-not-report) below.
 
 ### Available Tools
 
@@ -41,17 +49,30 @@ Core class for energy calculations and structure relaxation.
 ```python
 from crystalyse.tools.mace import MACECalculator
 
-# Initialize calculator
-calc = MACECalculator(model_type="mace_mp", size="medium")
+# Initialize calculator (these are the defaults)
+calc = MACECalculator(model_type="mace_mp", size="medium", device="auto")
 
 # Calculate formation energy
 result = await calc.calculate_formation_energy(structure_dict)
 
-# Relax structure
-relaxed = await calc.relax_structure(structure_dict)
+# Relax atomic positions
+relaxed = await calc.relax_structure(
+    structure_dict, fmax=0.01, steps=500, optimizer="BFGS"
+)
 ```
 
-**Output**: `EnergyResult` or `RelaxationResult` objects.
+**Output**:
+
+- `EnergyResult`: `success`, `formula`, `formation_energy`, `energy_per_atom`,
+  `total_energy`, `unit` (`"eV"`), `method` (`"mace"`), `max_force`, `rms_force`, `error`.
+  Note that `max_force` and `rms_force` are declared on the model but never populated by
+  `calculate_formation_energy` - they are always `None`
+- `RelaxationResult`: `success`, `converged`, `initial_energy`, `final_energy`,
+  `energy_change`, `max_displacement`, `n_steps`, `relaxed_structure`, `error`
+
+`relax_structure` accepts `optimizer` values `BFGS`, `FIRE` or `LBFGS`; anything else
+returns a failed result naming the three. It relaxes **atomic positions only** - the cell
+is not varied.
 
 #### `MACEStressCalculator`
 Calculates stress tensors and fits equations of state.
@@ -69,10 +90,12 @@ eos = MACEStressCalculator.fit_equation_of_state(
 )
 ```
 
-**Output**: `StressResult` (3x3 tensor, pressure) or `EOSResult` (bulk modulus).
+**Output**: `StressResult` (3x3 tensor, Voigt 6-vector, pressure, von Mises and maximum
+shear stress) or `EOSResult` (fitted EOS parameters plus the sampled volumes and
+energies).
 
 #### `MACEFoundationModels`
-Access to pre-trained foundation models.
+A catalogue of pre-trained foundation models.
 
 ```python
 from crystalyse.tools.mace import MACEFoundationModels
@@ -80,9 +103,54 @@ from crystalyse.tools.mace import MACEFoundationModels
 # List available models
 models = MACEFoundationModels.list_models()
 
-# Get specific model info
+# Get specific model info (returns None for an unknown name)
 info = MACEFoundationModels.get_model_info("medium-mpa-0")
 ```
+
+Eight models are registered:
+
+| Name | Family | Training data | Functional | Licence |
+|------|--------|---------------|------------|---------|
+| `small` | MACE-MP | Materials Project DFT | PBE | MIT |
+| `medium` | MACE-MP | Materials Project DFT | PBE | MIT |
+| `large` | MACE-MP | Materials Project + trajectories (MPtrj 2022.9) | PBE | MIT |
+| `medium-mpa-0` | MACE-MPA-0 | Materials Project, enhanced training | PBE | MIT |
+| `small-omat-0` | MACE-OMAT-0 | OMAT24 | PBE | ASL |
+| `medium-omat-0` | MACE-OMAT-0 | OMAT24 | PBE | ASL |
+| `mace-matpes-pbe-0` | MACE-MatPES | MatPES | PBE | ASL |
+| `mace-matpes-r2scan-0` | MACE-MatPES | MatPES | r2SCAN | ASL |
+
+The OMAT24 and MatPES entries carry the **ASL** licence, not MIT - check its terms before
+using them in work you intend to distribute. `mace-matpes-r2scan-0` is the only entry
+trained on a non-PBE functional.
+
+`get_model_calculator(model_name="medium-mpa-0", device="auto", dispersion=False,
+dispersion_xc="pbe", default_dtype="float32")` builds a calculator for a named entry,
+validating `model_name` against the table above. Checkpoints are downloaded on first use
+and cached by mace-torch in `~/.cache/mace/`.
+
+#### Which Model Actually Runs
+
+Worth stating plainly, because the code is inconsistent here: **every energy, relaxation
+and stress calculation in Crystalyse uses MACE-MP `medium`.**
+
+- `get_mace_calculator()` defaults to `size="medium"`
+- `MACECalculator.__init__` defaults to `size="medium"`
+- `MACEStressCalculator` defaults to `size="medium"` on `__init__`, `calculate_stress` and
+  `fit_equation_of_state`
+- both MCP servers instantiate `MACECalculator()` with no arguments
+
+Separately, `MACEFoundationModels.get_model_calculator` defaults to
+`model_name="medium-mpa-0"`, and that registry entry is described as
+*"MACE-MPA-0 medium (default, improved accuracy)"*. But that method is never called by any
+code path in this repository - only `list_models` is, via the `list_foundation_models` MCP
+tool. **So the entry advertised as the default is not the model in use.** If you need
+MACE-MPA-0, pass `size="medium-mpa-0"` to `MACECalculator` explicitly.
+
+For the record, the `medium` registry entry is self-consistent: it is described as
+"MACE-MP medium model (128 channels, L=1)" and points at
+`2023-12-03-mace-128-L1_epoch-199.model`, which is what mace-torch resolves `"medium"` to.
+The "MACE-MP large model (MPtrj 2022.9)" description belongs to the separate `large` entry.
 
 ## Energy Calculation Methodology
 
@@ -97,42 +165,57 @@ MACE employs advanced neural network architectures:
 
 ### Formation Energy Calculation
 
-Formation energy calculation follows standard thermochemical conventions:
+Read the reference state carefully - it is not the usual one.
 
 ```python
-# Formation energy definition
-# For compound AxByC_z:
-# ΔHf = E(AxByCz) - [x*E(A) + y*E(B) + z*E(C)]
+# What the code actually computes:
+compound_energy = atoms.get_potential_energy()          # eV, total
 
-# Example: CsSnI3 formation energy
-E_CsSnI3 = mace_total_energy("CsSnI3")           # eV
-E_Cs = reference_energy["Cs"]                     # eV/atom  
-E_Sn = reference_energy["Sn"]                     # eV/atom
-E_I = reference_energy["I"]                       # eV/atom
+# Reference energies come from the MACE model's own isolated-atom
+# energies (calc.models[0].atomic_energies_fn), NOT from elemental
+# solid reference phases.
+total_reference_energy = sum(atomic_energies)            # eV
 
-formation_energy = (E_CsSnI3 - E_Cs - E_Sn - 3*E_I) / 5  # eV/atom
+formation_energy = (compound_energy - total_reference_energy) / len(atoms)
 ```
 
-### Uncertainty Quantification
+So the quantity reported as `formation_energy` is referenced to **isolated atoms**, which
+makes it a cohesive-energy-like number rather than a standard formation enthalpy against
+elemental phases. It is well suited to ranking polymorphs and closely related compositions,
+and it is **not** directly comparable to a Materials Project formation energy.
 
-MACE provides uncertainty estimates for all energy predictions:
+Also note that `energy_per_atom` on `EnergyResult` is set to the same value as
+`formation_energy` - it is not the total energy divided by the atom count.
 
-```python
-Energy Prediction: -2.558 ± 0.045 eV/atom
-├── Model uncertainty: ±0.032 eV/atom
-├── Data uncertainty: ±0.025 eV/atom  
-└── Combined uncertainty: ±0.045 eV/atom
+For a hull-referenced number, feed `total_energy` to `calculate_energy_above_hull` on the
+unified server, which uses the phase-diagram dataset.
 
-Confidence Level: HIGH (uncertainty < 0.1 eV/atom)
-```
+### What MACE Does Not Report
+
+Crystalyse's MACE path produces a single deterministic number per structure. It does not
+quantify uncertainty:
+
+- `EnergyResult` has no uncertainty field at all
+- the CIF-facing wrapper `calculate_energy` hard-codes `"uncertainty": None`, with the
+  comment *"MACE doesn't provide uncertainty by default"*
+- there is no ensemble of models, no out-of-domain or extrapolation detection, no
+  confidence level and no quality score anywhere in the MACE code
+- `max_force` and `rms_force` exist as fields on `EnergyResult` but nothing ever sets them;
+  they come back `None` from every call
+- `computation_time` on the CIF-facing result is likewise always `None`
+
+Rank structures by formation energy, and treat small differences between candidates with
+the scepticism any single-model ML prediction deserves - but do not expect the tool to
+quantify that scepticism for you. For a thermodynamic check that *is* available, see
+`calculate_energy_above_hull` on the unified server.
 
 ## Practical Usage
 
 ### In Crystalyse Workflows
 
-#### Creative Mode Energy Ranking
+#### Explore Mode Energy Ranking
 ```bash
-crystalyse analyse "Find stable perovskite materials" --mode creative
+crystalyse discover "Find stable perovskite materials" --mode explore
 ```
 
 **MACE Workflow**:
@@ -142,16 +225,16 @@ crystalyse analyse "Find stable perovskite materials" --mode creative
 4. Rank by stability (most negative formation energy)
 5. Return ranked list with energies
 
-#### Rigorous Mode with Detailed Analysis
+#### Validate Mode with Detailed Analysis
 ```bash
-crystalyse analyse "Analyse CsSnI3 energetics in detail" --mode rigorous
+crystalyse discover "Analyse CsSnI3 energetics in detail" --mode validate
 ```
 
 **Enhanced Workflow**:
 1. SMACT validation confirms composition
 2. Chemeleon generates multiple structure candidates
 3. MACE calculates energies for all candidates
-4. Detailed uncertainty analysis performed
+4. Structures optionally relaxed with `relax_structure` before re-evaluation
 5. Structure-energy relationships analysed
 
 ### Typical Energy Results
@@ -159,48 +242,39 @@ crystalyse analyse "Analyse CsSnI3 energetics in detail" --mode rigorous
 #### Perovskite Stability Ranking
 
 ```python
-Perovskite Stability Analysis:
-├── CsGeI₃: -2.558 ± 0.043 eV/atom (most stable)
-├── CsPbI₃: -2.542 ± 0.038 eV/atom
-├── CsSnI₃: -2.529 ± 0.041 eV/atom  
-├── RbPbI₃: -2.503 ± 0.046 eV/atom
-└── RbSnI₃: -2.488 ± 0.052 eV/atom
+Perovskite Stability Analysis (formation energy, eV/atom):
+├── CsGeI₃: -2.558 (most stable)
+├── CsPbI₃: -2.542
+├── CsSnI₃: -2.529
+├── RbPbI₃: -2.503
+└── RbSnI₃: -2.488
 
 Stability Trend: Cs > Rb (A-site), Ge > Pb > Sn (B-site)
-Uncertainty: All predictions within HIGH confidence range
 ```
+
+Each number is a single deterministic prediction; there is no error bar to report.
 
 #### Battery Material Energetics
 
 ```python
-LiCoO₂ Polymorphs:
-├── Layered R3̄m: -4.127 ± 0.028 eV/atom (ground state)
-├── Spinel Fd3̄m: -4.089 ± 0.035 eV/atom (+38 meV/atom)
-└── Rock salt Fm3̄m: -3.956 ± 0.042 eV/atom (+171 meV/atom)
-
-Delithiation Energy: +0.89 ± 0.08 eV per Li removed
-Voltage vs Li/Li⁺: 3.9 ± 0.2 V
+LiCoO₂ Polymorphs (formation energy, eV/atom):
+├── Layered:   -4.127 (lowest)
+├── Spinel:    -4.089 (+38 meV/atom)
+└── Rock salt: -3.956 (+171 meV/atom)
 ```
+
+Space-group labels for the polymorphs come from `analyze_space_group`, not from MACE -
+MACE sees only atoms, positions and a cell.
 
 ## Model Performance
 
-### Accuracy Benchmarks
+### Accuracy
 
-MACE performance against DFT reference calculations:
-
-```bash
-Formation Energy Accuracy:
-├── Mean Absolute Error: 0.049 eV/atom
-├── Root Mean Square Error: 0.067 eV/atom
-├── R² correlation: 0.94
-└── Outlier rate (<0.2 eV/atom): 96.3%
-
-Speed Performance:
-├── Single structure: 1-5 seconds
-├── Batch (10 structures): 10-30 seconds
-├── Large batch (100): 2-5 minutes
-└── Speedup vs DFT: 1000-10000x
-```
+Crystalyse contains no benchmark harness or timing instrumentation for MACE - the
+`computation_time` key in the CIF-facing result is returned as `None` unconditionally - so
+this page quotes no accuracy or speedup figures of its own. For published accuracy of the
+MACE-MP foundation models, see the [citation](#citation) section and the upstream
+model cards.
 
 ### Materials Coverage
 
@@ -217,63 +291,46 @@ MACE models are trained on diverse materials:
 
 ```bash
 Resource Requirements:
-├── CPU: 2-4 cores for single calculations
-├── GPU: Optional (CUDA acceleration available)
-├── Memory: 1-2 GB per structure
-├── Storage: Model files (~500 MB initial download)
-
-Execution Times:
-├── Single energy calculation: 1-5 seconds
-├── Structure optimisation: 30-120 seconds
-├── Batch calculations (10): 10-30 seconds
-└── Large screening (100): 2-5 minutes
+├── CPU: works on CPU alone; a GPU is optional
+├── GPU: used automatically when torch.cuda.is_available()
+├── Storage: foundation-model checkpoints cached in ~/.cache/mace/
+└── Model cache: each (model, size, device, dtype) combination is loaded once
+    per process and reused
 ```
+
+Crystalyse does not time MACE calls, so no execution-time figures are quoted here.
 
 ### GPU Acceleration
 
-MACE automatically utilises GPU when available:
+Device selection is a single `torch.cuda.is_available()` check when `device="auto"`
+(the default) - CUDA if present, CPU otherwise. Nothing measures the difference, so no
+speedup figure is claimed. To force one or the other, pass `device="cpu"` or
+`device="cuda"` to `MACECalculator`; the MCP tools expose this as `prefer_gpu`.
 
 ```bash
 # Check GPU availability
 nvidia-smi
-
-# GPU acceleration provides:
-├── 3-5x speedup for single calculations
-├── 10-20x speedup for batch calculations
-├── Reduced memory usage per structure
-└── Better scaling for large systems
 ```
 
 ## Quality Control
 
 ### Energy Validation
 
-MACE includes comprehensive quality checks:
+Sanity checks on MACE output are the analyst's responsibility, not the tool's. Useful
+habits:
 
-#### Physical Consistency
-- **Energy scales**: Check energies are within reasonable ranges
-- **Stability ordering**: Verify thermodynamically consistent ordering
-- **Chemical trends**: Validate energy trends follow known chemical principles
-- **Reference alignment**: Ensure formation energies use consistent reference states
+- **Energy scales**: check energies are within a physically reasonable range
+- **Stability ordering**: verify the ordering is thermodynamically consistent
+- **Chemical trends**: check trends follow known chemical principles
+- **Reference alignment**: formation energies are only comparable when they share
+  reference states
+- **Hull distance**: `calculate_energy_above_hull` on the unified server places a
+  computed total energy against the phase-diagram dataset
 
-#### Uncertainty Assessment
-- **Model confidence**: Track prediction uncertainty from ensemble models
-- **Extrapolation detection**: Identify structures outside training domain
-- **Error propagation**: Properly combine uncertainties in derived quantities
-- **Validation against DFT**: Regular benchmarking against high-level calculations
-
-### Quality Indicators
-
-```python
-Energy Quality Assessment:
-├── Uncertainty magnitude: 0.041 eV/atom
-├── Confidence level: HIGH
-├── Training domain: WITHIN
-├── Physical reasonableness: PASS
-└── Recommendation: SUITABLE for ranking
-
-Quality Score: 0.91/1.0
-```
+The most useful check the tool *does* support is relaxation. `relax_structure` returns
+`converged`, `energy_change` and `max_displacement`: a structure whose energy drops sharply
+on relaxation was far from a local minimum, and its unrelaxed energy should not be trusted
+for ranking. Relax every candidate, or none of them, so the comparison is fair.
 
 ## Output Formats
 
@@ -281,109 +338,62 @@ Quality Score: 0.91/1.0
 
 Standard energy output format:
 
+This is what `calculate_energy(cif_content)` returns - the shape the MCP servers hand back:
+
 ```json
 {
+  "success": true,
   "formula": "CsSnI3",
-  "structure_id": "CsSnI3_structure1",
-  "energies": {
-    "formation_energy": -2.529,
-    "formation_energy_uncertainty": 0.041,
-    "total_energy": -1245.67,
-    "energy_per_atom": -249.13
-  },
-  "calculation_details": {
-    "model_version": "MACE-ICE13-1",
-    "calculation_time": 3.2,
-    "gpu_used": true,
-    "convergence": "achieved"
-  },
-  "quality_metrics": {
-    "confidence_level": "HIGH",
-    "uncertainty_category": "low",
-    "domain_check": "within_training"
-  }
+  "formation_energy_per_atom": -2.529,
+  "total_energy": -1245.67,
+  "num_atoms": 5,
+  "uncertainty": null,
+  "computation_time": null,
+  "model_used": "mace_mp_medium",
+  "error": null
 }
 ```
 
-### Batch Results with Ranking
+Every key is listed above; there are no others. Note that `uncertainty` and
+`computation_time` are always `null`, and `model_used` is built as
+`f"{model_type}_{size}"` - so it reads `mace_mp_medium` with the defaults, which is also a
+convenient way to confirm which model actually ran.
 
-```json
-{
-  "batch_summary": {
-    "compositions_calculated": 5,
-    "total_time": 12.4,
-    "average_uncertainty": 0.043
-  },
-  "ranked_results": [
-    {
-      "rank": 1,
-      "formula": "CsGeI3",
-      "formation_energy": -2.558,
-      "uncertainty": 0.043,
-      "stability_score": 0.94
-    },
-    {
-      "rank": 2, 
-      "formula": "CsPbI3",
-      "formation_energy": -2.542,
-      "uncertainty": 0.038,
-      "stability_score": 0.92
-    }
-  ]
-}
-```
+The structure-dict entry point, `calculate_formation_energy`, returns an `EnergyResult`
+instead. It declares `max_force` and `rms_force` but never populates them.
 
-## Advanced Features
+## Structure Relaxation
 
-### Structure Optimisation
-
-MACE can optimise crystal structures:
+MACE relaxes atomic positions to a local energy minimum:
 
 ```python
-# Atomic position optimisation
-optimised = mace_optimise_structure(
-    initial_cif,
-    optimise_positions=True,
-    optimise_lattice=False,
-    force_tolerance=0.01  # eV/Å
+relaxed = await calc.relax_structure(
+    structure_dict,
+    fmax=0.01,        # force convergence criterion, eV/Å
+    steps=500,        # maximum optimiser steps
+    optimizer="BFGS", # BFGS, FIRE or LBFGS
 )
 
-# Full structure optimisation
-fully_optimised = mace_optimise_structure(
-    initial_cif,
-    optimise_positions=True,
-    optimise_lattice=True,
-    stress_tolerance=0.1  # GPa
-)
+relaxed.converged        # whether fmax was reached within `steps`
+relaxed.energy_change    # final_energy - initial_energy
+relaxed.max_displacement # largest atomic movement, Å
+relaxed.n_steps
+relaxed.relaxed_structure
 ```
 
-### Property Prediction
+The **cell is held fixed** - only atomic positions move. There is no variable-cell
+relaxation, no lattice or stress tolerance parameter.
 
-Beyond energies, MACE can predict other properties:
+## Mechanical Properties
 
-```python
-# Electronic properties
-properties = mace_predict_properties(
-    structure_cif,
-    properties=["band_gap", "bulk_modulus", "formation_enthalpy"]
-)
+Mechanical quantities come from `MACEStressCalculator`, documented above:
+`calculate_stress` for the stress tensor, pressure, von Mises and maximum shear stress, and
+`fit_equation_of_state` for a fitted EOS (bulk modulus and equilibrium volume) from a
+strain sweep.
 
-# Mechanical properties
-mechanical = mace_calculate_elastic_constants(structure_cif)
-```
-
-### Temperature Effects
-
-Temperature-dependent properties:
-
-```python
-# Thermal expansion
-thermal_props = mace_thermal_properties(
-    structure_cif,
-    temperature_range=[0, 1000],  # K
-    properties=["thermal_expansion", "heat_capacity"]
-)
-```
+There is no band-gap, elastic-constant or thermal-property prediction in the MACE path.
+For an electronegativity-based band gap estimate, see
+[SMACT](smact.md) - a different tool with very different accuracy expectations.
 
 ## Limitations and Considerations
 
@@ -396,32 +406,35 @@ thermal_props = mace_thermal_properties(
 
 ### Best Practices
 
-1. **Uncertainty Awareness**: Always consider uncertainty estimates in rankings
-2. **Validation**: Compare results to experimental data when available
-3. **Batch Processing**: Use batch calculations for efficiency
-4. **Structure Quality**: Ensure input structures are chemically reasonable
+1. **Relax Before Comparing**: run `relax_structure` so candidates are compared at
+   comparable states - and check `converged`, since a run that hit the step limit has not
+   reached a minimum
+2. **Mind the Reference State**: `formation_energy` is referenced to isolated atoms, so use
+   it for ranking, not for comparison against tabulated formation enthalpies
+3. **Validation**: compare results to experimental or DFT data when available
+4. **Treat Small Gaps Sceptically**: no uncertainty is reported, so differences of a few
+   tens of meV/atom between candidates should not decide anything on their own
+5. **Structure Quality**: ensure input structures are chemically reasonable
 
 ### Common Issues and Solutions
 
-#### High Uncertainty Predictions
+#### Energies That Look Wrong
 ```python
-if uncertainty > 0.1:  # eV/atom
-    # Strategies:
-    # 1. Check structure quality
-    # 2. Verify composition is within training domain
-    # 3. Consider ensemble predictions
-    # 4. Flag for DFT validation
+# No force diagnostic comes back with an energy, so probe with a relaxation:
+relaxed = await calc.relax_structure(structure)
+
+if not relaxed.converged:
+    ...  # hit the step limit - not at a minimum
+
+if relaxed.energy_change < -0.1:  # eV, a large drop for a small cell
+    ...  # the input was far from a minimum; use relaxed.final_energy
 ```
 
 #### GPU Memory Issues
 ```python
-# For large structures or batch calculations
-if gpu_memory_error:
-    # Solutions:
-    # 1. Reduce batch size
-    # 2. Use CPU fallback
-    # 3. Split large structures
-    # 4. Clear GPU cache between calculations
+# Fall back to CPU for large structures
+calc = MACECalculator(device="cpu")
+# or, through the MCP tools, pass prefer_gpu=False
 ```
 
 ## Integration with Other Tools
@@ -430,15 +443,14 @@ if gpu_memory_error:
 
 ```mermaid
 graph LR
-    A[Chemeleon Structures] --> B[CIF to MACE Conversion]
+    A[Chemeleon Structures] --> B[CIF to ASE Atoms]
     B --> C[MACE Energy Calculation]
     C --> D[Energy Ranking]
     D --> E[Stability Analysis]
-    
-    C --> F[Uncertainty Assessment]
-    F --> G[Quality Control]
-    G --> D
-    
+
+    C --> F[Relax Structure]
+    F --> C
+
     D --> H[Results Visualisation]
 ```
 
@@ -447,31 +459,24 @@ graph LR
 Seamless integration with structure prediction:
 
 ```python
-# Automatic pipeline
-chemeleon_structures = chemeleon_predict_structure("CsSnI3", num_structures=5)
-mace_results = []
+# Chemeleon -> MACE
+prediction = await predictor.predict_structure("CsSnI3", num_samples=5)
 
-for structure in chemeleon_structures:
-    energy_result = mace_calculate_energy(structure)
-    mace_results.append(energy_result)
+results = []
+for structure in prediction.predicted_structures:
+    results.append(await calc.calculate_formation_energy(structure.model_dump()))
 
-# Automatic ranking by stability
-ranked_structures = sort_by_formation_energy(mace_results)
+# Rank by stability
+ranked = sorted(
+    (r for r in results if r.success),
+    key=lambda r: r.formation_energy,
+)
 ```
 
 ### Results Integration
 
-MACE results automatically integrate with visualisation:
-
-```python
-# Energy-annotated visualisations
-for result in mace_results:
-    create_annotated_visualisation(
-        structure=result["structure"],
-        energy=result["formation_energy"],
-        uncertainty=result["uncertainty"]
-    )
-```
+The ranked structure is written out as CIF and passed to the visualisation server, which
+produces the CIF plus four analysis PDFs. See [Visualisation](visualisation.md).
 
 ## Research Applications
 
@@ -524,7 +529,8 @@ metastable_phases = identify_metastable_phases(polymorph_energies)
 Planned enhancements to MACE integration:
 
 - **Extended property prediction**: Band gaps, elastic constants, thermal properties
-- **Uncertainty quantification improvements**: Better out-of-domain detection
+- **Uncertainty quantification**: none today; ensembles or out-of-domain detection would
+  be new work
 - **Multi-scale models**: Integration with larger-scale simulation methods
 - **Active learning**: Automated model improvement based on new data
 
@@ -564,7 +570,7 @@ MACE provides the critical energy evaluation capability that enables Crystalyse 
 **Key Benefits**:
 - Near-DFT accuracy at dramatically reduced cost
 - Fast energy calculations enable interactive workflows
-- Uncertainty quantification for reliable predictions
+- Position relaxation, stress tensors and EOS fitting from the same calculator
 - Seamless integration with structure prediction pipeline
 - Support for diverse materials classes
 

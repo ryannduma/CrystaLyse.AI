@@ -1,461 +1,270 @@
 # Memory Systems
 
 !!! warning "Experimental Preview"
-    This feature is currently in experimental preview. The implementation is scaffolded and undergoing active development. APIs and behaviors may change.
+    The `crystalyse.memory` package described below is implemented but is **not yet wired
+    into the agent**: nothing in `crystalyse.agents` imports it. The memory the agent
+    actually uses today is the Agents SDK `SQLiteSession` described under
+    [Conversation Memory](#conversation-memory). APIs and behaviour may change.
 
 ## Overview
 
-Crystalyse implements sophisticated memory systems that enable agents to maintain context, learn from interactions, and build upon previous discoveries. The memory architecture is designed specifically for materials design research workflows.
+Crystalyse implements memory systems that enable agents to maintain context, learn from interactions, and build upon previous discoveries. The memory architecture is designed specifically for materials design research workflows.
+
+Its guiding principle is stated in the package itself: *simple files + smart context beats
+complex architectures*. Everything lives in plain files under `~/.crystalyse` — there is no
+database server, no vector index and no external service.
 
 ## Memory Architecture
 
-### Hierarchical Memory Structure
+### Layered Memory Structure
 
 ```
 ┌────────────────────────────────────────┐
-│           User Memory                  │
-│    (Preferences, History, Projects)    │
+│         SessionMemory (L1)             │
+│   (Recent turns, in RAM, max 10)       │
 ├────────────────────────────────────────┤
-│          Session Memory                │
-│    (Current Context, Discoveries)      │
+│        DiscoveryCache (L2)             │
+│   (~/.crystalyse/discoveries.json)     │
 ├────────────────────────────────────────┤
-│         Discovery Memory               │
-│    (Important Findings, Insights)      │
+│          UserMemory (L3)               │
+│   (~/.crystalyse/memory_<user>.md)     │
 ├────────────────────────────────────────┤
-│          Working Memory                │
-│      (Immediate Context, Cache)        │
+│      CrossSessionContext (L4)          │
+│   (~/.crystalyse/insights_<user>.md)   │
 └────────────────────────────────────────┘
 ```
 
 ## Memory Types
 
-### 1. Working Memory
+### 1. Session Memory
 
-Short-term memory for immediate context:
-- Current material composition being analysed
-- Recent tool outputs (SMACT, Chemeleon, MACE)
-- Temporary calculations and energy values
-- Active materials design hypotheses
+Short-term memory for the current conversation:
+- Recent `(query, response, timestamp)` triples
+- Held in RAM only, never written to disk
+- Capped at `max_interactions=10`, oldest dropped first
+- `get_context(last_n=3)` formats the recent turns for the agent
 
 **Characteristics:**
 - High-speed access
 - Limited capacity
-- Cleared after each session
+- Cleared when the process ends, or via `clear_session()`
 - Optimised for performance
 
-### 2. Session Memory
+### 2. Discovery Cache
 
-Medium-term memory for ongoing conversations:
-- Conversation history
-- Analysis progression
-- User queries and responses
-- Contextual relationships
-
-**Characteristics:**
-- Persists during session
-- Enables contextual understanding
-- Supports follow-up questions
-- Tracks analysis flow
-
-### 3. Discovery Memory
-
-Long-term storage for important findings:
-- Significant materials discoveries
-- Validated crystal structures
-- Stable material compositions
-- Structure-property relationships
+Cached results for expensive calculations:
+- Keyed on chemical formula (`"LiCoO2"`), not on free text
+- Each entry stores `formula`, `properties`, `timestamp` and `cached_at`
+- Backed by a single JSON file, `~/.crystalyse/discoveries.json`
+- Avoids re-running MACE, Chemeleon and SMACT for a formula already seen
 
 **Characteristics:**
-- Permanent storage
-- Cross-session accessibility
-- Searchable and indexed
-- Quality-filtered content
+- Persistent across sessions
+- Exact-formula lookup via `get_cached_discovery(formula)`
+- Substring search over formulas and property text via `search_discoveries(query, limit)`
+- Exportable and importable as JSON
 
-### 4. User Memory
+### 3. User Memory
 
 Personalised memory for each user:
-- Analysis preferences
-- Project history
-- Custom configurations
-- Frequently analysed materials
+- A human-readable markdown file, `~/.crystalyse/memory_<user_id>.md`
+- Sections for preferences, research interests, recent discoveries, patterns and notes
+- Written with `save_to_memory(fact, section="Important Notes")`
+- Searched with `search_memory(query)`
 
 **Characteristics:**
-- User-specific storage
-- Privacy-protected
+- User-specific file naming
+- Plain markdown, editable by hand
 - Enables personalisation
-- Tracks usage patterns
+- Read back as agent context
+
+### 4. Cross-Session Context
+
+Auto-generated long-term summaries:
+- Weekly summaries of discoveries and recurring patterns
+- Stored as `~/.crystalyse/insights_<user_id>.md`
+- `generate_weekly_summary()` builds one on demand
+- `auto_generate_insights()` builds one only when the insights file is missing or at least 7 days old
+
+**Characteristics:**
+- Derived from the discovery cache and user memory
+- Markdown, not a graph or an embedding store
+- Surfaced in agent context as "Recent Research Context"
 
 ## Memory Implementation
 
-### Storage Backends
+### Storage
 
-Crystalyse supports multiple storage options:
-
-```python
-# In-memory storage (default)
-memory = InMemoryStorage()
-
-# Redis for distributed systems
-memory = RedisMemoryStorage(
-    host="localhost",
-    port=6379,
-    db=0
-)
-
-# PostgreSQL for persistent storage
-memory = PostgreSQLMemoryStorage(
-    connection_string="postgresql://..."
-)
-
-# File-based for simple deployments
-memory = FileMemoryStorage(
-    base_path="~/.crystalyse/memory"
-)
-```
-
-### Memory Manager
-
-The central memory management system:
+There is one storage backend: files.
 
 ```python
-from crystalyse.memory import MemoryManager
-
-manager = MemoryManager(
-    working_memory=InMemoryStorage(),
-    session_memory=RedisMemoryStorage(),
-    discovery_memory=PostgreSQLMemoryStorage(),
-    user_memory=FileMemoryStorage()
-)
+# All four layers share a directory (default: ~/.crystalyse)
+~/.crystalyse/
+├── discoveries.json         # DiscoveryCache
+├── memory_<user_id>.md      # UserMemory
+└── insights_<user_id>.md    # CrossSessionContext
+# SessionMemory is in-process only
 ```
+
+### Memory Entry Point
+
+`CrystaLyseMemory` composes the four layers:
+
+```python
+from crystalyse.memory import CrystaLyseMemory
+
+memory = CrystaLyseMemory(user_id="default", memory_dir=None)  # default ~/.crystalyse
+
+memory.session_memory          # SessionMemory
+memory.discovery_cache         # DiscoveryCache
+memory.user_memory             # UserMemory
+memory.cross_session_context   # CrossSessionContext
+```
+
+The package exports `SessionMemory`, `DiscoveryCache`, `UserMemory`,
+`CrossSessionContext`, `CrystaLyseMemory`, `save_to_memory`, `search_memory`,
+`save_discovery`, `search_discoveries` and `get_memory_tools`.
 
 ## Memory Operations
 
 ### Storing Information
 
 ```python
-# Store in working memory
-manager.working.store(
-    key="current_material",
-    value={
-        "smiles": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
-        "name": "Ibuprofen",
-        "properties": {...}
-    },
-    ttl=300  # 5 minutes
+# Record a conversation turn (session layer)
+memory.add_interaction(
+    query="Analyse LiFePO4 for battery applications",
+    response=result["response"],
 )
 
-# Store discovery
-manager.discoveries.store(
-    discovery={
-        "type": "sar_relationship",
-        "description": "Higher formation energy stability in perovskite structure",
-        "materials": ["CaTiO3", "BaTiO3"],
-        "confidence": 0.85
-    }
+# Cache a discovery, keyed by formula
+memory.save_discovery(
+    formula="LiFePO4",
+    properties={
+        "formation_energy": -2.345,
+        "unit": "eV/atom",
+        "space_group": "Pnma",
+    },
+)
+
+# Note a durable fact about the user's work
+memory.save_to_memory(
+    "Avoid Co-containing cathodes for this project",
+    section="Important Notes",
 )
 ```
 
 ### Retrieving Information
 
 ```python
-# Get from working memory
-current = manager.working.get("current_material")
+# Exact formula lookup in the cache
+cached = memory.get_cached_discovery("LiFePO4")
 
-# Search discoveries
-discoveries = manager.discoveries.search(
-    query="anti-inflammatory",
-    filters={"confidence": {"$gte": 0.8}}
-)
+# Substring search across cached discoveries
+discoveries = memory.search_discoveries("phosphate", limit=5)
 
-# Get session context
-context = manager.session.get_context(
-    session_id="session_123",
-    last_n_messages=10
-)
+# Search the user's markdown memory
+notes = memory.search_memory("cathode")
 ```
-
-### Memory Queries
-
-Advanced querying capabilities:
-
-```python
-# Semantic search in discoveries
-results = manager.discoveries.semantic_search(
-    "materials with high ionic conductivity",
-    top_k=5
-)
-
-# Find similar analyses
-similar = manager.user.find_similar_analyses(
-    material="LiFePO4",
-    user_id="user_123"
-)
-```
-
-## Context Management
 
 ### Building Context
 
-The memory system builds context intelligently:
+`get_context_for_agent()` concatenates whatever the layers have to offer:
 
 ```python
-context = manager.build_context(
-    current_query="What about its metabolites?",
-    session_id="session_123"
-)
+context = memory.get_context_for_agent()
 
-# Context includes:
-# - Current material (from working memory)
-# - Recent conversation (from session memory)
-# - Relevant discoveries (from discovery memory)
-# - User preferences (from user memory)
+# Context includes, when non-empty:
+# - "Previous Conversation"   (session memory, last few turns)
+# - "User Profile"            (user memory summary)
+# - "Recent Research Context" (cross-session insights)
+# - "Recent Discoveries"      (up to 3 recent cache entries)
 ```
 
-### Context Windows
+## Memory Tools
 
-Manage context size for optimal performance:
+Eight memory functions are decorated with `@function_tool` and collected by
+`get_memory_tools(user_id)`, ready to be handed to an agent. Nothing calls
+`get_memory_tools()` today, so they are available but not yet attached to a run:
+
+| Tool | Purpose |
+| ---- | ------- |
+| `save_to_memory(fact, section)` | Append a fact to the user's markdown memory |
+| `search_memory(query)` | Search that markdown memory |
+| `save_discovery(formula, properties)` | Cache a result for a formula |
+| `search_discoveries(query, limit)` | Search the discovery cache |
+| `get_cached_discovery(formula)` | Exact-formula cache lookup |
+| `get_memory_context()` | The combined context string above |
+| `generate_weekly_summary()` | Build and store a weekly insights summary |
+| `get_memory_statistics()` | Counts across all four layers |
+
+## Conversation Memory
+
+What the agent uses today is separate from the package above. `EnhancedCrystaLyseAgent`
+creates an Agents SDK `SQLiteSession` in its constructor and passes it into every run:
 
 ```python
-# Configure context window
-manager.configure_context(
-    max_tokens=4000,
-    prioritisation="recency",  # or "relevance"
-    include_discoveries=True
-)
-
-# Prune old context
-manager.session.prune_context(
-    session_id="session_123",
-    keep_last_n=20
-)
+session_id = f"{project_name}_{mode}"
+# ~/.crystalyse/sessions/<session_id>.db
 ```
 
-## Discovery System
+That database carries the conversation across successive `discover()` calls, which is
+what makes follow-up questions work in chat. If `SQLiteSession` cannot be imported the
+agent logs "conversation memory disabled" and runs stateless.
 
-### Automatic Discovery Detection
+From chat, `/memory` inspects and clears it:
 
-The system automatically identifies important findings:
+```
+/memory show     # session id, whether persistence is enabled, database size
+/memory clear    # deletes the .db/-shm/-wal files and recreates the session
+/memory refresh  # prints a refresh message; placeholder, changes nothing
+```
+
+`/memory clear` calls `agent.clear_session_memory()`, the only session mutation the agent
+exposes.
+
+## Statistics and Maintenance
 
 ```python
-# Configure discovery detection
-manager.configure_discovery_detection(
-    min_confidence=0.7,
-    categories=[
-        "structure_property_relationship",
-        "novel_material",
-        "unexpected_formation_energy",
-        "safety_concern"
-    ]
-)
+stats = memory.get_memory_statistics()
+# user_id, memory_directory, session summary, cache stats,
+# counts of user preferences / research interests / recent discoveries,
+# and whether an insights file exists
+
+memory.clear_session()          # drop in-RAM conversation turns
+memory.cleanup()                # clear session, then auto-generate insights if due
 ```
 
-### Discovery Validation
-
-Discoveries are validated before storage:
+### Export and Import
 
 ```python
-class DiscoveryValidator:
-    def validate(self, discovery):
-        # Check scientific validity
-        if not self.is_chemically_valid(discovery):
-            return False
-        
-        # Check novelty
-        if self.exists_in_literature(discovery):
-            discovery.novelty = "known"
-        
-        # Assign confidence score
-        discovery.confidence = self.calculate_confidence(discovery)
-        
-        return discovery.confidence > threshold
+from pathlib import Path
+
+memory.export_memory(Path("./memory_backup"))
+# writes discoveries.json, memory_<user>.md, insights_<user>.md
+
+memory.import_memory(Path("./memory_backup"), merge=True)
 ```
 
-## Memory Optimisation
+## Privacy
 
-### Caching Strategies
-
-Efficient caching for performance:
-
-```python
-# Configure caching
-manager.configure_cache(
-    strategy="lru",  # Least Recently Used
-    max_size=1000,
-    ttl=3600  # 1 hour
-)
-
-# Cache materials calculations
-@manager.cache(key_prefix="mat_props")
-def calculate_properties(smiles):
-    # Expensive calculation
-    return properties
-```
-
-### Memory Compression
-
-Reduce storage requirements:
-
-```python
-# Enable compression
-manager.enable_compression(
-    algorithm="zstd",
-    level=3,
-    min_size=1024  # Only compress entries > 1KB
-)
-```
-
-### Indexing
-
-Optimise search performance:
-
-```python
-# Create indices
-manager.discoveries.create_index("material_formula")
-manager.discoveries.create_index("discovery_type")
-manager.discoveries.create_text_index("description")
-```
-
-## Privacy and Security
-
-### Data Isolation
-
-User data is strictly isolated:
-
-```python
-# Each user has isolated memory space
-user_manager = manager.for_user("user_123")
-
-# No cross-user data access
-user_manager.discoveries.search(...)  # Only user's discoveries
-```
-
-### Encryption
-
-Sensitive data encryption:
-
-```python
-# Enable encryption at rest
-manager.enable_encryption(
-    key=encryption_key,
-    algorithm="AES-256-GCM"
-)
-```
-
-### Data Retention
-
-Configurable retention policies:
-
-```python
-# Set retention policies
-manager.set_retention_policy(
-    working_memory={"hours": 1},
-    session_memory={"days": 7},
-    discovery_memory={"days": 365},
-    user_memory={"days": 730}
-)
-```
-
-## Integration with Agents
-
-### Automatic Memory Management
-
-Agents automatically manage memory:
-
-```python
-agent = CrystaLyseAgent(memory_manager=manager)
-
-# Agent automatically:
-# - Stores queries in session memory
-# - Detects and stores discoveries
-# - Builds context from all memory types
-# - Manages working memory lifecycle
-```
-
-### Custom Memory Handlers
-
-Extend memory behaviour:
-
-```python
-class CustomMemoryHandler:
-    def on_discovery(self, discovery):
-        # Custom processing
-        if discovery.type == "battery_cathode":
-            notify_research_team(discovery)
-    
-    def on_session_end(self, session):
-        # Generate session summary
-        summary = generate_summary(session)
-        store_summary(summary)
-
-agent.register_memory_handler(CustomMemoryHandler())
-```
+- Everything is local: files under `~/.crystalyse`, no server, no upload.
+- Per-user separation is by filename (`memory_<user_id>.md`, `insights_<user_id>.md`);
+  the discovery cache is shared across users of the same machine account.
+- There is no encryption at rest and no retention policy — files persist until deleted.
 
 ## Best Practices
 
 ### 1. Memory Hygiene
 
-- Clear working memory between unrelated tasks
-- Prune session memory periodically
-- Validate discoveries before storage
-- Archive old user data
+- Keep discovery-cache entries keyed by the exact formula you will search for later.
+- Edit `memory_<user_id>.md` by hand when a preference changes; it is just markdown.
+- Clear the conversation session (`/memory clear`) when switching to an unrelated topic.
 
-### 2. Performance Optimisation
+### 2. What to Trust
 
-- Use appropriate storage backends
-- Enable caching for repeated queries
-- Index frequently searched fields
-- Monitor memory usage
-
-### 3. Data Management
-
-```python
-# Regular maintenance
-manager.maintenance.run_cleanup()
-manager.maintenance.optimise_indices()
-manager.maintenance.validate_integrity()
-```
-
-### 4. Backup and Recovery
-
-```python
-# Backup critical data
-manager.backup(
-    types=["discoveries", "user"],
-    destination="s3://backups/crystalyse/"
-)
-
-# Restore from backup
-manager.restore(
-    source="s3://backups/crystalyse/20240115/",
-    types=["discoveries"]
-)
-```
-
-## Monitoring and Analytics
-
-### Memory Metrics
-
-Track memory system performance:
-
-```python
-metrics = manager.get_metrics()
-print(f"Total memories: {metrics.total_count}")
-print(f"Storage used: {metrics.storage_gb} GB")
-print(f"Query latency: {metrics.avg_latency_ms} ms")
-print(f"Cache hit rate: {metrics.cache_hit_rate}%")
-```
-
-### Usage Analytics
-
-Understand memory patterns:
-
-```python
-analytics = manager.get_analytics()
-# Most accessed materials
-# Common discovery types
-# Peak usage times
-# User engagement metrics
-```
+- Cached properties are whatever was written at the time; re-run the calculation if the
+  underlying model or checkpoint has changed.
+- Weekly insights are generated by summarising the cache — they inherit its gaps.
 
 ## Next Steps
 

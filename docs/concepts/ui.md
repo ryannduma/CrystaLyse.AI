@@ -2,518 +2,247 @@
 
 ## Overview
 
-Crystalyse provides a sophisticated command-line interface designed specifically for materials design workflows. The UI combines intuitive interaction patterns with powerful crystal structure visualisation capabilities, offering both novice-friendly guidance and expert-level efficiency for materials researchers.
+Crystalyse provides a command-line interface designed for materials design workflows. It is a
+Typer application rendered with Rich: panels for agent answers, tables for provenance and the model
+registry, and an approval prompt before any file is written. There is no graphical or web UI, and
+no interactive viewer — visual artefacts are written to disk by the visualisation MCP server and
+opened outside Crystalyse.
 
 ## UI Architecture
 
 ### Component Structure
 
 ```
-CLI Interface
-├── Command Parser
-│   ├── Natural Language Processing
-│   ├── Materials-aware Parsing
-│   └── Context Understanding
-├── Display Engine
-│   ├── Crystal Structure Visualisation
-│   ├── Data Presentation
-│   └── Interactive Elements
-├── Theme System
-│   ├── Colour Schemes
-│   ├── ASCII Art
-│   └── Layout Templates
-└── Session Management
-    ├── History Tracking
-    ├── Context Preservation
-    └── Multi-session Support
+CLI (crystalyse.cli, Typer + Rich)
+├── Commands
+│   ├── discover            # single-shot query
+│   ├── chat                # interactive session (default with no arguments)
+│   ├── setup               # download phase-diagram data
+│   ├── analyse-provenance  # inspect a previous run
+│   └── models list|check   # inspect the model registry
+├── Chat experience (ui/chat_ui.py)
+│   ├── ascii_art.py          # responsive banner logo
+│   ├── slash_commands.py     # in-session meta-commands
+│   └── provenance_bridge.py  # per-query provenance capture
+└── Output
+    ├── Rich panels (answers, errors, write approval)
+    ├── Rich tables (provenance summary, model registry)
+    └── Files written by the visualisation MCP server (CIF, and HTML when enabled)
 ```
 
 ## Command-Line Interface
 
-### Interactive Mode
+### Entry Points
 
-The primary interface for materials design analysis:
-
-```bash
-$ crystalyse interactive
-
-═══════════════════════════════════════════════════════════
-                    CRYSTALYSE.AI v1.0.0
-                  Materials Design Platform
-═══════════════════════════════════════════════════════════
-
-Welcome to Crystalyse! Type 'help' for commands or ask any materials design question.
-
-crystalyse> analyse LiFePO4
-```
-
-### Command Structure
-
-Crystalyse supports multiple command patterns:
+There are two ways to reach the agent:
 
 ```bash
-# Direct commands
-crystalyse analyse "LiFePO4"
-crystalyse visualise "CaTiO3" --output perovskite.png
-crystalyse design "high capacity cathode" --target-material
+# Single-shot, non-interactive
+crystalyse discover "Find stable perovskites"
 
-# Natural language
-crystalyse "What are the properties of LiCoO2?"
-crystalyse "Show me materials similar to spinel oxides"
-crystalyse "How can I design a stable electrolyte?"
+# Interactive session
+crystalyse chat
+crystalyse chat -u researcher -s battery_materials
 
-# Interactive sessions
-crystalyse interactive --session battery_materials
-crystalyse chat -s session_id
+# Bare `crystalyse` inserts the chat command
+crystalyse
 ```
+
+Crystalyse is a subcommand application: a bare natural-language string such as
+`crystalyse "What are the properties of LiCoO2?"` is parsed as a command name and fails. Natural
+language belongs in `crystalyse discover "..."` or at the chat prompt.
+
+Supporting commands:
+
+```bash
+crystalyse setup                        # download the phase-diagram data (~178 MB)
+crystalyse analyse-provenance --latest  # summarise the most recent run
+crystalyse models list                  # the effective model registry
+crystalyse models check                 # per-model API-key status
+```
+
+### Session Banner
+
+`crystalyse chat` opens with the box-drawing CRYSTALYSE AI logo, sized to the terminal, above a
+cyan-bordered panel:
+
+```
+ ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗     █████╗ ██╗
+██╔════╝██╔══██╗╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██║    ╚██╗ ██╔╝██╔════╝██╔════╝    ██╔══██╗██║
+██║     ██████╔╝ ╚████╔╝ ███████╗   ██║   ███████║██║     ╚████╔╝ ███████╗█████╗      ███████║██║
+██║     ██╔══██╗  ╚██╔╝  ╚════██║   ██║   ██╔══██║██║      ╚██╔╝  ╚════██║██╔══╝      ██╔══██║██║
+╚██████╗██║  ██║   ██║   ███████║   ██║   ██║  ██║███████╗  ██║   ███████║███████╗    ██║  ██║██║
+ ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ╚═╝   ╚══════╝╚══════╝    ╚═╝  ╚═╝╚═╝
+
+╭──────────────────────────────────────────────────────────────╮
+│      Your interactive materials science research partner.    │
+│      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                │
+│  Type your query to begin, /help for commands, or 'quit'     │
+│  to exit.                                                    │
+╰──────────────────────────────────────────────────────────────╯
+
+➤
+```
+
+The prompt is `➤ `. Anything starting with `/` is dispatched as a slash command, `quit` or `exit`
+ends the loop, and everything else goes to the agent unmodified — there is no preprocessing step
+between the prompt and the agent.
+
+### In-Session Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/help` | Show the command table |
+| `/tools` | List MCP tools and servers; `nodesc` drops the description column |
+| `/mcp` | MCP server status and details; takes `status`, `servers` or `desc` |
+| `/stats` | Session duration, configuration and feature summary |
+| `/memory` | Inspect or clear the conversation store; takes `show`, `clear` or `refresh` |
+| `/mode` | View or change the operating mode; takes `show`, `explore`, `validate` or `auto` |
+| `/model` | View the model registry, or switch backbone by name |
+| `/about` | Version and system information |
+| `/clear` | Clear the terminal screen (not the conversation) |
+| `/quit`, `/exit` | Exit the session |
+
+`/mode` and `/model` both recreate the agent in place, so the change takes effect on the next
+query. `/model` with no argument prints the registry as a table (Name, Backend, Model ID, Usable)
+with the current selection marked; `/model <name>` accepts any registry name or a raw model string.
+`/memory clear` deletes the SQLite session database for the current agent after a confirmation
+prompt.
+
+`/tools`, `/mcp` and parts of `/stats` currently print a fixed list rather than querying the
+running servers, so treat their tool counts as illustrative. `crystalyse models list` and
+`crystalyse models check`, by contrast, read the live registry and environment.
 
 ## Display Components
 
-### Crystal Structure Visualisation
+### Conversation Panels
 
-#### 2D Structure Display
+In a chat session each turn is framed: the query in a green `You` panel, the answer in a cyan
+`CrystaLyse` panel. `crystalyse discover` prints the answer once, in a green `Discovery Report`
+panel, and a failed run prints a red `Discovery Failed` panel carrying the error string.
 
-```
-Material: Lithium Iron Phosphate (LiFePO4)
-Formula: LiFePO4
+### Provenance Summary
 
-Structure:
-  Li⁺  Fe²⁺  [PO₄]³⁻
-   │    │      │
-  Olivine Structure
-         
-Structural Features:
-• Olivine framework: [FeO6] octahedra
-• Polyanion: [PO4] tetrahedra  
-• Li channels: 1D diffusion paths
-```
-
-#### 3D Visualisation
-
-Interactive 3D crystal structure viewer:
-- Rotate, zoom, and pan
-- Multiple rendering styles
-- Atom/bond labelling
-- Unit cell display
-- Miller planes visualisation
-
-### Data Presentation
-
-#### Property Tables
+Every query captures provenance. `crystalyse discover` prints a summary table after the answer
+unless `--hide-summary` (or `CRYSTALYSE_SHOW_PROVENANCE_SUMMARY=false`) suppresses it:
 
 ```
-═══════════════════════════════════════════════════════════
-                    MATERIAL PROPERTIES
-═══════════════════════════════════════════════════════════
-Property                Value              Unit       
-───────────────────────────────────────────────────────────
-Formation Energy        -2.84              eV/atom    
-Band Gap                3.8                eV         
-Density                 3.6                g/cm³      
-Space Group             Pnma               -          
-Lattice a               10.33              Å          
-Lattice b               6.01               Å          
-═══════════════════════════════════════════════════════════
+                  Provenance Summary
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric           ┃ Value                               ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Session ID       │ …                                   │
+│ Materials Found  │ …                                   │
+│ With Energy Data │ …                                   │
+│ Energy Range     │ … to … eV/atom                      │
+│ Runtime          │ …s                                  │
+│ MCP Tools Used   │ …                                   │
+│ Output Location  │ ./provenance_output/…               │
+└──────────────────┴─────────────────────────────────────┘
 ```
 
-#### Analysis Summaries
+The chat session prints a shorter version of the same table: Session ID, Materials Found, MCP Tool
+Calls, Total Tool Calls and Output Directory, followed by the `crystalyse analyse-provenance
+--session <id>` command that reopens it.
+
+### Write Approval
+
+The agent's `write_file` tool is gated. Before anything is written the CLI shows the first 400
+characters of the content in a yellow panel and asks for confirmation:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    ANALYSIS SUMMARY                     │
-├─────────────────────────────────────────────────────────┤
-│ Material: Lithium Iron Phosphate                       │
-│ Formula: LiFePO₄                                        │
-│                                                         │
-│ Key Findings:                                           │
-│ ✓ Thermodynamically stable structure                   │
-│ ✓ Suitable band gap for cathode application            │
-│ ⚠ Lower ionic conductivity than alternatives           │
-│                                                         │
-│ Similarity: 8 similar olivine structures found         │
-│ Applications: Battery cathode materials                 │
-└─────────────────────────────────────────────────────────┘
+╭─────────────────── 📝 Approval Required ────────────────────╮
+│ <first 400 characters of the file content>                  │
+╰──── About to write 1234 bytes to results/summary.md ────────╯
+Do you approve this file write operation? [Y/n]:
 ```
 
-### Interactive Elements
-
-#### Progress Indicators
+### Model Registry
 
 ```
-Analysing material... [████████████████████] 100%
-
-Processing steps:
-✓ Composition validation (SMACT)
-✓ Structure generation (Chemeleon)
-✓ Energy calculation (MACE)
-⚠ Phase stability analysis (metastable)
-✓ Property prediction (suitable for batteries)
+                        CrystaLyse Model Registry
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Name            ┃ Backend ┃ Model ID  ┃ Context ┃ Modes ┃ Env Var ┃ Source ┃Usable┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ openai_o4_mini  │ openai  │ o4-mini   │ 128,000 │ …     │ OPENAI… │built-in│  ✓   │
+└─────────────────┴─────────┴───────────┴─────────┴───────┴─────────┴────────┴──────┘
 ```
 
-#### Selection Menus
+The Source column distinguishes built-in entries from ones overridden or defined in
+`.crystalyse/config.toml`, and Usable reports whether the entry's API-key variable is set.
+`crystalyse models check` prints the same key status line by line and exits non-zero if anything
+required is missing.
 
-```
-Multiple crystal structures found:
+### Visualisation Artefacts
 
-[1] Olivine structure (most stable, -2.84 eV/atom)
-    Li diffusion: 1D channels
-    Structural stability: High
-
-[2] Spinel structure (metastable, -2.71 eV/atom)
-    Li diffusion: 3D pathways
-    Structural stability: Moderate
-
-[3] Layered structure (unstable, -2.55 eV/atom)
-    Li diffusion: 2D layers
-    Structural stability: Low
-
-Select structure [1-3] or 'all' for details: 
-```
-
-## Theme System
-
-### Colour Schemes
-
-#### Professional Theme (Default)
-
-```python
-theme = {
-    "primary": "#2E86AB",      # Crystal blue
-    "secondary": "#A23B72",    # Materials purple  
-    "success": "#F18F01",      # Formation orange
-    "warning": "#C73E1D",      # Alert red
-    "info": "#03CEA4",         # Information teal
-    "background": "#F5F5F5",   # Light grey
-    "text": "#2C3E50"          # Dark blue-grey
-}
-```
-
-#### Dark Theme
-
-```python
-dark_theme = {
-    "primary": "#61DAFB",      # Bright blue
-    "secondary": "#BB86FC",    # Purple
-    "success": "#03DAC6",      # Teal
-    "warning": "#CF6679",      # Pink
-    "info": "#FFB74D",         # Orange
-    "background": "#121212",   # Dark grey
-    "text": "#FFFFFF"          # White
-}
-```
-
-### Enhanced UI Components
-
-#### Header Graphics
-
-```
-     ▄████▄   ██▀███ ▓██   ██▓  ██████ ▄▄▄█████▓ ▄▄▄       ██▓    ▓██   ██▓  ██████ ▓█████ 
-    ▒██▀ ▀█  ▓██ ▒ ██▒▒██  ██▒▒██    ▒ ▓  ██▒ ▓▒▒████▄    ▓██▒     ▒██  ██▒▒██    ▒ ▓█   ▀ 
-    ▒▓█    ▄ ▓██ ░▄█ ▒ ▒██ ██░░ ▓██▄   ▒ ▓██░ ▒░▒██  ▀█▄  ▒██░      ▒██ ██░░ ▓██▄   ▒███   
-    ▒▓▓▄ ▄██▒▒██▀▀█▄   ░ ▐██▓░  ▒   ██▒░ ▓██▓ ░ ░██▄▄▄▄██ ▒██░      ░ ▐██▓░  ▒   ██▒▒▓█  ▄ 
-    ▒ ▓███▀ ░░██▓ ▒██▒ ░ ██▒▓░▒██████▒▒  ▒██▒ ░  ▓█   ▓██▒░██████▒  ░ ██▒▓░▒██████▒▒░▒████▒
-    ░ ░▒ ▒  ░░ ▒▓ ░▒▓░  ██▒▒▒ ▒ ▒▓▒ ▒ ░  ▒ ░░    ▒▒   ▓▒█░░ ▒░▓  ░   ██▒▒▒ ▒ ▒▓▒ ▒ ░░░ ▒░ ░
-      ░  ▒     ░▒ ░ ▒░▓██ ░▒░ ░ ░▒  ░ ░    ░      ▒   ▒▒ ░░ ░ ▒  ░ ▓██ ░▒░ ░ ░▒  ░ ░ ░ ░  ░
-    ░          ░░   ░ ▒ ▒ ░░  ░  ░  ░    ░        ░   ▒     ░ ░    ▒ ▒ ░░  ░  ░  ░     ░   
-    ░ ░         ░     ░ ░           ░                 ░  ░    ░  ░ ░ ░           ░     ░  ░
-    ░                 ░ ░                                          ░ ░                      
-```
-
-#### Crystal Structure Graphics
-
-```
-    Li⁺    Fe²⁺    [PO₄]³⁻
-     │      │        │
-     •------•--------•
-           Olivine Framework
-
-Material: Lithium Iron Phosphate
-Space Group: Pnma (orthorhombic)
-```
-
-## Customisation Options
-
-### User Preferences
-
-```yaml
-# ~/.crystalyse/preferences.yaml
-ui:
-  theme: "professional"
-  show_ascii_art: true
-  colour_output: true
-  verbose_mode: false
-  
-display:
-  structure_format: "3d_crystal"
-  table_style: "grid"
-  max_similar_materials: 10
-  
-interaction:
-  confirm_destructive: true
-  auto_save_sessions: true
-  command_history_size: 1000
-```
-
-### Command Aliases
-
-```yaml
-# Custom command shortcuts
-aliases:
-  props: "analyse --properties-only"
-  sim: "similarity-search"
-  design: "design-material --target-properties"
-  viz: "visualise --crystal-structure"
-```
+Crystal structures are not drawn in the terminal. The visualisation MCP server writes files
+(`create_3dmol_visualization`, `create_pymatviz_analysis_suite`, `create_creative_visualization`,
+`create_rigorous_visualization`, `create_mode_aligned_visualization`), and HTML output is off by
+default — `CRYSTALYSE_ENABLE_HTML_VIZ` defaults to `false` and `CRYSTALYSE_CIF_ONLY` to `true` — so
+the default artefact of a run is a CIF file you open in your own viewer.
 
 ## Responsive Design
 
-### Terminal Adaptation
+The one piece of terminal adaptation is the banner. `get_responsive_logo()` measures the logo
+variants against the terminal width and returns the widest that fits, in four steps, falling back
+to the plain string `Crystalyse - Materials Discovery Platform` when even the smallest is too wide.
+Everything else is Rich doing its own wrapping; there is no terminal capability probe, no compact
+or monochrome layout, and no split-screen view.
 
-The UI adapts to terminal capabilities:
+## Configuration
 
-```python
-# Detect terminal features
-terminal_info = {
-    "width": 120,
-    "height": 40,
-    "colour_support": "256_colour",
-    "unicode_support": True
-}
+There is no preferences file, theme system or alias mechanism. What exists is:
 
-# Adjust display accordingly
-if terminal_info["width"] < 80:
-    use_compact_layout()
-if not terminal_info["colour_support"]:
-    use_monochrome_theme()
-```
+- `.crystalyse/config.toml` — project settings, read from the project root and then from
+  `~/.crystalyse/` (`default_model`, `default_mode`, `plan_mode`, `plans_directory`,
+  `plans_cleanup_days`), plus optional `[models.<name>]` registry overrides.
+- `~/.crystalyse/sessions/` — the SQLite conversation databases, one per project and mode.
+- `CRYSTALYSE_*` environment variables — provenance directory, summary display, visualisation
+  output format and render-gate behaviour.
 
-### Mobile-Friendly Output
+Colours are Rich style strings written at each call site.
 
-For narrow terminals:
+## Extending the UI
 
-```
-Mat: LiFePO4
-Ef: -2.84 eV/atom
-Bg: 3.8 eV
-SG: Pnma
-
-✓ Stable cathode
-⚠ Low conductivity
-```
-
-## Accessibility Features
-
-### Screen Reader Support
+The extension point is the trace handler. `agent.discover()` streams SDK events and calls
+`on_event(event)` on the handler it is given; if the handler also defines `set_user_query(query)`,
+the query is recorded on it before the run starts:
 
 ```python
-# Alternative text for molecular structures
-alt_text = {
-    "structure": "Benzene ring with attached acetyl and carboxyl groups",
-    "properties": "Molecular weight 180.16, moderate lipophilicity",
-    "warning": "Potential gastrointestinal toxicity alert"
-}
+class PrintingTraceHandler:
+    def set_user_query(self, query: str) -> None:  # optional
+        print(f"query: {query}")
+
+    def on_event(self, event) -> None:
+        item = getattr(event, "item", None)
+        if item is not None:
+            print(f"event: {getattr(item, 'type', type(event).__name__)}")
+
+results = await agent.discover(query, trace_handler=PrintingTraceHandler())
 ```
 
-### Keyboard Navigation
-
-```
-Navigation:
-  Tab/Shift+Tab: Move between elements
-  Enter: Select/confirm
-  Esc: Cancel/back
-  ↑/↓: Navigate lists
-  Space: Toggle options
-  ?: Show help
-```
-
-### High Contrast Mode
-
-```python
-# High contrast colour scheme
-high_contrast = {
-    "background": "#000000",
-    "text": "#FFFFFF", 
-    "highlight": "#FFFF00",
-    "error": "#FF0000",
-    "success": "#00FF00"
-}
-```
-
-## Advanced Features
-
-### Split-Screen Mode
-
-```
-┌─────────────────────────┬─────────────────────────┐
-│     Input/Commands      │      Visualisation      │
-├─────────────────────────┼─────────────────────────┤
-│ > analyse aspirin       │         O              │
-│                         │         ‖              │
-│ Properties calculated:  │     H₃C-C-O-⬡-C-OH     │
-│ MW: 180.16 g/mol       │             │   ‖       │
-│ LogP: 1.19             │             ⬡   O       │
-│                         │                         │
-│ > similar compounds     │     [Rotate] [Zoom]     │
-│                         │     [Measure] [Export]  │
-└─────────────────────────┴─────────────────────────┘
-```
-
-### Workflow Visualisation
-
-```
-Analysis Pipeline:
-┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
-│ Input   │ → │ Validate│ → │ Analyse │ → │ Report  │
-│ SMILES  │    │ Structure│   │Properties│   │ Results │
-└─────────┘    └─────────┘    └─────────┘    └─────────┘
-     ↓             ↓             ↓             ↓
-  ✓ Valid      ✓ Processed   ✓ Calculated  ✓ Generated
-```
-
-### Context-Aware Help
-
-```
-crystalyse> analyse LiCoO2 ?
-
-HELP: analyse command
-Syntax: analyse <material> [options]
-
-For 'LiCoO2':
-  Common representations:
-  • Formula: LiCoO2
-  • Structure: Layered oxide
-  • Space Group: R-3m
-
-  Suggested analyses:
-  • Basic properties: analyse LiCoO2 --properties
-  • Phase stability: analyse LiCoO2 --phase-diagram
-  • Electronic structure: analyse LiCoO2 --band-structure
-
-crystalyse> 
-```
-
-## Integration Patterns
-
-### Agent Communication
-
-```python
-class UIAgent:
-    def display_analysis(self, result):
-        # Format for optimal readability
-        formatted = self.format_for_terminal(result)
-        
-        # Add interactive elements
-        if result.has_alternatives:
-            formatted += self.create_selection_menu(result.alternatives)
-        
-        # Display with appropriate theme
-        self.renderer.display(formatted, theme=self.current_theme)
-    
-    def handle_user_input(self, input_text):
-        # Parse natural language or commands
-        parsed = self.parser.parse(input_text)
-        
-        # Provide immediate feedback
-        self.show_processing_indicator()
-        
-        # Execute and display results
-        result = self.agent.process(parsed)
-        self.display_analysis(result)
-```
-
-### Plugin Architecture
-
-```python
-# Custom UI plugins
-class CustomDisplayPlugin:
-    def register_renderers(self):
-        return {
-            "spectra": SpectraRenderer(),
-            "reactions": ReactionRenderer(),
-            "pathways": PathwayRenderer()
-        }
-    
-    def register_commands(self):
-        return {
-            "spectra": self.handle_spectra_command,
-            "pathways": self.handle_pathway_command
-        }
-
-# Register plugin
-ui_manager.register_plugin(CustomDisplayPlugin())
-```
-
-## Performance Optimisation
-
-### Lazy Rendering
-
-```python
-class LazyMoleculeRenderer:
-    def render_on_demand(self, molecule):
-        # Only render when displayed
-        if self.is_visible(molecule):
-            return self.full_render(molecule)
-        else:
-            return self.placeholder_render(molecule)
-```
-
-### Streaming Output
-
-```python
-def stream_analysis_results(molecule):
-    yield "Starting analysis..."
-    
-    for step in analysis_pipeline:
-        yield f"Processing {step.name}..."
-        result = step.execute(molecule)
-        yield format_partial_result(result)
-    
-    yield "Analysis complete!"
-```
+Streaming is driven by `Runner.run_streamed` inside the agent, not by the UI. Passing your own
+handler replaces the provenance handler `discover()` would otherwise create, so the result will
+carry no `provenance` key — `CrystaLyseProvenanceHandler` in `ui/provenance_bridge.py` is the
+reference implementation to build on if you want both.
 
 ## Best Practices
 
-### 1. Information Hierarchy
+### 1. Choose the Entry Point to Match the Task
 
-- Most important information first
-- Group related data
-- Use visual cues for priority
-- Maintain consistent spacing
+`discover` for scripting and single questions; `chat` when the next question depends on the last
+answer, since the session store keeps the thread.
 
-### 2. User Feedback
+### 2. Keep Provenance Visible
 
-```python
-# Provide clear feedback
-def execute_command(command):
-    try:
-        show_progress("Executing command...")
-        result = process_command(command)
-        show_success("Command completed successfully")
-        return result
-    except Exception as e:
-        show_error(f"Error: {e}")
-        suggest_alternatives(command)
-```
+The summary table is where runtime, tool calls and the output directory live. Hide it with
+`--hide-summary` only in automation — the data is still captured either way, and
+`analyse-provenance` can reopen it later.
 
-### 3. Context Preservation
+### 3. Read Errors From the Panel, Details From the Log
 
-- Remember user preferences
-- Maintain command history
-- Preserve session state
-- Provide undo functionality
-
-### 4. Error Handling
-
-```python
-# Graceful error presentation
-def handle_error(error):
-    if error.type == "InvalidSMILES":
-        return format_smiles_error(error)
-    elif error.type == "NetworkTimeout":
-        return format_network_error(error)
-    else:
-        return format_generic_error(error)
-```
+A failed run prints its error string in a red panel. Anything below that — an MCP server that did
+not start, for instance — is logged at `WARNING` level to `crystalyse.log` rather than shown.
 
 ## Next Steps
 

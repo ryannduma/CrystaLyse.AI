@@ -6,63 +6,101 @@ Get up and running with Crystalyse in minutes. This guide covers installation, c
 
 ### Prerequisites
 
-- Python 3.11 or higher
-- OpenAI API key
+- Python 3.12 (3.11 is the supported floor; CI tests both)
+- An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` or `MISTRAL_API_KEY`
 - 8GB RAM recommended (4GB minimum)
-- Internet connection for first-run Chemeleon checkpoint download (~523 MB, automatic)
-- Storage: ~600MB for Chemeleon model checkpoints (auto-cached in `~/.cache/`)
+- Internet connection for the automatic first-run cache downloads
+- Storage: ~604 MB for Chemeleon checkpoints in `~/.cache/crystalyse/chemeleon_checkpoints/`, ~178 MB for the phase-diagram dataset in `~/.cache/crystalyse/`, plus MACE foundation models in `~/.cache/mace/`
 
 ### Quick Install
 
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/ryannduma/CrystaLyse.AI.git
-   cd Crystalyse
+   cd CrystaLyse.AI
    ```
 
 2. **Create environment:**
    ```bash
-   conda create -n crystalyse python=3.11
+   conda create -n crystalyse python=3.12
    conda activate crystalyse
    ```
 
 3. **Install Crystalyse:**
    ```bash
-   # Step 1: Install core package FIRST (required)
+   # Step 1: Install core package FIRST (required).  The install must be
+   # editable: Crystalyse is not on PyPI, and the agent locates the MCP
+   # servers relative to the installed package.
    pip install -e .
 
-   # Step 2: Install MCP servers (they depend on core package)
-   pip install -e ./chemistry-unified-server      # Complete validation mode
-   pip install -e ./chemistry-creative-server     # Fast exploration mode
-   pip install -e ./visualization-mcp-server      # 3D visualization
+   # Step 2: Install MCP servers from dev/, where the sub-projects live
+   cd dev
+   pip install -e ./chemistry-unified-server      # 20 tools - validate/auto modes
+   pip install -e ./chemistry-creative-server     # 4 tools  - explore mode
+   pip install -e ./visualization-mcp-server      # 5 tools  - structures and analysis plots
+
+   # Optional: required for every non-OpenAI backbone (Anthropic, OpenRouter, Mistral)
+   pip install -e ".[litellm]"
    ```
 
 4. **Verify installation:**
    ```bash
    crystalyse --help
+   crystalyse models check
    ```
 
-**Note on First Run**: On first execution, Crystalyse will auto-download ~600MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/`. This one-time download takes 2-5 minutes depending on connection speed and includes a progress bar.
+**Note on First Run**: On first execution, Crystalyse auto-downloads ~604 MB of Chemeleon model checkpoints to `~/.cache/crystalyse/chemeleon_checkpoints/` (a ~523 MB archive) with a progress bar. Energy-above-hull calculations additionally need a ~178 MB Materials Project phase-diagram file; pre-fetch it with `crystalyse setup` so it does not download mid-query.
 
 ## Configuration
 
-### Set OpenAI API Key
+### Set an API Key
+
+Crystalyse reaches models through four providers. Set the key for the backbone you
+plan to use - you do not need all four:
 
 ```bash
-export OPENAI_API_KEY="your-api-key-here"
+export OPENAI_API_KEY="your-api-key-here"   # openai_o4_mini (default), openai_o3, openai_gpt4o_mini
+export ANTHROPIC_API_KEY="sk-ant-..."       # anthropic_claude_opus / sonnet / haiku
+export OPENROUTER_API_KEY="sk-or-..."       # openrouter_claude_opus, openrouter_llama3_70b
+export MISTRAL_API_KEY="..."                # mistral_large
+```
+
+These must be real environment variables - there is no `.env` support anywhere in
+the codebase. To persist a key on zsh, append the export to `~/.zshenv`, not
+`~/.zshrc`: `~/.zshrc` is read only by interactive shells, and the MCP servers run
+as non-interactive subprocesses that inherit the parent's environment.
+
+### Choose a Model
+
+```bash
+# One run with a specific backbone.  --model is a global option, so it comes
+# before the subcommand.
+crystalyse --model anthropic_claude_sonnet discover "Find stable perovskites"
+```
+
+Or set a default in `.crystalyse/config.toml` - the project-level file wins over
+`~/.crystalyse/config.toml`:
+
+```toml
+default_model = "openai_o4_mini"
+default_mode = "explore"
 ```
 
 ### Verify Configuration
 
-Check that all components are working:
 ```bash
-Check that all components are working by running a simple help command:
-```bash
-crystalyse --help
-```
+# Which backbones can your keys reach?
+crystalyse models check
+
+# The effective registry, with a Source column showing built-in vs config override
+crystalyse models list
 ```
 
-This should display your configuration including available MCP servers.
+`crystalyse models check` exits non-zero if *any* registry entry's key is unset, so
+a ✗ next to a provider you never intend to use is expected.
+
+`crystalyse --help` shows the command list and global options; it does not report
+MCP server status. For that, start a chat session and use `/mcp` or `/tools`.
 
 ## First Materials Analysis
 
@@ -71,40 +109,57 @@ This should display your configuration including available MCP servers.
 Analyse a perovskite material for solar cells:
 
 ```bash
-crystalyse discover "Find a perovskite material for solar cells" --mode creative
+crystalyse discover "Find a perovskite material for solar cells" --mode explore
 ```
 
 Expected output:
 ```
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                 Crystalyse - Materials Discovery Platform                 │
-│                 v1.0.0 - AI-Powered Materials Discovery                      │
-╰──────────────────────────────────────────────────────────────────────────────╯
+Starting non-interactive discovery: Find a perovskite material for solar cells
+Mode: explore | Project: crystalyse_session
 
-╭───────────────────────────────╮
-│ ✅ Analysis Complete          │
-│ Completed in 50.3s            │
-╰───────────────────────────────╯
+╭──────────────────────────── Discovery Report ─────────────────────────────╮
+│ Generated 5 perovskite candidates with formation energies:                │
+│                                                                           │
+│ 1. CsGeI3 - Formation energy: -2.558 eV/atom (most stable)                │
+│ 2. CsPbI3 - Formation energy: -2.542 eV/atom                              │
+│ 3. CsSnI3 - Formation energy: -2.529 eV/atom                              │
+│ ...                                                                       │
+╰───────────────────────────────────────────────────────────────────────────╯
 
-╭─────────────────────── Discovery Results ────────────────────────────╮
-│ Generated 5 perovskite candidates with formation energies:            │
-│                                                                        │
-│ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)           │
-│ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                         │
-│ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                         │
-│ ...                                                                    │
-│                                                                        │
-│ 3D visualisations saved: CsGeI3_3dmol.html, CsPbI3_3dmol.html        │
-╰────────────────────────────────────────────────────────────────────────╯
+                               Provenance Summary
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric           ┃ Value                                                     ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Session ID       │ crystalyse_explore_20260831_143012                        │
+│ Materials Found  │ 5                                                         │
+│ With Energy Data │ 5                                                         │
+│ Energy Range     │ -2.558 to -2.529 eV/atom                                  │
+│ Runtime          │ 50.3s                                                     │
+│ MCP Tools Used   │ generate_crystal_structure, calculate_formation_energy    │
+│ Output Location  │ provenance_output/runs/crystalyse_explore_20260831_143012 │
+└──────────────────┴───────────────────────────────────────────────────────────┘
 ```
+
+The report panel carries whatever the agent wrote; the Provenance Summary table
+below it is generated from the captured run. Add `--hide-summary` to suppress the
+table - the provenance data is still written to disk either way.
 
 ### Interactive Session
 
 Start a conversation-based session:
 
 ```bash
-crystalyse chat -u researcher -s solar_project -m creative
+crystalyse chat -u researcher -s solar_project
 ```
+
+`chat` accepts only `--user/-u` and `--session/-s`. Mode is a global option, so it
+goes before the subcommand:
+
+```bash
+crystalyse --mode explore chat -u researcher -s solar_project
+```
+
+Running `crystalyse` with no arguments starts `chat` with the defaults.
 
 In the session:
 ```
@@ -116,32 +171,55 @@ In the session:
 ```
 
 Session commands:
-- `/mode rigorous` - Switch to rigorous validation mode
-- `/agent analyse` - Switch to one-shot analysis mode
-- `/help` - Show available commands
-- `/exit` - End session
+- `/mode [show|explore|validate|auto]` - view or change the operating mode
+- `/model [show|...]` - view or change the language model
+- `/tools [desc|nodesc]` - list the MCP tools available
+- `/mcp [status|servers|desc]` - MCP server status and details
+- `/memory [show|clear|refresh]` - manage agent memory and conversation history
+- `/stats` - session statistics and performance
+- `/about` - version and system information
+- `/help` - show available commands
+- `/clear` - clear the terminal screen
+- `/quit` or `/exit` - end session
 
 ## Analysis Modes
 
-### Creative Mode (Fast Exploration)
+There are three modes - `explore`, `validate` and `auto` - and the CLI default is
+`auto`. The old names `creative`, `rigorous` and `adaptive` still resolve as
+deprecated aliases, but they emit a `DeprecationWarning` and are scheduled for
+removal in v2.0.
+
+### Explore Mode (Fast Exploration)
 
 ```bash
-crystalyse discover "Design high-capacity battery materials" --mode creative
+crystalyse discover "Design high-capacity battery materials" --mode explore
 ```
 
+- **Server**: chemistry_creative (4 tools) plus the visualisation server
 - **Tools Used**: Chemeleon + MACE
-- **Speed**: ~50 seconds
-- **Output**: Structure generation + energy calculation + 3D visualisation
+- **Timeout**: 120 s
+- **Output**: Structure generation + energy calculation + structure files
 
-### Rigorous Mode (Complete Validation)
+### Validate Mode (Complete Validation)
 
 ```bash
-crystalyse discover "Find stable electrolyte materials" --mode rigorous
+crystalyse discover "Find stable electrolyte materials" --mode validate
 ```
 
-- **Tools Used**: SMACT + Chemeleon + MACE + Analysis Suite
-- **Speed**: 2-5 minutes  
+- **Server**: chemistry_unified (20 tools) plus the visualisation server
+- **Tools Used**: SMACT + Chemeleon + MACE + pymatgen analysis
+- **Timeout**: 300 s
 - **Output**: Composition validation + structures + energies + comprehensive analysis plots
+
+### Auto Mode (Default)
+
+```bash
+crystalyse discover "Screen Na-ion cathodes"
+```
+
+- **Server**: chemistry_unified (20 tools) plus the visualisation server
+- **Timeout**: 180 s
+- **Output**: the balanced default used when you have not named a mode
 
 ## Command Reference
 
@@ -149,37 +227,49 @@ crystalyse discover "Find stable electrolyte materials" --mode rigorous
 
 ```bash
 # One-shot discovery
-crystalyse discover "your query" --mode [creative|rigorous]
+crystalyse discover "your query" --mode [explore|validate|auto]
 
-# Interactive chat
-crystalyse chat -u username -s session_name -m [creative|rigorous]
+# Interactive chat - mode is a global option, so it comes before the subcommand
+crystalyse --mode explore chat -u username -s session_name
 
-# Interactive chat
-crystalyse chat -u username -s session_name -m [creative|rigorous]
+# Pre-fetch the phase-diagram dataset
+crystalyse setup
+
+# Inspect a previous run's provenance
+crystalyse analyse-provenance --latest
+
+# Model registry
+crystalyse models list
+crystalyse models check
 ```
+
+The full command set is `discover`, `setup`, `chat`, `analyse-provenance` and
+`models list` / `models check`. The global options `--project/-p`, `--mode`,
+`--model`, `--verbose/-v` and `--version` all belong before the subcommand.
 
 ### Unified Interface
 
-Launch the unified interface for mode switching:
+Launch the interactive interface - `crystalyse` with no arguments starts `chat`:
 ```bash
 crystalyse
 ```
 
 Available in-session commands:
-- `/mode creative` or `/mode rigorous` - Switch analysis modes
-- `/agent chat` or `/agent analyse` - Switch agent types
+- `/mode explore|validate|auto` - Switch analysis modes
+- `/model show` - View or change the language model
+- `/tools`, `/mcp` - Inspect available tools and server status
 - `/help` - Show help
 - `/clear` - Clear screen
 - `/exit` - Exit
 
 ## Understanding Output
 
-### Creative Mode Output
-- **3D Visualisations**: Interactive HTML files with molecular structures
+### Explore Mode Output
+- **Structure Files**: CIF files for each candidate structure
 - **Energy Rankings**: Formation energies per atom for stability comparison
 - **Quick Results**: Streamlined output focused on structure and stability
 
-### Rigorous Mode Output
+### Validate Mode Output
 - **Comprehensive Analysis**: XRD patterns, RDF plots, coordination analysis
 - **Validation Reports**: SMACT composition screening results
 - **Professional Plots**: Publication-ready PDF analysis files
@@ -187,27 +277,41 @@ Available in-session commands:
 
 ## Working with Results
 
-### Visualisation Files
+### Output Files
 
-Crystalyse automatically creates visualisation files in your current directory:
+Crystalyse writes structure and analysis files into your working directory:
 
 ```bash
-# 3D structure viewers
-CsGeI3_3dmol.html          # Interactive 3D structure
-CsPbI3_3dmol.html
+# Structure files, one per candidate
+CsGeI3.cif
+CsPbI3.cif
 
-# Analysis plots (rigorous mode)
+# Analysis suite, written by create_pymatviz_analysis_suite
 CsGeI3_analysis/
-├── CsGeI3.cif                      # Structure file
-├── XRD_Pattern_CsGeI3.pdf          # X-ray diffraction
-├── RDF_Analysis_CsGeI3.pdf         # Radial distribution
-└── Coordination_Analysis_CsGeI3.pdf # Coordination environment
+├── CsGeI3.cif                       # Structure file
+├── XRD_Pattern_CsGeI3.pdf           # X-ray diffraction
+├── RDF_Analysis_CsGeI3.pdf          # Radial distribution
+├── Coordination_Analysis_CsGeI3.pdf # Coordination environment
+└── 3D_Structure_CsGeI3.pdf          # Rendered structure
 ```
+
+Interactive 3dmol.js HTML output is disabled for v2.0-alpha. The visualisation tool
+writes a CIF file instead and reports that in its own result payload, so open the
+CIF in VESTA, OVITO or any structure viewer.
 
 ### Session Management
 
 ```bash
-# Continue multi-day projects with full context
+# Named sessions keep conversation context across days.  The workspace project
+# becomes <project>_<session>, and session state lives in ~/.crystalyse/sessions.
+crystalyse chat -u battery_researcher -s lithium_study
+
+# Provenance for one-shot runs lands in ./provenance_output/runs/
+crystalyse discover "..." --provenance-dir ./my_research
+
+# Inspect what a run actually did
+crystalyse analyse-provenance --latest
+crystalyse analyse-provenance --session crystalyse_validate_20260831_153834
 ```
 
 ## Example Workflows
@@ -215,8 +319,8 @@ CsGeI3_analysis/
 ### Battery Material Design
 
 ```bash
-# Start a battery research session
-crystalyse chat -u battery_researcher -s lithium_study -m rigorous
+# Start a battery research session in validate mode
+crystalyse --mode validate chat -u battery_researcher -s lithium_study
 
 # In session:
 🔬 You: Analyse LiCoO2 cathode material properties
@@ -231,10 +335,10 @@ crystalyse chat -u battery_researcher -s lithium_study -m rigorous
 
 ```bash
 # Quick perovskite screening
-crystalyse discover "Screen perovskites with band gaps 1.2-1.6 eV" --mode creative
+crystalyse discover "Screen perovskites with band gaps 1.2-1.6 eV" --mode explore
 
 # Detailed analysis of promising candidates
-crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode rigorous
+crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode validate
 ```
 
 ## Troubleshooting
@@ -242,37 +346,53 @@ crystalyse discover "Analyse CsSnI3 for photovoltaic applications" --mode rigoro
 ### Common Issues
 
 1. **MCP Server Connection Errors**
+
+   Startup failures are logged as warnings (`⚠️ Could not start ... server`) and the
+   run continues without that server, so the symptom is usually a run that is
+   missing tools rather than a crash.
+
    ```bash
-   # Check server status
-   # Ensure all required environment variables are set
-   
-   # Look for "available" status for each tool
+   # Most common cause: the interpreter cannot be found
+   export CRYSTALYSE_PYTHON_PATH="$(which python)"
+
+   # Second cause: the package was not installed editable from the clone
+   pip install -e .
+
+   # Then check status from inside a session, with /mcp and /tools
+   crystalyse chat
    ```
 
 2. **API Key Issues**
    ```bash
-   # Verify key is set
+   # Check every registry entry's key at once
+   crystalyse models check
+
+   # Verify a specific key is exported into this shell
    echo $OPENAI_API_KEY
-   
-   # Check for valid key format (starts with sk-)
    ```
 
+   No `.env` file is read, and on zsh the export belongs in `~/.zshenv` so
+   non-interactive subprocesses inherit it.
+
 3. **Memory Errors**
-   - Reduce `num_samples` in structure generation
-   - Use creative mode for faster analysis
+   - Use `explore` mode, which runs the lighter 4-tool chemistry server
+   - Ask for fewer candidate structures in the query itself
    - Ensure 8GB+ RAM available
 
 4. **GPU Issues**
    ```bash
    # MACE will automatically fall back to CPU
-   # Check GPU availability in logs
+   python -c "import torch; print(torch.cuda.is_available())"
    ```
+
+   torch is capped below 2.11 deliberately: 2.11 moved to a CUDA 13.0 runtime, and
+   on a CUDA 12.x driver it falls back silently to CPU.
 
 ### Getting Help
 
 - **Documentation**: Browse the complete [CLI Guide](guides/cli_usage.md)
 - **Tool Issues**: Check individual tool documentation under [Tools](tools/index.md)
-- **Verbose Output**: Add `--verbose` to any command for detailed logging
+- **Verbose Output**: `--verbose`/`-v` is a global option, so it goes before the subcommand - `crystalyse --verbose discover "..."`. File logging is written to `crystalyse.log`.
 
 
 ## Next Steps

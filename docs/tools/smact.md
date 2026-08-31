@@ -1,6 +1,6 @@
 # SMACT - Semiconducting Materials by Analogy and Chemical Theory
 
-SMACT is a computational framework for rapid screening of materials compositions based on chemical analogy and electronegativity principles. In Crystalyse, SMACT serves as the primary composition validation tool in rigorous mode.
+SMACT is a computational framework for rapid screening of materials compositions based on chemical analogy and electronegativity principles. In Crystalyse, SMACT serves as the primary composition validation tool in validate mode.
 
 ## Overview
 
@@ -11,11 +11,19 @@ SMACT screens millions of possible chemical compositions to identify those most 
 ## Integration in Crystalyse
 
 ### Availability by Mode
-- **Creative Mode**: ❌ Not included (for speed)
-- **Rigorous Mode**: ✅ Full validation pipeline
+- **explore**: ❌ Not included (the creative server deliberately omits SMACT for speed)
+- **validate**: ✅ Full validation pipeline
+- **auto**: ✅ Full validation pipeline (same server as validate)
+
+The legacy names `creative`, `rigorous` and `adaptive` still resolve to `explore`,
+`validate` and `auto`, but emit a `DeprecationWarning`.
 
 ### MCP Server Integration
-SMACT is integrated through the **Chemistry Unified Server** (`chemistry-unified-server`) which provides the complete validation pipeline for rigorous analysis.
+SMACT is integrated through the **Chemistry Unified Server** (`chemistry-unified-server`),
+which backs both **validate** and **auto** mode. The unified server exposes SMACT as seven
+tools: `validate_composition`, `analyze_stability`, `predict_band_gap`,
+`smact_validate_fast`, `generate_ml_representation`, `filter_compositions` and
+`predict_dopants`.
 
 ## Core Functionality
 
@@ -25,8 +33,12 @@ SMACT validates compositions based on:
 
 1. **Oxidation State Analysis**: Checks if the proposed oxidation states are chemically reasonable
 2. **Electronegativity Ratios**: Validates whether the electronegativity differences support the proposed bonding
-3. **Chemical Analogy**: Compares to known stable compounds with similar chemistries
-4. **Charge Balance**: Ensures overall electrical neutrality
+3. **Charge Balance**: Ensures overall electrical neutrality across the assigned states
+4. **Alloys and Metallicity**: Optionally treats pure metals, or compositions above a
+   metallicity threshold, as valid without the ionic tests
+
+All four are performed by a single call to `smact.screening.smact_validity()`. There is no
+lookup against a database of known compounds and no structure-type categorisation.
 
 ### Available Tools
 
@@ -40,11 +52,40 @@ from crystalyse.tools.smact import SMACTScreener
 result = SMACTScreener.validate_composition(
     composition="CsSnI3",
     use_pauling_test=True,
-    include_alloys=True
+    include_alloys=True,
+    check_metallicity=False,
+    metallicity_threshold=0.7,
+    oxidation_states_set="icsd24",
+    include_zero=False,
+    consensus=3,
+    commonality="medium",
 )
 ```
 
-**Output**: `CompositionValidityResult` object containing validity status and metadata.
+**Output**: `CompositionValidityResult` with the fields `success`, `composition`,
+`is_valid`, `use_pauling_test`, `include_alloys`, `check_metallicity`,
+`oxidation_states_set`, `metallicity_threshold` and `error_message`. The result is a
+boolean verdict plus a record of the parameters used - there is no confidence score.
+
+Also on `SMACTScreener`:
+
+```python
+# 103-element normalised composition vector for ML models
+rep = SMACTScreener.generate_ml_representation("Li2O")
+
+# Enumerate charge-neutral, electronegativity-consistent compositions
+combos = SMACTScreener.filter_compositions(
+    elements=["Li", "Fe", "P", "O"],
+    threshold=8,
+    stoichs=None,
+    species_unique=True,
+    oxidation_states_set="icsd24",
+)
+```
+
+`filter_compositions` reports the full count in `num_valid_compositions`, but the
+`valid_compositions` list in the response is truncated to the first 100 entries to keep
+the MCP payload small.
 
 #### `SMACTValidator`
 Core validation logic without heavy dependencies.
@@ -59,7 +100,13 @@ stability = SMACTValidator.analyze_stability(
 )
 ```
 
-**Output**: `StabilityResult` object with stability prediction and bonding character.
+**Output**: `StabilityResult` with `formula`, `stable`, `smact_valid`,
+`electronegativity_difference`, `bonding_character`, `metallicity_score` and
+`stability_prediction`.
+
+`SMACTValidator` also carries `validate_composition(formula, use_pauling_test=True,
+include_alloys=True, oxidation_states_set="icsd24")`, returning a `ValidationResult`, and
+an awaitable `validate_composition_async` with the same signature.
 
 #### `SMACTDopantPredictor`
 Predicts n-type and p-type dopants for materials.
@@ -83,11 +130,18 @@ Calculates properties like band gap estimates.
 ```python
 from crystalyse.tools.smact import SMACTCalculator
 
-# Predict band gap
+# Predict band gap (Harrison-inspired electronegativity difference)
 gap = SMACTCalculator.predict_band_gap("CsSnI3")
+
+# Element properties straight from the SMACT data tables
+info = SMACTCalculator.get_element_info("Sn", include_oxidation_states=True)
 ```
 
-**Output**: `BandGapResult` with estimated band gap and confidence.
+**Output**: `BandGapResult` with `band_gap_ev`, a qualitative `band_gap_estimate`, the
+`method` used, the `electronegativity_difference` it was derived from and a `confidence`
+value. `get_element_info` returns an `ElementInfo` with symbol, name, atomic number, mass,
+Pauling electronegativity and, optionally, the oxidation states recorded in each dataset
+SMACT ships (`icsd24`, `icsd16`, `smact14`, `wiki`).
 
 ## Screening Methodology
 
@@ -118,72 +172,103 @@ Cs-I: |0.79 - 2.66| = 1.87 (ionic character expected) ✓
 Sn-I: |1.96 - 2.66| = 0.70 (polar covalent) ✓
 ```
 
-### Chemical Analogy Database
+### Oxidation State Datasets (smact 4)
 
-SMACT references a database of known stable compounds to assess feasibility:
+Which oxidation states count as reasonable depends on the dataset chosen with
+`oxidation_states_set`. Crystalyse accepts five names:
 
-- **Perovskites**: ABX₃ structures with known stable examples
-- **Binary Compounds**: Simple AX, AX₂ compositions
-- **Ternary Systems**: ABC, AB₂C, ABC₂ compositions
-- **Complex Compositions**: Multi-component materials
+| Name | Source |
+|------|--------|
+| `icsd24` | 2024 ICSD (default, most up to date) |
+| `smact14` | Original SMACT 2014 oxidation states |
+| `icsd16` | 2016 ICSD |
+| `pymatgen_sp` | PyMatgen structure predictor |
+| `wiki` | Wikipedia (use with caution) |
+
+Anything else is rejected with an `error_message` rather than silently ignored.
+
+smact 4.0 replaced the loose `include_zero` / `consensus` / `commonality` keywords with an
+`ICSD24FilterConfig` object. Crystalyse still accepts the three values as arguments to
+`validate_composition` and bundles them into that config, passing it as `icsd_filter=`.
+
+There is one non-obvious consequence worth knowing. smact only honours `icsd_filter` when
+`oxidation_states_set is None`; passing `oxidation_states_set="icsd24"` makes smact ignore
+the filter silently. Because `icsd24` *is* smact's own default set, the call site
+translates `"icsd24"` to `None` on the way through so that the filter actually applies. Any
+other named set is passed straight through, where the ICSD24 filter is correctly
+irrelevant. The `oxidation_states_set` reported back on the result is the name you asked
+for, not the translated value.
 
 ## Practical Usage
 
 ### In Crystalyse Workflows
 
-#### Rigorous Mode Analysis
+#### Validate Mode Analysis
 ```bash
-crystalyse analyse "Find stable perovskite solar cell materials" --mode rigorous
+crystalyse discover "Find stable perovskite solar cell materials" --mode validate
 ```
 
 **SMACT Workflow**:
 1. Generate candidate perovskite compositions (ABX₃)
 2. Screen each composition for chemical feasibility
-3. Rank valid compositions by confidence score
+3. Keep the compositions that pass (the verdict is a boolean, not a ranking)
 4. Pass validated compositions to Chemeleon for structure prediction
 
 #### Session-Based Research
 ```bash
-crystalyse chat -m rigorous -s perovskite_study
+crystalyse --mode validate chat -s perovskite_study
 
 🔬 You: What makes CsSnI3 chemically feasible as a perovskite?
 
 🤖 CrystaLyse: [SMACT validation runs automatically]
 Based on SMACT analysis:
-- Cs⁺ (ionic radius: 1.67 Å) fits well in A-site
-- Sn²⁺ (ionic radius: 1.02 Å) suitable for B-site  
-- I⁻ (ionic radius: 2.20 Å) forms stable halide framework
-- Electronegativity differences support ionic bonding
-- Chemical analogy to CsPbI₃ (known stable perovskite)
+- A charge-neutral assignment exists over the icsd24 oxidation states
+  (Cs⁺, Sn²⁺, I⁻)
+- The Pauling electronegativity ordering is consistent with that assignment
+- smact_validity returns True for CsSnI3
 ```
 
 ### Typical Results
 
+`validate_composition` returns a `CompositionValidityResult`. The verdict is the single
+boolean `is_valid`; the remaining fields echo the parameters the check ran with, so a
+result can be reproduced exactly.
+
 #### Valid Composition Example
 ```python
-Composition: "CsSnI3"
-SMACT Result: {
-    "valid": True,
-    "confidence": 0.87,
-    "oxidation_states": {"Cs": 1, "Sn": 2, "I": -1},
-    "electronegativity_check": "PASS",
-    "known_analogues": ["CsPbI3", "CsGeI3"],
-    "notes": "Strong analogy to known perovskites"
-}
+CompositionValidityResult(
+    success=True,
+    composition="CsSnI3",
+    is_valid=True,
+    use_pauling_test=True,
+    include_alloys=True,
+    check_metallicity=False,
+    oxidation_states_set="icsd24",
+    metallicity_threshold=None,
+    error_message=None,
+)
 ```
 
 #### Invalid Composition Example
 ```python
-Composition: "CsF4O3"  
-SMACT Result: {
-    "valid": False,
-    "confidence": 0.12,
-    "rejection_reason": "Charge imbalance",
-    "attempted_states": {"Cs": 1, "F": -1, "O": -2},
-    "charge_sum": -6,
-    "suggestions": ["CsF", "Cs2O"]
-}
+CompositionValidityResult(
+    success=True,
+    composition="CsF4O3",
+    is_valid=False,
+    use_pauling_test=True,
+    include_alloys=True,
+    check_metallicity=False,
+    oxidation_states_set="icsd24",
+    metallicity_threshold=None,
+    error_message=None,
+)
 ```
+
+Note the distinction between `success` and `is_valid`. `success=False` with a populated
+`error_message` means the check could not run (SMACT missing, an unknown oxidation-state
+set, a formula pymatgen could not parse); `success=True` with `is_valid=False` means the
+check ran and the composition failed it. Nothing in the result explains *why* a
+composition failed, and no alternative compositions are suggested.
 
 ## Limitations and Considerations
 
@@ -199,22 +284,20 @@ SMACT Result: {
 1. **Use as Pre-Filter**: SMACT is most effective as an initial screening step
 2. **Validate Results**: Always follow SMACT screening with structure prediction and energy calculations
 3. **Consider Context**: Materials requirements may justify exploring SMACT-rejected compositions
-4. **Iterative Refinement**: Use SMACT suggestions to refine composition search
+4. **Iterative Refinement**: Use `filter_compositions` to enumerate charge-neutral
+   alternatives when a candidate fails - SMACT itself suggests no replacements
 
 ### Performance Characteristics
 
-```bash
-Screening Performance:
-├── Single Composition: <1 second
-├── Small Set (5-10): 1-3 seconds  
-├── Medium Set (50-100): 10-30 seconds
-└── Large Set (1000+): 2-5 minutes
+SMACT screening is cheap relative to structure prediction and energy evaluation, which is
+why it sits first in the pipeline. Crystalyse does not instrument it: no timing or memory
+figure is measured, recorded or returned anywhere in the SMACT tool path, so this page
+quotes none. If you need numbers for your own hardware, time
+`SMACTScreener.validate_composition` directly.
 
-Memory Usage:
-├── Database Loading: ~100 MB
-├── Per Composition: ~1 KB
-└── Large Screening: ~500 MB maximum
-```
+The one size limit that is real: `filter_compositions` truncates its returned
+`valid_compositions` list to 100 entries, though `num_valid_compositions` still reports the
+full count.
 
 ## Integration with Other Tools
 
@@ -226,10 +309,9 @@ graph LR
     C --> D[Chemeleon CSP]
     D --> E[MACE Energy]
     E --> F[Results]
-    
+
     B --> G[Invalid Compositions]
-    G --> H[Suggestions]
-    H --> B
+    G --> H[Discarded]
 ```
 
 ### Data Flow
@@ -256,38 +338,54 @@ else:
 
 ## Advanced Features
 
-### Custom Screening Rules
+### Tuning the Screen
 
-SMACT can be configured with custom screening parameters:
+There is no rules dictionary. Everything tunable is a parameter of
+`validate_composition`:
 
-```python
-# Stricter screening for experimental work
-strict_rules = {
-    "max_electronegativity_diff": 2.0,
-    "require_known_analogues": True,
-    "min_confidence": 0.7
-}
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `use_pauling_test` | `True` | Apply the Pauling electronegativity ordering test |
+| `include_alloys` | `True` | Treat compositions of only metals as valid |
+| `check_metallicity` | `False` | Accept compositions above `metallicity_threshold` |
+| `metallicity_threshold` | `0.7` | Metallicity score above which a composition passes |
+| `oxidation_states_set` | `"icsd24"` | Which oxidation-state dataset to draw from |
+| `include_zero` | `False` | Allow zero oxidation states (ICSD24 filter) |
+| `consensus` | `3` | Minimum literature occurrences for a valid ion (ICSD24 filter) |
+| `commonality` | `"medium"` | Commonality band: `low`, `medium`, `high`, `main` (ICSD24 filter) |
 
-# Exploratory screening for novel materials
-exploratory_rules = {
-    "max_electronegativity_diff": 3.5,
-    "require_known_analogues": False,
-    "min_confidence": 0.3
-}
-```
-
-### Composition Generation
-
-SMACT can also generate new compositions based on structural templates:
+The last three only bite when `oxidation_states_set` is `"icsd24"` - see
+[Oxidation State Datasets](#oxidation-state-datasets-smact-4) above for why.
 
 ```python
-# Generate perovskite compositions
-perovskites = smact_generate_perovskites(
-    a_site_elements=["Cs", "Rb", "K"],
-    b_site_elements=["Sn", "Pb", "Ge"], 
-    x_site_elements=["I", "Br", "Cl"]
+# Stricter: demand more literature support for each ion
+strict = SMACTScreener.validate_composition(
+    "CsSnI3", consensus=10, commonality="high"
+)
+
+# More permissive: accept metallic compositions outright
+exploratory = SMACTScreener.validate_composition(
+    "CsSnI3", check_metallicity=True, metallicity_threshold=0.5
 )
 ```
+
+### Composition Enumeration
+
+Rather than a template-based generator, SMACT enumerates compositions over a set of
+elements and filters them by charge neutrality and electronegativity:
+
+```python
+# Enumerate valid Cs-Sn-I compositions
+result = SMACTScreener.filter_compositions(
+    elements=["Cs", "Sn", "I"],
+    threshold=8,
+)
+# result.num_valid_compositions -> full count
+# result.valid_compositions     -> first 100, each with elements,
+#                                  oxidation_states and stoichiometry
+```
+
+Exposed to the agent as the `filter_compositions` MCP tool.
 
 ## Research Applications
 
@@ -370,7 +468,7 @@ If you use SMACT through Crystalyse, please cite the original SMACT publications
 
 ## Summary
 
-SMACT provides the essential first step in rigorous materials validation, ensuring that computational resources are focused on chemically reasonable compositions. Its integration in Crystalyse's rigorous mode provides the foundation for reliable, scientifically grounded materials design workflows.
+SMACT provides the essential first step in materials validation, ensuring that computational resources are focused on chemically reasonable compositions. Its integration in Crystalyse's validate and auto modes provides the foundation for reliable, scientifically grounded materials design workflows.
 
 **Key Benefits**:
 - Rapid composition screening (seconds to minutes)
@@ -379,4 +477,4 @@ SMACT provides the essential first step in rigorous materials validation, ensuri
 - Integration with structure prediction pipeline
 - Research-grade reliability
 
-For detailed usage examples and advanced features, see the [CLI Usage Guide](../guides/cli_usage.md) and [Rigorous Mode Documentation](../concepts/analysis_modes.md).
+For detailed usage examples and advanced features, see the [CLI Usage Guide](../guides/cli_usage.md) and [Analysis Modes](../concepts/analysis_modes.md).
