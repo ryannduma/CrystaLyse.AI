@@ -15,7 +15,7 @@ from typing import List, Dict, Any, Union, Optional
 import numpy as np
 import re
 import warnings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pathlib import Path
 from datetime import datetime
 
@@ -64,8 +64,8 @@ logger = logging.getLogger(__name__)
 # Suppress warnings
 warnings.filterwarnings("ignore", message=".*Pauling electronegativity.*")
 
-# Initialize FastMCP server
-mcp = FastMCP("Chemistry Unified")
+# Initialize the MCP server
+mcp = MCPServer("Chemistry Unified")
 
 # Initialize tool instances
 smact_validator = SMACTValidator()

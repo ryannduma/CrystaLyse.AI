@@ -12,7 +12,7 @@ import json
 from typing import List, Dict, Any, Optional
 import numpy as np
 import warnings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pathlib import Path
 from datetime import datetime
 from ase.io import write as ase_write
@@ -36,8 +36,8 @@ from crystalyse.tools.models import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastMCP server
-mcp = FastMCP("chemistry-creative")
+# Initialize the MCP server
+mcp = MCPServer("chemistry-creative")
 
 # Initialize tool instances
 chemeleon_predictor = ChemeleonPredictor()

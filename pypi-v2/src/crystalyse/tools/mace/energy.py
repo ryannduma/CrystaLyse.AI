@@ -1,6 +1,8 @@
 """MACE formation energy calculations - extracted from MCP server."""
 from typing import Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
+
+from ._stdout_guard import quiet_stdout
 import logging
 import warnings
 import numpy as np
@@ -58,7 +60,10 @@ def _import_dependencies():
         raise ImportError("ASE is required for atomic simulations")
 
     try:
-        from mace.calculators import mace_mp, mace_off, MACECalculator
+        # quiet_stdout: mace prints a cuequivariance notice to stdout,
+        # which would corrupt the MCP servers' JSON-RPC stream.
+        with quiet_stdout():
+            from mace.calculators import mace_mp, mace_off, MACECalculator
         global mace_mp, mace_off, MACECalculator
         logger.info("MACE calculators imported successfully")
     except ImportError as e:

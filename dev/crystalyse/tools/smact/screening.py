@@ -153,28 +153,41 @@ class SMACTScreener:
             # Run SMACT validity check.
             #
             # smact 4.0 replaced the loose ``include_zero`` / ``consensus`` /
-            # ``commonality`` keywords with an ``ICSD24FilterConfig`` object.
-            # The field names and defaults are unchanged, but the filter is
-            # honoured *only* when ``oxidation_states_set is None`` -- passing
-            # ``oxidation_states_set="icsd24"`` makes smact ignore it silently
-            # (verified: consensus=50 changed 0/19 compositions with the set
-            # named, 7/19 with it None).  "icsd24" is smact's own default set,
-            # so map it to None and let the filter apply; pass any other named
-            # set straight through, where the filter is correctly irrelevant.
-            icsd_filter = ICSD24FilterConfig(
-                include_zero=include_zero,
-                consensus=consensus,
-                commonality=commonality,
-            )
+            # ``commonality`` keywords with an ``ICSD24FilterConfig`` object,
+            # and the filter is honoured *only* when ``oxidation_states_set is
+            # None``.  Naming a set makes smact ignore the filter silently.
+            #
+            # Those two paths are NOT equivalent, and the difference is
+            # chemical rather than cosmetic.  The filtered path applies an
+            # ICSD commonality cut that drops less-common oxidation states --
+            # Cu(3+), Mo(4+), Mn(7+), W(4+) among them -- so real materials
+            # that need one stop charge-balancing.  At default filter values
+            # YBa2Cu3O7, MoS2, KMnO4 and WS2 all flip from valid to invalid.
+            #
+            # So default to the unfiltered named set, preserving the verdicts
+            # this tool gave before smact 4, and switch to the filtered path
+            # only when the caller actually asks for filtering by passing a
+            # non-default include_zero / consensus / commonality.  That keeps
+            # those parameters functional without silently rewriting the
+            # screening results of every existing caller.
+            wants_filtering = include_zero is not False or consensus != 3 or commonality != "medium"
+            resolved_set = oxidation_states_set
+            icsd_filter = None
+            if wants_filtering and oxidation_states_set == "icsd24":
+                resolved_set = None
+                icsd_filter = ICSD24FilterConfig(
+                    include_zero=include_zero,
+                    consensus=consensus,
+                    commonality=commonality,
+                )
+
             is_valid = smact_validity(
                 composition=composition,
                 use_pauling_test=use_pauling_test,
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 metallicity_threshold=metallicity_threshold,
-                oxidation_states_set=(
-                    None if oxidation_states_set == "icsd24" else oxidation_states_set
-                ),
+                oxidation_states_set=resolved_set,
                 icsd_filter=icsd_filter,
             )
 
@@ -185,7 +198,9 @@ class SMACTScreener:
                 use_pauling_test=use_pauling_test,
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
-                oxidation_states_set=oxidation_states_set,
+                # Report the set smact actually used, not the one requested --
+                # they differ whenever filtering kicks in above.
+                oxidation_states_set=resolved_set,
                 metallicity_threshold=metallicity_threshold if check_metallicity else None,
             )
 

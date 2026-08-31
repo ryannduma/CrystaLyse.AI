@@ -6,6 +6,8 @@ Provides stress tensor calculations for mechanical property prediction.
 
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
+
+from ._stdout_guard import quiet_stdout
 import logging
 import numpy as np
 
@@ -61,7 +63,10 @@ except ImportError:
     EquationOfState = None
 
 try:
-    from mace.calculators import mace_mp, mace_off, MACECalculator as MACECalc
+    # quiet_stdout: mace prints a cuequivariance notice to stdout,
+    # which would corrupt the MCP servers' JSON-RPC stream.
+    with quiet_stdout():
+        from mace.calculators import mace_mp, mace_off, MACECalculator as MACECalc
     MACE_AVAILABLE = True
 except ImportError:
     MACE_AVAILABLE = False
