@@ -18,7 +18,7 @@ __version__ = "2.0.0-alpha"
 
 # Import unified agent
 try:
-    from .agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+    from .agents.agents_bridge import EnhancedCrystaLyseAgent
 except ImportError as e:
     import warnings
     warnings.warn(f"Agent functionality not available: {e}")

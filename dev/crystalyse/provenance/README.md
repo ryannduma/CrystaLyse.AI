@@ -54,7 +54,7 @@ provenance_system/
 
 ```python
 from provenance_system import ProvenanceTraceHandler
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 
 # Initialize with provenance
 trace_handler = ProvenanceTraceHandler(output_dir="./provenance_output", capture_mcp_logs=True)

@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.ui.trace_handler import ToolTraceHandler
 from crystalyse.ui.provenance_bridge import CrystaLyseProvenanceHandler, PROVENANCE_AVAILABLE

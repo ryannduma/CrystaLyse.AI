@@ -17,7 +17,7 @@ provenance_path = Path(__file__).parent.parent
 if str(provenance_path) not in sys.path:
     sys.path.insert(0, str(provenance_path))
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 from handlers import ProvenanceTraceHandler
 from rich.console import Console
 
