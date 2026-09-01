@@ -53,7 +53,19 @@ class ModelConfig:
     context_window: int = 128_000
     max_tokens: int | None = None
     temperature: float | None = None
+    #: Reasoning/thinking effort.  ``"low" | "medium" | "high"``.
+    #: OPENAI backends map this to ``ModelSettings(reasoning=Reasoning(effort=...))``.
+    #: LITELLM/Anthropic Claude 5 models map it to
+    #: ``thinking={"type": "adaptive"}`` plus ``output_config={"effort": ...}``.
     reasoning_effort: str | None = None
+
+    #: Anthropic Claude 4.x thinking budget, in tokens.  Those models reject
+    #: ``thinking.type="adaptive"`` and require
+    #: ``thinking={"type": "enabled", "budget_tokens": N}`` instead.  Set this
+    #: *or* ``reasoning_effort``, not both -- ``agent_model_settings()``
+    #: prefers this one for LITELLM entries.
+    thinking_budget_tokens: int | None = None
+
     supports_tool_calling: bool = True
     supports_structured_output: bool = True
     supported_modes: frozenset[str] = field(
@@ -72,6 +84,60 @@ class ModelConfig:
                 f"{self.api_key_env_var!r}, but it is not set.  "
                 f"See docs/models.md for setup."
             )
+
+    def agent_model_settings(self, **overrides: Any) -> Any:
+        """Build the ``ModelSettings`` that carry this entry's reasoning config.
+
+        ``reasoning_effort`` and ``thinking_budget_tokens`` are declarative on
+        the registry entry; without this method nothing consumed them and the
+        values were silently dropped.
+
+        The wire format differs by provider *and* by model generation, all
+        verified against the live APIs:
+
+        * OPENAI reasoning models -> ``reasoning=Reasoning(effort=...)``.
+        * Anthropic Claude 5 (opus-5, sonnet-5) -> ``thinking={"type":
+          "adaptive"}`` + ``output_config={"effort": ...}``.  These models
+          reject ``thinking.type="enabled"`` outright.
+        * Anthropic Claude 4.x (haiku-4-5) -> ``thinking={"type": "enabled",
+          "budget_tokens": N}``.  These reject ``"adaptive"``.
+
+        LiteLLM parameters travel in ``extra_args``, which the SDK forwards as
+        keyword arguments to ``litellm.acompletion``.  Do not put ``max_tokens``
+        there -- the SDK passes it separately and litellm raises on the
+        duplicate.
+
+        Any keyword in *overrides* (e.g. ``tool_choice="auto"``) is passed
+        straight through to ``ModelSettings``.
+        """
+        from agents.model_settings import ModelSettings
+
+        kwargs: dict[str, Any] = dict(overrides)
+
+        if self.temperature is not None:
+            kwargs.setdefault("temperature", self.temperature)
+        if self.max_tokens is not None:
+            kwargs.setdefault("max_tokens", self.max_tokens)
+
+        if self.backend is ModelBackend.OPENAI and self.reasoning_effort:
+            from openai.types.shared import Reasoning
+
+            kwargs.setdefault("reasoning", Reasoning(effort=self.reasoning_effort))
+
+        elif self.backend is ModelBackend.LITELLM:
+            extra: dict[str, Any] = dict(kwargs.get("extra_args") or {})
+            if self.thinking_budget_tokens is not None:
+                extra["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": self.thinking_budget_tokens,
+                }
+            elif self.reasoning_effort:
+                extra["thinking"] = {"type": "adaptive"}
+                extra["output_config"] = {"effort": self.reasoning_effort}
+            if extra:
+                kwargs["extra_args"] = extra
+
+        return ModelSettings(**kwargs)
 
     def resolve(self) -> str | Any:
         """Return whatever ``Agent(model=...)`` should receive.
@@ -143,7 +209,37 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         model_id="anthropic/claude-opus-5",
         api_key_env_var="ANTHROPIC_API_KEY",
         context_window=1_000_000,
+        # Deliberately no reasoning_effort: Claude 5 models think adaptively by
+        # default (a plain call already returns thinking content), and Opus is
+        # the most expensive tier at $5/$25 per Mtok.  Set reasoning_effort
+        # here to pin the effort explicitly, at higher token cost.
         notes="Strong reasoning, long context.  Requires direct Anthropic API key.",
+    ),
+    "anthropic_claude_sonnet": ModelConfig(
+        name="anthropic_claude_sonnet",
+        backend=ModelBackend.LITELLM,
+        model_id="anthropic/claude-sonnet-5",
+        api_key_env_var="ANTHROPIC_API_KEY",
+        context_window=1_000_000,
+        reasoning_effort="medium",
+        notes=(
+            "Mid-cost Anthropic tier: $2/$10 per Mtok vs Opus 5's $5/$25. "
+            "Use for bulk screening where Opus-level reasoning is not needed."
+        ),
+    ),
+    "anthropic_claude_haiku": ModelConfig(
+        name="anthropic_claude_haiku",
+        backend=ModelBackend.LITELLM,
+        model_id="anthropic/claude-haiku-4-5-20251001",
+        api_key_env_var="ANTHROPIC_API_KEY",
+        context_window=200_000,
+        # Claude 4.x thinking API: budget_tokens, not adaptive+effort.
+        thinking_budget_tokens=2048,
+        supported_modes=frozenset({"explore", "auto"}),
+        notes=(
+            "Cheapest Anthropic tier: $1/$5 per Mtok. Explore/auto only -- "
+            "not validate, where the reasoning gap matters most."
+        ),
     ),
     # ---- OpenRouter (any model behind one key) ----
     "openrouter_claude_opus": ModelConfig(
@@ -230,8 +326,9 @@ def resolve_model_name(
     if isinstance(name_or_config, ModelConfig):
         return name_or_config.resolve()
 
-    # String path: look up in the registry first.
-    cfg = MODEL_REGISTRY.get(name_or_config)
+    # String path: look up in the effective registry (built-ins plus any
+    # config.toml overrides) first.
+    cfg = get_effective_registry()[0].get(name_or_config)
     if cfg is not None:
         return cfg.resolve()
 
@@ -239,3 +336,65 @@ def resolve_model_name(
     # model strings like "litellm/openrouter/anthropic/claude-opus-4.5"
     # without pre-registering them.
     return name_or_config
+
+
+def resolve_model_config(
+    name_or_config: str | ModelConfig | None = None,
+    *,
+    mode: str | None = None,
+) -> ModelConfig | None:
+    """Return the ``ModelConfig`` behind the same inputs ``resolve_model_name`` takes.
+
+    ``resolve_model_name`` deliberately collapses to a string (or ``Model``)
+    because that is what ``Agent(model=...)`` wants.  Callers that also need
+    the entry's reasoning configuration -- see
+    ``ModelConfig.agent_model_settings()`` -- use this to recover it.
+
+    Returns ``None`` for the raw pass-through case (an unregistered string
+    such as ``"litellm/openrouter/..."``), where there is no registry entry
+    and therefore no declared reasoning config.
+    """
+    if isinstance(name_or_config, ModelConfig):
+        return name_or_config
+
+    if name_or_config is None:
+        if mode is None:
+            return None
+        name_or_config = MODE_DEFAULTS.get(mode)
+        if name_or_config is None:
+            return None
+
+    return get_effective_registry()[0].get(name_or_config)
+
+
+# ---------------------------------------------------------------------------
+# Effective registry (built-ins + config.toml overrides)
+# ---------------------------------------------------------------------------
+
+_EFFECTIVE_REGISTRY: dict[str, ModelConfig] | None = None
+_EFFECTIVE_PROVENANCE: dict[str, str] | None = None
+
+
+def get_effective_registry(
+    *, refresh: bool = False
+) -> tuple[dict[str, ModelConfig], dict[str, str]]:
+    """Return the registry actually used for resolution, plus provenance.
+
+    ``MODEL_REGISTRY`` holds the built-in entries and stays the code-owned
+    capability table.  This adds any ``[models.*]`` tables from
+    ``.crystalyse/config.toml`` on top -- see
+    :mod:`crystalyse.config.model_overrides`.
+
+    The result is cached per process because config files do not change
+    mid-run; pass ``refresh=True`` to reload (used by tests).
+
+    If the config files are invalid the underlying ``ModelOverrideError``
+    propagates: a bad model override is a startup error, not something to
+    paper over by falling back to the built-in value.
+    """
+    global _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE
+    if refresh or _EFFECTIVE_REGISTRY is None:
+        from .model_overrides import load_model_registry
+
+        _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE = load_model_registry()
+    return _EFFECTIVE_REGISTRY, _EFFECTIVE_PROVENANCE

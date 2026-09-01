@@ -30,12 +30,14 @@ def test_registry_imports():
 
 
 def test_registry_has_expected_entries():
-    """AC: all eight registry entries exist."""
+    """AC: every curated registry entry exists."""
     expected = {
         "openai_o4_mini",
         "openai_o3",
         "openai_gpt4o_mini",
         "anthropic_claude_opus",
+        "anthropic_claude_sonnet",
+        "anthropic_claude_haiku",
         "openrouter_claude_opus",
         "openrouter_llama3_70b",
         "mistral_large",

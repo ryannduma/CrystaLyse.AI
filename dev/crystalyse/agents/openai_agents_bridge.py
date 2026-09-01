@@ -209,12 +209,27 @@ class EnhancedCrystaLyseAgent:
                 # Use persistent session created in __init__
                 # This ensures conversation continuity across multiple discover() calls (interactive chat)
                 session = self.session
+                from ..config.models import resolve_model_config as _resolve_cfg
                 from ..config.models import resolve_model_name as _resolve_model
 
                 selected_model = (
                     _resolve_model(self.model)
                     if self.model
                     else self._select_model_for_mode(self.mode)
+                )
+
+                # Carry the registry entry's reasoning/thinking configuration
+                # into ModelSettings.  Without this, reasoning_effort and
+                # thinking_budget_tokens are declared but never sent, so o3
+                # silently ran at the API default effort.  Unregistered
+                # pass-through model strings have no entry, hence the fallback.
+                _model_cfg = (
+                    _resolve_cfg(self.model) if self.model else _resolve_cfg(None, mode=self.mode)
+                )
+                model_settings = (
+                    _model_cfg.agent_model_settings(tool_choice="auto")
+                    if _model_cfg is not None
+                    else ModelSettings(tool_choice="auto")
                 )
 
                 # Create mode-aware instructions
@@ -232,7 +247,7 @@ class EnhancedCrystaLyseAgent:
                         workspace_tools.write_file,
                         workspace_tools.list_files,
                     ],
-                    model_settings=ModelSettings(tool_choice="auto"),
+                    model_settings=model_settings,
                     mcp_servers=mcp_servers,
                 )
 
