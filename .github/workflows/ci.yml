@@ -8,12 +8,13 @@ on:
     branches:
       - main
       - master
-      - "feature/**"
-      - "fix/**"
+  # No branch filter. A stacked pull request targets its parent branch, not
+  # master, so a `branches: [main, master]` filter here silently gives those
+  # PRs no CI at all -- chore/dependency-modernization had 0 workflow runs
+  # while showing as mergeable. The old push allowlist ("feature/**", "fix/**")
+  # was also the only reason some branches got checked, which made coverage
+  # depend on branch naming rather than on being a PR.
   pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch: # Allow manual triggering
 
 # Cancel in-progress runs for the same branch
@@ -243,8 +244,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
 
+      # pytest-asyncio is required even though the contract tests are
+      # synchronous: dev/pyproject.toml sets asyncio_mode and
+      # asyncio_default_fixture_loop_scope, and addopts includes
+      # --strict-config, so without the plugin pytest aborts with
+      # "Unknown config option: asyncio_default_fixture_loop_scope".
+      # This job was previously never reached, which is why that went unnoticed.
       - name: Install pytest
-        run: pip install pytest
+        run: pip install pytest pytest-asyncio
 
       - name: Run contract tests
         run: |

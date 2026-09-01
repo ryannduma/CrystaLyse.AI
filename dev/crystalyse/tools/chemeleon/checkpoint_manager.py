@@ -10,6 +10,7 @@ This replaces the buggy upstream download_util to provide:
 """
 
 import logging
+import shutil
 import tarfile
 from pathlib import Path
 
@@ -133,11 +134,18 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[s
     try:
         _download_file(FIGSHARE_URL, tar_file)
 
-        # Extract to cache directory
+        # Extract into the cache directory.  The Figshare archive wraps the
+        # checkpoints in a top-level ``ckpts/`` directory, so extract to a
+        # staging dir and flatten every ``.ckpt`` down into ``cache_dir``
+        # itself -- that is the directory ``CHECKPOINT_FILENAMES`` is resolved
+        # against, and the verification below looks for them there.
         logger.info("Extracting checkpoint files...")
-        _extract_tar_gz(
-            tar_file, cache_dir.parent
-        )  # Extracts to parent, creates ckpts/ or chemeleon_checkpoints/
+        staging_dir = cache_dir / "_extract"
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        _extract_tar_gz(tar_file, staging_dir)
+        for extracted in staging_dir.rglob("*.ckpt"):
+            extracted.replace(cache_dir / extracted.name)
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
         # Clean up tar file
         tar_file.unlink()

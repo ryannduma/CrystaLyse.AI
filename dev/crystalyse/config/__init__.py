@@ -23,7 +23,13 @@ class CrystaLyseConfig:
     """Central configuration management with environment variable support"""
 
     def __init__(self):
-        self.base_dir = Path(__file__).parent.parent
+        # Repository/package root: the directory holding both the ``crystalyse``
+        # package and the ``*-server`` MCP server trees.  This module lives at
+        # ``<base_dir>/crystalyse/config/__init__.py``, so three ``.parent``
+        # hops are needed -- when this module was still ``crystalyse/config.py``
+        # two were correct, and the missing hop broke both the MCP server cwds
+        # and the ``crystalyse/prompts/`` lookup in the agent bridge.
+        self.base_dir = Path(__file__).resolve().parent.parent.parent
         self.load_from_env()
 
     @classmethod

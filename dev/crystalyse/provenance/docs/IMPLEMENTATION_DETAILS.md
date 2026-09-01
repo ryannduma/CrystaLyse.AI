@@ -57,7 +57,7 @@ for calc in data["energy_calculations"]:
 
 # Match to structures
 for idx, struct in enumerate(structures):
-    struct_id = f"{composition}_struct_{idx+1}"
+    struct_id = f"{composition}_struct_{idx + 1}"
     energy = energy_lookup.get(struct_id)
 ```
 
