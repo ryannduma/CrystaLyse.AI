@@ -140,18 +140,18 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
     "anthropic_claude_opus": ModelConfig(
         name="anthropic_claude_opus",
         backend=ModelBackend.LITELLM,
-        model_id="anthropic/claude-opus-4-6-20260205",
+        model_id="anthropic/claude-opus-5",
         api_key_env_var="ANTHROPIC_API_KEY",
-        context_window=200_000,
+        context_window=1_000_000,
         notes="Strong reasoning, long context.  Requires direct Anthropic API key.",
     ),
     # ---- OpenRouter (any model behind one key) ----
     "openrouter_claude_opus": ModelConfig(
         name="openrouter_claude_opus",
         backend=ModelBackend.LITELLM,
-        model_id="openrouter/anthropic/claude-opus-4-6-20260205",
+        model_id="openrouter/anthropic/claude-opus-5",
         api_key_env_var="OPENROUTER_API_KEY",
-        context_window=200_000,
+        context_window=1_000_000,
         notes="Route Anthropic via OpenRouter.  One key, many models.",
     ),
     "openrouter_llama3_70b": ModelConfig(
