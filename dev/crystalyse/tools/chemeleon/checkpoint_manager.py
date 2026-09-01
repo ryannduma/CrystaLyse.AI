@@ -13,6 +13,7 @@ import logging
 import shutil
 import tarfile
 from pathlib import Path
+from typing import Protocol
 
 import requests
 from tqdm import tqdm
@@ -93,9 +94,31 @@ def _extract_tar_gz(filepath: Path, extract_to: Path) -> None:
     logger.info("Extraction complete")
 
 
-def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[str, Path]:
+class Downloader(Protocol):
+    """Fetch *url* to *filepath*.  The single source of truth for both the real
+    implementation and any test double, so the two cannot drift apart."""
+
+    def __call__(self, url: str, filepath: Path) -> None: ...
+
+
+class Extractor(Protocol):
+    """Unpack the archive at *filepath* into *extract_to*."""
+
+    def __call__(self, filepath: Path, extract_to: Path) -> None: ...
+
+
+def ensure_checkpoints_downloaded(
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    *,
+    download: Downloader = _download_file,
+    extract: Extractor = _extract_tar_gz,
+) -> dict[str, Path]:
     """
     Ensure all checkpoints are downloaded to cache directory.
+
+    ``download`` and ``extract`` are injected so the caching, flattening and
+    verification logic can be tested without a 523 MB network round-trip.  The
+    defaults are the real implementations, so callers need not pass anything.
 
     This function:
     1. Checks if checkpoints already exist in cache
@@ -132,7 +155,7 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[s
     # Download tar.gz file
     tar_file = cache_dir / "checkpoints.tar.gz"
     try:
-        _download_file(FIGSHARE_URL, tar_file)
+        download(FIGSHARE_URL, tar_file)
 
         # Extract into the cache directory.  The Figshare archive wraps the
         # checkpoints in a top-level ``ckpts/`` directory, so extract to a
@@ -142,7 +165,7 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[s
         logger.info("Extracting checkpoint files...")
         staging_dir = cache_dir / "_extract"
         shutil.rmtree(staging_dir, ignore_errors=True)
-        _extract_tar_gz(tar_file, staging_dir)
+        extract(tar_file, staging_dir)
         for extracted in staging_dir.rglob("*.ckpt"):
             extracted.replace(cache_dir / extracted.name)
         shutil.rmtree(staging_dir, ignore_errors=True)
@@ -168,7 +191,7 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> dict[s
     return checkpoint_paths
 
 
-def get_checkpoint_path(task: str, custom_dir: str | None = None) -> Path:
+def get_checkpoint_path(task: str, custom_dir: str | None = None, **ensure_kwargs) -> Path:
     """
     Get checkpoint path for a task, downloading if needed.
 
@@ -215,7 +238,7 @@ def get_checkpoint_path(task: str, custom_dir: str | None = None) -> Path:
         return custom_path
 
     # Use standard cache location with auto-download
-    checkpoints = ensure_checkpoints_downloaded()
+    checkpoints = ensure_checkpoints_downloaded(**ensure_kwargs)
     checkpoint_path = checkpoints[task]
     logger.info(f"Using cached checkpoint: {checkpoint_path}")
     return checkpoint_path

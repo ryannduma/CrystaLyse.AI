@@ -15,6 +15,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests._ci_stage import (
+    CATEGORY_DEFAULT_STAGE,
+    DIRECTORY_CATEGORIES,
+    REQUIREMENT_PROBES,
+    STAGES,
+    missing_requirements,
+    stage_includes,
+)
+
 # =============================================================================
 # Async Backend Configuration (from MCP SDK pattern)
 # =============================================================================
@@ -62,12 +71,95 @@ def has_gpu() -> bool:
 # =============================================================================
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add --ci-stage for selecting tests by schedule.
+
+    Omitting it runs everything, so plain ``pytest`` behaves as it always has.
+    Filtering only happens when a stage is asked for explicitly.
+    """
+    parser.addoption(
+        "--ci-stage",
+        action="store",
+        default=None,
+        choices=list(STAGES),
+        help=(
+            "Run tests scheduled for this stage and every cheaper stage. "
+            "'pr' is the pull-request gate; 'main' adds integration and e2e; "
+            "'nightly' adds scientific validation. Omit to run everything."
+        ),
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "slow: marks tests as slow")
     config.addinivalue_line("markers", "requires_gpu: marks tests that require GPU")
     config.addinivalue_line("markers", "requires_api: marks tests that require real API keys")
     config.addinivalue_line("markers", "integration: marks integration tests")
+    for category in sorted(set(DIRECTORY_CATEGORIES.values())):
+        config.addinivalue_line("markers", f"{category}: {category} test (set by directory)")
+    config.addinivalue_line(
+        "markers",
+        "run_on(stage): schedule this test at a stage (local|pr|main|nightly|release), "
+        "overriding the default for its category",
+    )
+    config.addinivalue_line(
+        "markers",
+        "requires(*names): external things this test needs; it is skipped, not failed, "
+        f"when one is absent. Valid: {sorted(REQUIREMENT_PROBES)}",
+    )
+
+
+def _category_of(item: pytest.Item) -> str | None:
+    """Category from the first recognised directory under tests/."""
+    for part in Path(str(item.fspath)).parts:
+        if part in DIRECTORY_CATEGORIES:
+            return DIRECTORY_CATEGORIES[part]
+    return None
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Apply category markers by directory, then filter by stage and requirements.
+
+    Order matters: a test is categorised before its schedule is resolved,
+    because the category supplies the default schedule.
+    """
+    selected_stage = config.getoption("--ci-stage")
+    kept: list[pytest.Item] = []
+    deselected: list[pytest.Item] = []
+
+    for item in items:
+        category = _category_of(item)
+        if category and not any(m.name == category for m in item.iter_markers()):
+            item.add_marker(getattr(pytest.mark, category))
+
+        run_on = item.get_closest_marker("run_on")
+        if run_on and run_on.args:
+            stage = run_on.args[0]
+            if stage not in STAGES:
+                raise pytest.UsageError(
+                    f"{item.nodeid}: run_on({stage!r}) is not a stage; valid: {list(STAGES)}"
+                )
+        else:
+            stage = CATEGORY_DEFAULT_STAGE.get(category or "unit", "pr")
+
+        if selected_stage is not None and not stage_includes(selected_stage, stage):
+            deselected.append(item)
+            continue
+
+        needs: list[str] = []
+        for marker in item.iter_markers("requires"):
+            needs.extend(marker.args)
+        if needs:
+            reasons = missing_requirements(needs)
+            if reasons:
+                item.add_marker(pytest.mark.skip(reason="; ".join(reasons)))
+
+        kept.append(item)
+
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = kept
 
 
 @pytest.fixture(scope="session")

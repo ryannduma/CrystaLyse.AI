@@ -50,6 +50,14 @@ def _discover_pyproject_files() -> list[Path]:
     for path in PROJECT_ROOT.rglob("pyproject.toml"):
         if any(part in excluded or part.endswith(".egg-info") for part in path.parts):
             continue
+        # Skip virtualenvs living inside the checkout. Without this the walk
+        # picks up site-packages pyproject.toml files (pandas, etc.) and
+        # asserts this project's pinning policy against third-party packages,
+        # which is both noisy and a latent false failure.
+        if any((path.parent.parent / marker).exists() for marker in ("pyvenv.cfg",)):
+            continue
+        if "site-packages" in path.parts:
+            continue
         results.append(path)
     return sorted(results)
 

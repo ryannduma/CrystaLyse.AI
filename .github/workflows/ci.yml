@@ -183,11 +183,19 @@ jobs:
           python -m pip install --upgrade pip
           cd dev && pip install -e ".[dev]"
 
+      # --ci-stage pr selects unit and contract tests and defers integration,
+      # e2e and scientific_validation to the main/nightly runs. The option is
+      # defined in dev/tests/conftest.py, which this same branch adds -- adding
+      # the flag any earlier in the stack makes those PRs fail with
+      # "unrecognized arguments: --ci-stage", because each PR has to stand on
+      # its own. Tests needing an absent API key or cached model skip
+      # themselves via requires(...), so this stays green with no secrets.
       - name: Run tests
         run: |
           cd dev
           pytest tests/ \
             -v \
+            --ci-stage pr \
             --cov=crystalyse \
             --cov-report=xml \
             --cov-report=term \
