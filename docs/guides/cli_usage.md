@@ -4,30 +4,35 @@ Complete guide to using Crystalyse from the command line.
 
 ## Overview
 
-Crystalyse provides a simple command-line interface with three primary commands:
+Crystalyse provides a small command-line interface built around these commands:
 
 1. **`crystalyse discover`** - Non-interactive materials discovery with provenance tracking
-2. **`crystalyse chat`** - Interactive session-based chat with adaptive clarification
-3. **`crystalyse user-stats`** - View user learning profile and preferences
+2. **`crystalyse chat`** - Interactive chat session with per-session conversation memory
+3. **`crystalyse setup`** - Download and prepare the required data files
+4. **`crystalyse models`** - Inspect (`models list`) and validate (`models check`) the model registry
+5. **`crystalyse analyse-provenance`** - Analyse provenance data from previous discovery sessions
+
+Running `crystalyse` with no arguments starts `chat`.
 
 ## Installation
 
-### From PyPI (Stable)
+### From Source
 
-```bash
-pip install crystalyse
-export OPENAI_MDG_API_KEY="your-api-key-here"
-crystalyse --help
-```
-
-### From Source (Development)
+The package in this repository is version `1.0.0-dev` and is installed from source:
 
 ```bash
 cd dev
 pip install -e .
-export OPENAI_MDG_API_KEY="your-api-key-here"
+export OPENAI_API_KEY="your-api-key-here"
 crystalyse --help
 ```
+
+The install provides the `crystalyse` console script (`crystalyse.cli:main`).
+Crystalyse is developed and tested on Python 3.12.
+
+API keys must be **real environment variables** - there is no `.env` file
+support in the codebase. On zsh, put the exports in `~/.zshenv` rather than
+`~/.zshrc` so non-interactive shells see them too.
 
 ## Global Options
 
@@ -41,21 +46,26 @@ crystalyse [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
 
 ```bash
 --project, -p TEXT      Project name for workspace organisation (default: crystalyse_session)
---mode [creative|rigorous|adaptive]   Analysis mode (default: adaptive)
---model TEXT            Language model to use (default: auto-select based on mode)
+--mode TEXT             Agent operating mode: explore, validate, auto (default: auto)
+--model TEXT            Language model to use (default: the mode's default model)
 --verbose, -v           Enable verbose output
 --version               Show version and exit
 --help                  Show help message
 ```
 
+`--mode` is a plain string, not a fixed choice list. The canonical names are
+`explore`, `validate` and `auto`. The old names `creative`, `rigorous` and
+`adaptive` still resolve to `explore`, `validate` and `auto` respectively, but
+they emit a `DeprecationWarning` and are slated for removal in v2.0.
+
 **Examples:**
 
 ```bash
-# Use rigorous mode with custom project name
-crystalyse --mode rigorous --project battery_study discover "Find Li-ion cathodes"
+# Use validate mode with a custom project name
+crystalyse --mode validate --project battery_study discover "Find Li-ion cathodes"
 
-# Use specific model
-crystalyse --model o3 discover "Analyse CsSnI3 stability"
+# Use a specific model from the registry
+crystalyse --model openai_o3 discover "Analyse CsSnI3 stability"
 
 # Verbose output for debugging
 crystalyse --verbose discover "Quick test"
@@ -78,7 +88,7 @@ crystalyse discover QUERY [OPTIONS]
 ```bash
 --provenance-dir PATH   Custom directory for provenance output (default: ./provenance_output)
 --hide-summary          Hide provenance summary table (data still captured)
---mode [creative|rigorous|adaptive]   Analysis mode (overrides global option)
+--mode TEXT             Agent operating mode (overrides global option)
 --project, -p TEXT      Project name (overrides global option)
 ```
 
@@ -91,11 +101,11 @@ crystalyse discover QUERY [OPTIONS]
 **Examples:**
 
 ```bash
-# Basic discovery (creative mode, ~50 seconds)
+# Basic discovery (auto mode by default)
 crystalyse discover "Find stable perovskite solar cell materials"
 
-# Rigorous mode for comprehensive analysis (2-5 minutes)
-crystalyse --mode rigorous discover "Analyse CsSnI3 phase stability"
+# Validate mode for comprehensive analysis
+crystalyse --mode validate discover "Analyse CsSnI3 phase stability"
 
 # Custom provenance directory
 crystalyse discover "Li-ion cathodes" --provenance-dir ./my_research
@@ -103,11 +113,11 @@ crystalyse discover "Li-ion cathodes" --provenance-dir ./my_research
 # Hide summary for cleaner output
 crystalyse discover "Quick test" --hide-summary
 
-# Adaptive mode (automatically selects creative or rigorous)
-crystalyse --mode adaptive discover "Design high-capacity battery materials"
+# Explore mode for a fast first pass
+crystalyse --mode explore discover "Design high-capacity battery materials"
 
-# Override global mode with local flag
-crystalyse --mode rigorous discover "Quick check" --mode creative
+# The command-level --mode overrides the global one
+crystalyse --mode validate discover "Quick check" --mode explore
 ```
 
 **Expected output:**
@@ -115,35 +125,39 @@ crystalyse --mode rigorous discover "Quick check" --mode creative
 ```bash
 $ crystalyse discover "Find perovskite solar cell materials"
 
-[cyan]Starting non-interactive discovery:[/cyan] Find perovskite solar cell materials
-[dim]Mode: adaptive | Project: crystalyse_session[/dim]
+Starting non-interactive discovery: Find perovskite solar cell materials
+Mode: auto | Project: crystalyse_session
 
-[Tool execution with progress bars...]
+[Tool execution with live trace output...]
 
-╭─────────────────────── Discovery Results ────────────────────────╮
+╭─────────────────────── Discovery Report ─────────────────────────╮
 │ Generated 3 perovskite candidates:                               │
-│                                                                   │
+│                                                                  │
 │ 1. CsGeI₃ - Formation energy: -2.558 eV/atom (most stable)       │
 │ 2. CsPbI₃ - Formation energy: -2.542 eV/atom                     │
 │ 3. CsSnI₃ - Formation energy: -2.529 eV/atom                     │
-│                                                                   │
-│ Visualisations: CsGeI3_3dmol.html, CsPbI3_3dmol.html             │
-╰───────────────────────────────────────────────────────────────────╯
+╰──────────────────────────────────────────────────────────────────╯
 
-╭─────────────────── Provenance Summary ───────────────────╮
-│ Session: crystalyse_adaptive_20250101_120000             │
-│ Materials discovered: 3                                  │
-│ Tool calls: 2                                            │
-│ Duration: 48.5s                                          │
-│                                                          │
-│ Output directory:                                        │
-│ ./provenance_output/crystalyse_adaptive_20250101_120000 │
-╰──────────────────────────────────────────────────────────╯
+                       Provenance Summary
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric           ┃ Value                                        ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Session ID       │ crystalyse_auto_20250101_120000              │
+│ Materials Found  │ 3                                            │
+│ With Energy Data │ 3                                            │
+│ Energy Range     │ -2.558 to -2.529 eV/atom                     │
+│ Runtime          │ 48.5s                                        │
+│ MCP Tools Used   │ chemistry_unified, visualization             │
+│ Output Location  │ provenance_output/runs/crystalyse_auto_2025… │
+└──────────────────┴──────────────────────────────────────────────┘
 ```
+
+Session IDs are formed as `crystalyse_<mode>_<timestamp>` using the canonical
+mode name, and each run is written to `<provenance-dir>/runs/<session_id>/`.
 
 ### `crystalyse chat`
 
-Interactive session-based chat with adaptive clarification, user preference learning, and session persistence.
+Interactive chat session with slash commands, live tool tracing, and per-session conversation memory.
 
 **Usage:**
 
@@ -154,108 +168,150 @@ crystalyse chat [OPTIONS]
 **Options:**
 
 ```bash
---user, -u TEXT       User ID for personalised experience (default: "default")
---session, -s TEXT    Session name for organisation (auto-generated if not provided)
+--user, -u TEXT       User ID recorded for the session (default: "default")
+--session, -s TEXT    Session name appended to the project name
 ```
 
-**Features:**
+Mode and model are **global** options, so they go before `chat`:
 
-- **Adaptive clarification**: System learns your expertise level and adjusts question complexity
-- **Cross-session learning**: Preferences persist across sessions
-- **Mode switching**: Switch between creative/rigorous during conversation
-- **Session persistence**: SQLite-based conversation storage
+```bash
+crystalyse --mode validate --model openai_o3 chat -u scientist -s photovoltaics
+```
+
+**What a session actually persists:**
+
+- **Conversation memory**: the SDK's `SQLiteSession`, stored per session ID at
+  `~/.crystalyse/sessions/<session_id>.db`, where the session ID is
+  `<project_name>_<mode>`. `--session` is appended to the project name
+  (`<project>_<session>`); nothing is auto-generated. Resuming the same
+  conversation therefore needs the same `--project`, the same `--session` and
+  the same mode.
+- **In-process history**: the turns shown on screen are also passed to the
+  agent as conversation history for the current run.
+
+The `--user` value is recorded on the chat session but is not part of the
+database key, and no user preferences or expertise profiles are stored.
 
 **Examples:**
 
 ```bash
-# Start chat with user ID and session name
+# Start chat with a user ID and session name
 crystalyse chat --user researcher1 --session battery_study
 
-# Quick anonymous chat
+# Quick anonymous chat (equivalent to running `crystalyse` with no arguments)
 crystalyse chat
 
-# Chat with global mode option
-crystalyse --mode rigorous chat --user scientist --session photovoltaics
+# Chat in validate mode
+crystalyse --mode validate chat --user scientist --session photovoltaics
 ```
 
 **In-session slash commands:**
 
-The chat interface does not have built-in slash commands. It's a simple conversational interface where you ask questions naturally.
+| Command | Description |
+|---------|-------------|
+| `/help` | Show the command table |
+| `/tools` | Reference table of the chemistry and visualisation tools (arguments: `desc`, `nodesc`) |
+| `/mcp` | Reference table and descriptions of the MCP servers (arguments: `status`, `servers`, `desc`) |
+| `/stats` | Session duration and configuration summary |
+| `/memory` | Inspect (`show`), wipe (`clear`) or refresh conversation memory |
+| `/mode` | View (`show`) or change the operating mode (`explore`, `validate`, `auto`) |
+| `/model` | View (`show`) or change the language model (any registry name) |
+| `/about` | Version and system information |
+| `/clear` | Clear the terminal screen |
+| `/quit`, `/exit` | Exit the session |
+
+`/mode` and `/model` recreate the agent in place, so the change takes effect
+from the next query onward. `/memory clear` asks for confirmation, then deletes
+and recreates the session database (including its `-shm`/`-wal` siblings).
+Unrecognised slash input prints `Unknown command` and points you at `/help`.
+`/tools`, `/mcp` and `/stats` print static reference tables rather than live
+introspection of the running servers; `/memory show` does read the real session
+database (its ID and size on disk).
 
 **Example session:**
 
 ```bash
 $ crystalyse chat -u researcher -s solar_study
 
-╭──────────────────────────────────────────────────────────╮
-│         Crystalyse - Interactive Chat Session         │
-│                                                          │
-│ User: researcher                                         │
-│ Session: solar_study                                     │
-│ Mode: adaptive                                           │
-╰──────────────────────────────────────────────────────────╯
+ ██████╗██████╗ ██╗   ██╗███████╗████████╗ █████╗ ██╗    ██╗   ██╗███████╗███████╗
+ ...responsive CRYSTALYSE logo...
 
-You: Find perovskites for solar cells
+╭──────────────────────────────────────────────────────────────────╮
+│      Your interactive materials science research partner.        │
+│      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                    │
+│  Type your query to begin, /help for commands, or 'quit' to exit.│
+╰──────────────────────────────────────────────────────────────────╯
 
-[Agent processes query with adaptive clarification if needed...]
+➤ Find perovskites for solar cells
 
-Crystalyse: I've analysed several perovskite compositions for
-photovoltaic applications. Here are the key findings:
+╭─────────────────────────── You ──────────────────────────────────╮
+│ Find perovskites for solar cells                                 │
+╰──────────────────────────────────────────────────────────────────╯
 
-Most Stable Candidates:
-1. CsGeI₃: -2.558 eV/atom (excellent stability)
-2. CsPbI₃: -2.542 eV/atom (good alternative)
+[Tool execution with live trace output...]
 
-3D visualisations saved for detailed inspection.
+╭───────────────────────── CrystaLyse ─────────────────────────────╮
+│ I've analysed several perovskite compositions for photovoltaic   │
+│ applications. Most stable candidates:                            │
+│                                                                  │
+│ 1. CsGeI₃: -2.558 eV/atom                                        │
+│ 2. CsPbI₃: -2.542 eV/atom                                        │
+╰──────────────────────────────────────────────────────────────────╯
 
-You: What about band gaps?
+➤ quit
 
-Crystalyse: Based on the structures generated:
-
-Band Gap Estimates:
-- CsGeI₃: ~1.6 eV (excellent for single-junction solar cells)
-- CsPbI₃: ~1.5 eV (good for photovoltaics)
-
-These are preliminary estimates from structural analysis.
-
-You: exit
-
-[cyan]Session ended.[/cyan]
+Thank you for using Crystalyse! Goodbye.
 ```
 
-### `crystalyse user-stats`
+### `crystalyse setup`
 
-Display user learning profile showing detected expertise, preferences, and interaction history.
+Download and prepare the phase-diagram data used for energy-above-hull
+calculations. Exits with a non-zero status if the download or verification
+fails.
 
 **Usage:**
 
 ```bash
-crystalyse user-stats [OPTIONS]
+crystalyse setup [OPTIONS]
 ```
 
 **Options:**
 
 ```bash
---user, -u TEXT    User ID to show stats for (default: "default")
+--force, -f    Force re-download of data files
 ```
 
-**Example:**
+```bash
+$ crystalyse setup
+Setting up Crystalyse data files...
+✓ Phase diagram data ready at: /Users/you/.cache/crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz
+```
+
+### `crystalyse models`
+
+Inspect and validate the available model backbones. Running `crystalyse models`
+with no subcommand prints the group's help.
+
+**`crystalyse models list`** prints the *effective* registry - the built-in
+entries plus anything added or overridden in `.crystalyse/config.toml` - as a
+table with the columns **Name**, **Backend**, **Model ID**, **Context**,
+**Modes**, **Env Var**, **Source** and **Usable**. `Source` reports where the
+entry came from (`built-in`, `user-override` for a built-in with config-supplied
+fields, or `user-defined` for an entry that exists only in config). `Usable`
+shows whether the entry's API-key environment variable is currently set;
+entries that need no key (local Ollama) are always usable.
+
+**`crystalyse models check`** prints a per-model key status line and exits with
+code `1` if any model that requires a key is missing it. Note that `check`
+iterates the built-in registry only, so entries defined purely in
+`config.toml` appear in `list` but not in `check`.
 
 ```bash
-$ crystalyse user-stats -u researcher1
+# See every backbone and where it came from
+crystalyse models list
 
-╭─────────────────── Crystalyse Learning Profile ───────────────────╮
-│ User: researcher1                                                 │
-│ Interactions: 15                                                  │
-│ Detected Expertise: Expert                                        │
-│ Speed Preference: Balanced (0.6)                                  │
-│ Successful Modes: rigorous (90%), creative (70%)                  │
-│                                                                   │
-│ Domain Familiarity:                                               │
-│   • Batteries: Expert (0.9)                                       │
-│   • Photovoltaics: Intermediate (0.6)                             │
-│   • Thermoelectrics: Novice (0.3)                                 │
-╰───────────────────────────────────────────────────────────────────╯
+# Verify API keys; useful as a CI or shell-script pre-flight check
+crystalyse models check
 ```
 
 ### `crystalyse analyse-provenance`
@@ -276,14 +332,21 @@ crystalyse analyse-provenance [OPTIONS]
 --dir PATH        Provenance directory to search (default: ./provenance_output)
 ```
 
+Sessions are read from `<dir>/runs`. With neither `--latest` nor `--session`,
+the command lists the 10 most recent sessions and asks you to pick one. If
+`<dir>/runs` does not exist it reports `Provenance directory not found`.
+
 **Examples:**
 
 ```bash
+# List the most recent sessions
+crystalyse analyse-provenance
+
 # Analyse most recent session
 crystalyse analyse-provenance --latest
 
 # Analyse specific session
-crystalyse analyse-provenance --session crystalyse_creative_20250101_120000
+crystalyse analyse-provenance --session crystalyse_validate_20250101_120000
 
 # Custom provenance directory
 crystalyse analyse-provenance --latest --dir ./my_research/provenance
@@ -291,99 +354,169 @@ crystalyse analyse-provenance --latest --dir ./my_research/provenance
 
 ## Analysis Modes
 
-Crystalyse supports three operational modes that control the analysis workflow:
+Crystalyse supports three operational modes. The selected mode is passed through
+unchanged - it chooses the chemistry MCP server, sets the run timeout, and is
+injected into the agent's instructions so every analysis tool receives the same
+`mode` argument. Nothing inspects the query and re-selects a mode on your behalf.
 
-| Mode | Duration | Structures | Tools Used | Use Case |
-|------|----------|-----------|------------|----------|
-| **Creative** | ~50s | ~3 candidates | Chemeleon + MACE | Rapid exploration, broad screening |
-| **Rigorous** | 2-5min | 30+ candidates | SMACT + Chemeleon + MACE + PyMatGen | Final validation, publication-ready |
-| **Adaptive** | Variable | Context-dependent | Intelligent routing | Dynamic selection based on query |
+| Mode | Chemistry MCP server | Timeout | Intent |
+|------|----------------------|---------|--------|
+| **explore** | `chemistry_creative` | 120 s | Rapid exploration and broad screening |
+| **auto** | `chemistry_unified` | 180 s | Balanced default |
+| **validate** | `chemistry_unified` | 300 s | Full validation pipeline |
+
+The `visualization` server is started alongside the chemistry server in every
+mode.
 
 **Mode selection:**
 
 ```bash
 # Explicitly set mode
-crystalyse --mode creative discover "Quick exploration"
-crystalyse --mode rigorous discover "Thorough validation"
-crystalyse --mode adaptive discover "Let system decide"  # Default
+crystalyse --mode explore discover "Quick exploration"
+crystalyse --mode validate discover "Thorough validation"
+crystalyse --mode auto discover "Balanced default"  # Default
 ```
 
-**Mode behaviour:**
+Runtimes and candidate counts vary with the query and the tools the agent
+chooses; the timeouts above are the only per-mode limits the code sets.
 
-- **Creative**: Fast screening using Chemeleon structure prediction + MACE energy calculations. Returns ~3 most promising candidates with basic visualisation.
+## Model Selection
 
-- **Rigorous**: Comprehensive analysis using SMACT composition validation, Chemeleon structure generation, MACE calculations, and PyMatGen phase diagram analysis. Returns 30+ candidates with full characterisation.
+`--model` takes a name from the model registry. With no `--model`, the model
+comes from the mode's default: `explore` and `auto` use `openai_o4_mini`,
+`validate` uses `openai_o3`.
 
-- **Adaptive**: Analyses query complexity and automatically routes to creative or rigorous mode. High-specificity queries → rigorous; exploratory queries → creative.
+| Registry name | Backend | Model ID | Env var |
+|---------------|---------|----------|---------|
+| `openai_o4_mini` | openai | `o4-mini` | `OPENAI_API_KEY` |
+| `openai_o3` | openai | `o3` | `OPENAI_API_KEY` |
+| `openai_gpt4o_mini` | openai | `gpt-4o-mini` | `OPENAI_API_KEY` |
+| `anthropic_claude_opus` | litellm | `anthropic/claude-opus-5` | `ANTHROPIC_API_KEY` |
+| `anthropic_claude_sonnet` | litellm | `anthropic/claude-sonnet-5` | `ANTHROPIC_API_KEY` |
+| `anthropic_claude_haiku` | litellm | `anthropic/claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
+| `openrouter_claude_opus` | litellm | `openrouter/anthropic/claude-opus-5` | `OPENROUTER_API_KEY` |
+| `openrouter_llama3_70b` | litellm | `openrouter/meta-llama/llama-3.1-70b-instruct` | `OPENROUTER_API_KEY` |
+| `mistral_large` | litellm | `mistral/mistral-large-latest` | `MISTRAL_API_KEY` |
+| `ollama_llama3_70b_direct` | openai-compat | `llama3:70b` | none (local Ollama) |
+
+Run `crystalyse models list` for the authoritative, up-to-date version of this
+table, including the context window and the modes each entry declares. The
+`Modes` column is declared metadata describing what an entry is intended for;
+it is not enforced at run time.
+
+A string that is not a registry name is passed through raw, which is the escape
+hatch for full LiteLLM model strings:
+
+```bash
+# Registry name
+crystalyse --model anthropic_claude_sonnet discover "Screen Na-ion cathodes"
+
+# Raw pass-through
+crystalyse --model litellm/openrouter/anthropic/claude-opus-5 discover "..."
+```
+
+Where a registry entry declares a reasoning configuration, it is sent to the
+provider on every run: OpenAI reasoning models receive a `reasoning` effort,
+Claude 5 models adaptive thinking plus an effort level, and Claude 4.x models a
+thinking token budget. An entry that declares neither is called with the
+provider's own defaults, and a raw pass-through string has no entry and so no
+declared reasoning configuration.
+
+Inside a chat session, `/model <name>` swaps the model (overriding the mode
+default) and `/mode <name>` swaps the mode; both recreate the agent in place.
 
 ## Environment Variables
 
-Configure Crystalyse behaviour through environment variables:
+Configure Crystalyse behaviour through environment variables. Model API keys are
+read from the variable each registry entry declares - resolving a model whose
+key is unset raises immediately.
 
 ```bash
-# Required
-export OPENAI_MDG_API_KEY="your-key-here"
+# Model API keys (set the ones for the backbones you use)
+export OPENAI_API_KEY="your-key-here"        # openai_* entries
+export ANTHROPIC_API_KEY="your-key-here"     # anthropic_claude_* entries
+export OPENROUTER_API_KEY="your-key-here"    # openrouter_* entries
+export MISTRAL_API_KEY="your-key-here"       # mistral_large
 
 # Optional
-export CRYSTALYSE_MODEL="o4-mini"              # Default model
-export CRYSTALYSE_PYTHON_PATH="/path/to/python" # Python for MCP servers
-export CRYSTALYSE_DEBUG="false"                # Debug mode
-export CRYSTALYSE_ENABLE_HTML_VIZ="false"      # HTML visualisation
-export CRYSTALYSE_PPD_PATH="/path/to/ppd.pkl"  # Custom phase diagram path
+export CRYSTALYSE_PYTHON_PATH="/path/to/python"  # Python for the chemistry_unified server
+export CRYSTALYSE_DEBUG="false"                  # Debug mode
+export CRYSTALYSE_ENABLE_HTML_VIZ="false"        # HTML visualisation
+export CRYSTALYSE_PROVENANCE_DIR="./provenance_output"  # Provenance output directory
+export CRYSTALYSE_PPD_PATH="/path/to/ppd.pkl.gz" # Custom phase diagram path
 export CHEMELEON_CHECKPOINT_DIR="/path/to/ckpts" # Custom checkpoint directory
 ```
 
+The local Ollama entry needs no key. `OPENAI_MDG_API_KEY`, if set, is preferred
+over `OPENAI_API_KEY` when building the OpenAI provider client, but it does not
+satisfy a registry entry's key requirement - `OPENAI_API_KEY` must be set for
+the OpenAI backbones.
+
+Run `crystalyse models check` to confirm which keys the shell actually sees.
+
 ## Configuration File
 
-Create `~/.crystalyse/config.yaml` for persistent settings:
+Persistent settings live in TOML, not YAML. Two files are consulted, with the
+project one winning:
 
-```yaml
-# Model configuration
-default_model: "o4-mini"
+1. `<project root>/.crystalyse/config.toml` - a directory containing
+   `.crystalyse/` marks the project root
+2. `~/.crystalyse/config.toml`
 
-# MCP server paths (auto-configured for standard installations)
-mcp_servers:
-  chemistry_unified:
-    command: "python"
-    args: ["-m", "chemistry_unified.server"]
-    cwd: "/path/to/chemistry-unified-server/src"
+**Model registry overrides** (`[models.<name>]` tables) are read whenever a
+model name is resolved and by `crystalyse models list`. A table may override the
+value-like fields of a built-in entry (`model_id`, `base_url`,
+`context_window`, `max_tokens`, `temperature`, `reasoning_effort`,
+`thinking_budget_tokens`, `notes`) or define an entirely new entry:
 
-  chemistry_creative:
-    command: "python"
-    args: ["-m", "chemistry_creative.server"]
-    cwd: "/path/to/chemistry-creative-server/src"
+```toml
+# Override one field of a built-in entry.
+[models.anthropic_claude_opus]
+model_id = "anthropic/claude-opus-4-6"
+reasoning_effort = "high"
 
-  visualization:
-    command: "python"
-    args: ["-m", "visualization_mcp.server"]
-    cwd: "/path/to/visualization-mcp-server/src"
-
-# Provenance settings
-provenance:
-  enabled: true  # Always enabled, cannot be disabled
-  output_dir: "./provenance_output"
-  show_summary: true
-
-# Performance tuning
-timeouts:
-  creative: 120
-  adaptive: 180
-  rigorous: 300
+# Define a new backbone without editing package code.
+[models.my_local_llm]
+backend = "openai-compat"
+model_id = "qwen3-32b"
+api_key_env_var = ""
+base_url = "http://localhost:8000/v1"
+supported_modes = ["explore"]
 ```
+
+Capability fields (`backend`, `api_key_env_var`, `supports_tool_calling`,
+`supports_structured_output`, `supported_modes`) cannot be overridden on a
+built-in - define a new entry instead. Anything invalid raises a
+`ModelOverrideError` when the registry is first loaded - at the first model
+resolution, or on `crystalyse models list` - rather than being silently
+ignored, and `models list` shows the resulting `Source` for every entry.
+
+The same files also define runtime settings - `default_model`, `default_mode`,
+`plan_mode`, `plans_directory` and `plans_cleanup_days` (unrecognised keys are
+dropped). These are read by `crystalyse.config.settings.load_settings()`; the
+CLI's own mode and model selection currently comes from `--mode`/`--model` and
+the per-mode defaults.
+
+MCP server commands and working directories are computed from the installed
+package location, and provenance behaviour is controlled by the `CRYSTALYSE_*`
+environment variables above - neither is configurable from the TOML file.
 
 ## First Run Auto-Downloads
 
 On first execution, Crystalyse automatically downloads required data:
 
-**Chemeleon Model Checkpoints** (~600 MB):
-- Downloaded to `~/.cache/crystalyse/chemeleon_checkpoints/`
+**Chemeleon Model Checkpoints** (~604 MB):
+- Downloaded from Figshare to `~/.cache/crystalyse/chemeleon_checkpoints/`
 - One-time download, cached permanently
-- No manual setup required
+- Override the location with `CHEMELEON_CHECKPOINT_DIR`
 
-**Materials Project Phase Diagrams** (~170 MB, 271,617 entries):
-- Auto-located from multiple fallback paths
+**Materials Project Phase Diagrams** (~178 MB, 271,617 entries):
+- Downloaded to `~/.cache/crystalyse/ppd-mp_all_entries_uncorrected_250409.pkl.gz`
 - Used for energy-above-hull calculations
-- Requires `ppd-mp_all_entries_uncorrected_250409.pkl.gz`
+- Override the location with `CRYSTALYSE_PPD_PATH`, or fetch it ahead of time
+  with `crystalyse setup`
+
+**MACE foundation models** are cached in `~/.cache/mace/`.
 
 Progress bars show download status. Files are never re-downloaded.
 
@@ -395,22 +528,23 @@ Progress bars show download status. Files are never re-downloaded.
 $ crystalyse: command not found
 
 # Solution: Check installation
-pip install -e .  # From dev/ directory
-# or
-pip install crystalyse
+cd dev && pip install -e .
 ```
 
 ### API key errors
 
 ```bash
-$ Error: OpenAI API key not found
+$ RuntimeError: ModelConfig 'openai_o4_mini' requires env var 'OPENAI_API_KEY', but it is not set.
 
-# Solution: Set environment variable
-export OPENAI_MDG_API_KEY="your-key-here"
+# Solution: Set the environment variable the registry entry declares
+export OPENAI_API_KEY="your-key-here"
 
 # Verify
-echo $OPENAI_MDG_API_KEY
+crystalyse models check
 ```
+
+On zsh, put the export in `~/.zshenv` - `~/.zshrc` is only read by interactive
+shells, so keys set there are invisible to scripts and editors.
 
 ### MCP server connection errors
 
@@ -420,26 +554,31 @@ $ Error: Chemistry server connection failed
 # Check Python path
 which python
 
-# Set if using conda/venv
+# The chemistry_unified server honours this override (the chemistry_creative
+# and visualization servers always use the interpreter running Crystalyse)
 export CRYSTALYSE_PYTHON_PATH="/path/to/your/python"
 
 # Verify installation
 pip list | grep crystalyse
-pip list | grep chemistry
 ```
 
 ### Session database issues
 
+Conversation memory is one SQLite database per session ID, at
+`~/.crystalyse/sessions/<session_id>.db`, where the session ID is
+`<project_name>_<mode>`.
+
 ```bash
-$ Error: Cannot access session database
+# Check permissions (default project and mode)
+ls -la ~/.crystalyse/sessions/crystalyse_session_auto.db
 
-# Check permissions
-ls -la ~/.crystalyse/conversations.db
-
-# Reset if corrupted
-rm ~/.crystalyse/conversations.db
-crystalyse chat  # Creates fresh database
+# Reset if corrupted (remove the -shm/-wal siblings too)
+rm ~/.crystalyse/sessions/crystalyse_session_auto.db*
+crystalyse chat  # Creates a fresh database
 ```
+
+From inside a session, `/memory clear` does the same thing with a confirmation
+prompt.
 
 ## Best Practices
 
@@ -453,14 +592,14 @@ crystalyse discover "Find stable perovskites with band gaps 1.2-1.6 eV"
 crystalyse discover "Design lead-free perovskite solar cell materials"
 
 # Best: Specify requirements and constraints
-crystalyse --mode rigorous discover "Find environmentally friendly perovskite alternatives to MAPbI3 for tandem solar cells"
+crystalyse --mode validate discover "Find environmentally friendly perovskite alternatives to MAPbI3 for tandem solar cells"
 ```
 
 ### Workflow recommendations
 
-1. **Start with creative mode** for rapid exploration
+1. **Start with explore mode** for rapid exploration
 2. **Iterate** based on initial results
-3. **Validate with rigorous mode** for publication-quality analysis
+3. **Validate with validate mode** for publication-quality analysis
 4. **Use sessions** for complex multi-part investigations
 5. **Check provenance** to verify computational integrity
 
@@ -475,6 +614,9 @@ crystalyse chat -s project_solar_perovskites -u team_lead
 crystalyse chat -s project_battery_anodes -u team_lead
 ```
 
+Keep `--project` and the mode constant when you want to resume the same
+conversation - the database key is `<project>_<session>_<mode>`.
+
 ### Integration with research workflows
 
 **Shell scripting:**
@@ -483,11 +625,12 @@ crystalyse chat -s project_battery_anodes -u team_lead
 #!/bin/bash
 # Automated materials screening
 
-export OPENAI_MDG_API_KEY="your-key"
+export OPENAI_API_KEY="your-key"
+crystalyse models check || exit 1
 
 for material in "LiCoO2" "LiFePO4" "LiMn2O4"; do
     echo "Analysing $material..."
-    crystalyse --mode rigorous discover "Analyse $material cathode properties" \
+    crystalyse --mode validate discover "Analyse $material cathode properties" \
         --provenance-dir ./screening_results/$material
 done
 ```
@@ -497,7 +640,7 @@ done
 ```python
 import subprocess
 
-def discover_material(formula, mode="creative"):
+def discover_material(formula, mode="explore"):
     """Run Crystalyse discovery from Python."""
     cmd = [
         "crystalyse",
@@ -511,7 +654,7 @@ def discover_material(formula, mode="creative"):
 # Use in pipeline
 materials = ["CsSnI3", "CsPbI3", "CsGeI3"]
 for material in materials:
-    analysis = discover_material(material, mode="rigorous")
+    analysis = discover_material(material, mode="validate")
     print(f"Analysis of {material}:\n{analysis}\n")
 ```
 
@@ -534,8 +677,8 @@ watch -n 1 nvidia-smi
 # Monitor memory
 htop
 
-# Use creative mode for lower memory usage
-crystalyse --mode creative discover "query"
+# Use explore mode for the lightest run
+crystalyse --mode explore discover "query"
 ```
 
 **Disk space:**
@@ -545,10 +688,12 @@ crystalyse --mode creative discover "query"
 df -h
 
 # Clean old provenance data
-find ./provenance_output -type d -mtime +30 -exec rm -rf {} +
+find ./provenance_output/runs -type d -mtime +30 -exec rm -rf {} +
 
 # Clean visualisations
 find . -name "*_3dmol.html" -mtime +7 -delete
 ```
 
-This CLI guide reflects the actual implementation in Crystalyse v1.0.0. For API-level integration, see the reference documentation.
+This CLI guide reflects the actual implementation in Crystalyse v1.0.0-dev
+(`crystalyse --version`). For API-level integration, see the reference
+documentation.

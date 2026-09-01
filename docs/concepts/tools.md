@@ -10,22 +10,30 @@ Crystalyse's tool system provides agents with access to specialised materials sc
 
 ```
 ┌─────────────────────────────────────────┐
-│           Agent Core                    │
+│      EnhancedCrystaLyseAgent            │
+│      (OpenAI Agents SDK runner)         │
 ├─────────────────────────────────────────┤
-│          Tool Manager                   │
+│  Workspace tools (in-process)           │
+│  read_file · write_file · list_files    │
 ├─────────────────────────────────────────┤
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │SMACT    │ │Chemeleon│ │MACE     │   │
-│  │Tool     │ │Tool     │ │Tool     │   │
-│  └─────────┘ └─────────┘ └─────────┘   │
+│  MCP servers (stdio subprocesses)       │
+│  ┌──────────────────┐ ┌──────────────┐  │
+│  │ chemistry server │ │ visualization│  │
+│  │ (mode-selected)  │ │  (always)    │  │
+│  └──────────────────┘ └──────────────┘  │
 ├─────────────────────────────────────────┤
-│          MCP Servers                    │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │Creative │ │Unified  │ │Visual.  │   │
-│  │Server   │ │Server   │ │Server   │   │
-│  └─────────┘ └─────────┘ └─────────┘   │
+│  crystalyse.tools                       │
+│  SMACT · Chemeleon · MACE · pymatgen ·  │
+│  pymatviz wrappers                      │
 └─────────────────────────────────────────┘
 ```
+
+Exactly two MCP servers run per discovery: the chemistry server the mode selects, plus the visualisation server. Both are launched as stdio subprocesses with `MCPServerStdio` and shut down when the run finishes.
+
+The servers are thin MCP wrappers: `chemistry_unified.server` imports its calculators
+(`SMACTValidator`, `ChemeleonPredictor`, `MACECalculator`, `PyMatgenAnalyzer`, ...) and its
+result models from the `crystalyse.tools` package, so the science lives in the package and
+the server only exposes it.
 
 ### Tool Categories
 
@@ -33,540 +41,455 @@ Crystalyse's tool system provides agents with access to specialised materials sc
 - **SMACT**: Composition validation and screening
 - **Chemeleon**: Crystal structure prediction
 - **MACE**: Machine learning force fields
-- **Visualisation Suite**: 3D structures and analysis plots (3dmol.js + Pymatviz)
+- **pymatgen**: Symmetry, coordination and hull analysis
+- **Visualisation Suite**: CIF output plus pymatviz analysis plots
 
 #### 2. MCP Server Architecture
-- **Chemistry Creative Server**: Fast structure generation (Chemeleon + MACE)
-- **Chemistry Unified Server**: Complete validation (SMACT + Chemeleon + MACE)
-- **Visualisation Server**: 3D structures and analysis plots
-- **oldmcpservers**: Individual tool servers (SMACT, Chemeleon, MACE)
+- **chemistry_creative** (`chemistry-creative-server`): fast structure generation (Chemeleon + MACE), 4 tools
+- **chemistry_unified** (`chemistry-unified-server`): complete validation (SMACT + Chemeleon + MACE + pymatgen), 20 tools
+- **visualization** (`visualization-mcp-server`): CIF output and pymatviz analysis plots, 5 tools
+
+These three are the only MCP servers in the repository, and all three are declared in `CrystaLyseConfig.mcp_servers`.
 
 #### 3. Computational Framework
 - **OpenAI Agents SDK**: Production-ready agent architecture
+- **Multi-provider model registry**: OpenAI, Anthropic, OpenRouter, Mistral and local Ollama backbones (see [Model Selection](#model-selection))
 - **Model Context Protocol**: Seamless tool integration
-- **Anti-hallucination**: 100% computational honesty validation
-- **Session Management**: Persistent conversation and research tracking
+- **Provenance capture**: MCP tool outputs are hashed and indexed in a value registry; the [render gate](render_gate_system.md) then detects and logs unprovenanced material-property numbers
+- **Session Management**: Persistent conversation memory via the SDK's `SQLiteSession`
 
 #### 4. External Integration Capability
-- **CIF File Support**: Standard crystallographic format
-- **PDF Reports**: Professional analysis documentation
-- **Interactive HTML**: Web-based 3D molecular viewers
-- **Cross-platform**: Windows, macOS, Linux compatibility
+- **CIF File Support**: Standard crystallographic format, written to your working directory
+- **Analysis PDFs**: Four pymatviz plots per material (3D structure, XRD, RDF, coordination)
+- **Provenance artefacts**: `events.jsonl`, `materials_catalog.json` and `summary.json` per session
+- **Platforms**: developed and tested on Python 3.12; CI covers Linux (3.11, 3.12) and macOS (3.11). Windows is not tested.
 
 ## Built-in Tools
 
 ### SMACT Integration
 
-Accessed through Chemistry Unified Server for composition validation:
+Accessed through the chemistry_unified server for composition validation:
 
 ```python
 # Available through MCP server calls
 # SMACT validates compositions based on chemical principles
 
-# Example validation query
-query = "Check if CsSnI3 is chemically feasible"
-result = await unified_server.validate_composition("CsSnI3")
+# MCP tool signature (chemistry_unified)
+validate_composition(
+    composition="CsSnI3",
+    use_pauling_test=True,
+    include_alloys=True,
+    oxidation_states_set="icsd24",
+)
 
 # SMACT screening pipeline:
-# 1. Oxidation state analysis
-# 2. Electronegativity ratios 
-# 3. Chemical analogy to known compounds
-# 4. Charge balance verification
+# 1. Charge neutrality
+# 2. Pauling electronegativity rules
+# 3. Valid oxidation state combinations
 
-# Output: Valid/invalid with confidence scores
+# Output: ValidationResult with per-rule detail
 ```
+
+Related SMACT-backed tools on the same server: `analyze_stability`, `predict_band_gap`,
+`smact_validate_fast`, `filter_compositions`, `predict_dopants`, `generate_ml_representation`.
 
 ### Chemeleon Integration
 
-Accessed through both Creative and Unified servers for crystal structure prediction:
+Accessed through both chemistry servers for crystal structure prediction:
 
 ```python
-# Available through MCP server calls
-# Chemeleon generates high-quality crystal structures
+# chemistry_creative (fast exploration)
+generate_crystal_structure(formula="CaTiO3", num_samples=3, prefer_gpu=True)
 
-# Example structure generation
-query = "Generate crystal structures for CaTiO3"
-result = await creative_server.predict_structure("CaTiO3")
+# chemistry_unified (validation runs)
+generate_crystal_csp(formulas="CaTiO3", num_samples=1, prefer_gpu=True)
 
 # Chemeleon pipeline:
 # 1. Composition analysis
-# 2. Space group selection
-# 3. Lattice parameter estimation
-# 4. Atomic position optimisation
-# 5. Structure refinement
+# 2. Diffusion-model structure generation
 
-# Output: Multiple candidate structures with CIF files
+# Output: Multiple candidate structures, convertible to CIF
 ```
+
+Model checkpoints download automatically from Figshare to
+`~/.cache/crystalyse/chemeleon_checkpoints/` (~604 MB) on first use.
 
 ### MACE Integration
 
-Accessed through both Creative and Unified servers for energy calculations:
+Accessed through both chemistry servers for energy calculations:
 
 ```python
-# Available through MCP server calls
-# MACE provides fast, accurate energy calculations
+# chemistry_unified: takes a structure dict (numbers, positions, cell, pbc)
+calculate_formation_energy(structure_dict, model_type="mace_mp", size="medium")
 
-# Example energy calculation
-query = "Calculate formation energy for LiFePO4"
-result = await unified_server.calculate_energy(structure_cif)
+# chemistry_creative: takes CIF content directly
+calculate_formation_energy(cif_content, prefer_gpu=True)
 
 # MACE pipeline:
-# 1. Structure input (CIF format)
-# 2. Format conversion to MACE input
-# 3. ML force field inference
-# 4. Energy prediction with uncertainty
-# 5. Result output with metadata
+# 1. Structure input
+# 2. ML force field inference
+# 3. Formation and total energy output
 
-# Output: Formation energies with confidence estimates
+# Output: EnergyResult with formation_energy, total_energy and metadata
 ```
+
+MACE foundation models cache in `~/.cache/mace/`. Related tools: `relax_structure`,
+`calculate_stress`, `fit_equation_of_state`, `list_foundation_models`.
+
+Hull-based stability (`calculate_energy_above_hull`) uses phase-diagram data that
+auto-downloads to `~/.cache/crystalyse/` (~178 MB, 271617 entries).
 
 ## MCP Server Integration
 
 ### Visualisation Server Integration
 
-Accessed through Visualisation MCP Server for 3D structures and analysis:
+Accessed through the visualization MCP server for CIF output and analysis plots:
 
 ```python
-# Available through MCP server calls
-# Combines 3dmol.js with Pymatviz analysis suite
+# Save the structure as a CIF file in the working directory
+create_3dmol_visualization(cif_content, formula, output_dir)
+# note: "3dmol.js visualization disabled for v2.0-alpha - CIF file provided instead"
 
-# Example visualisation request
-query = "Visualise LiFePO4 structure with XRD pattern"
-result = await viz_server.create_analysis(structure_cif)
+# Full analysis suite
+create_pymatviz_analysis_suite(cif_content, formula, output_dir)
 
-# Visualisation pipeline:
-# 1. 3D structure rendering (3dmol.js)
-# 2. XRD pattern generation (Pymatviz)
-# 3. RDF analysis (coordination environment)
-# 4. Interactive HTML output generation
-# 5. Professional PDF report creation
-
-# Output: Interactive 3D viewer + analysis plots
+# Writes into <output_dir>/<formula>_analysis/:
+#   <formula>.cif
+#   3D_Structure_<formula>.pdf
+#   XRD_Pattern_<formula>.pdf
+#   RDF_Analysis_<formula>.pdf
+#   Coordination_Analysis_<formula>.pdf
 ```
+
+Interactive 3dmol.js output is disabled: `create_3dmol_visualization` writes the CIF
+file and nothing else. The config defaults match (`enable_html=false`, `cif_only=true`,
+overridable with `CRYSTALYSE_ENABLE_HTML_VIZ` and `CRYSTALYSE_CIF_ONLY`). Existing
+outputs are reused rather than regenerated, so repeated runs on the same formula are cheap.
+
+The convenience wrappers `create_creative_visualization` (CIF only),
+`create_rigorous_visualization` (CIF plus the pymatviz suite) and
+`create_mode_aligned_visualization` still take the pre-rename mode words
+(`"creative"`, `"rigorous"`, `"adaptive"`) as tool arguments, even though the
+user-facing modes are now `explore`, `validate` and `auto`.
 
 ### Complete Analysis Workflow
 
 Integrated pipeline using all available tools:
 
 ```python
-# Example complete materials design workflow
-# Available through Crystalyse agent interface
+from crystalyse import EnhancedCrystaLyseAgent
 
-# Rigorous mode (complete validation):
+# validate mode (complete validation):
 # 1. SMACT composition validation
-# 2. Chemeleon structure generation  
+# 2. Chemeleon structure generation
 # 3. MACE energy calculations
-# 4. Visualisation with analysis plots
+# 4. Visualisation with the pymatviz analysis suite
 
-query = "Design a perovskite solar cell material"
-result = await agent.analyse(query, mode="rigorous")
+agent = EnhancedCrystaLyseAgent(mode="validate")
+result = await agent.discover("Design a perovskite solar cell material")
 
-# Creative mode (fast exploration):
+# explore mode (fast exploration):
 # 1. Chemeleon structure generation
 # 2. MACE energy calculations
-# 3. Basic visualisation
+# 3. CIF output
 
-result = await agent.analyse(query, mode="creative")
+agent = EnhancedCrystaLyseAgent(mode="explore")
+result = await agent.discover("Design a perovskite solar cell material")
 ```
+
+`discover(query, history=None, trace_handler=None)` is the agent's only public entry
+point; it returns a dict with `status`, `query`, `response`, `render_gate` and, when
+provenance capture succeeds, `provenance`.
 
 ### MCP Server Architecture
 
-Crystalyse uses multiple MCP servers for tool access:
+Every server is a stdio subprocess described by `command`, `args` and `cwd` — there is
+no host, port or HTTP listener:
 
 ```python
-# Server configuration in Crystalyse
-servers = {
-    "chemistry-creative-server": {
-        "tools": ["chemeleon", "mace", "basic_visualisation"],
-        "purpose": "Fast exploration (~50 seconds)"
+# CrystaLyseConfig.mcp_servers
+{
+    "chemistry_unified": {
+        "command": os.getenv("CRYSTALYSE_PYTHON_PATH", sys.executable),
+        "args": ["-m", "chemistry_unified.server"],
+        "cwd": "<base_dir>/chemistry-unified-server/src",
     },
-    "chemistry-unified-server": {
-        "tools": ["smact", "chemeleon", "mace", "comprehensive_analysis"],
-        "purpose": "Complete validation (2-5 minutes)"
+    "chemistry_creative": {
+        "command": sys.executable,
+        "args": ["-m", "chemistry_creative.server"],
+        "cwd": "<base_dir>/chemistry-creative-server/src",
     },
-    "visualization-mcp-server": {
-        "tools": ["3dmol_viewer", "pymatviz_analysis", "pdf_reports"],
-        "purpose": "Interactive 3D and analysis plots"
-    }
+    "visualization": {
+        "command": sys.executable,
+        "args": ["-m", "visualization_mcp.server"],
+        "cwd": "<base_dir>/visualization-mcp-server/src",
+    },
 }
 
 # Accessed through natural language interface
-# No direct API calls - tools invoked by AI agent
+# No direct API calls - tools invoked by the agent
 ```
+
+### Tool Inventory
+
+29 tools across the three servers:
+
+| Server | Tools |
+| ------ | ----- |
+| `chemistry_unified` (20) | `validate_composition`, `analyze_stability`, `predict_band_gap`, `generate_crystal_csp`, `calculate_formation_energy`, `relax_structure`, `analyze_space_group`, `calculate_energy_above_hull`, `analyze_coordination`, `validate_oxidation_states`, `save_cif_file`, `create_analysis_suite`, `smact_validate_fast`, `generate_ml_representation`, `filter_compositions`, `predict_dopants`, `calculate_stress`, `fit_equation_of_state`, `list_foundation_models`, `get_server_info` |
+| `chemistry_creative` (4) | `generate_crystal_structure`, `calculate_formation_energy`, `creative_discovery_pipeline`, `comprehensive_materials_analysis` |
+| `visualization` (5) | `create_3dmol_visualization`, `create_pymatviz_analysis_suite`, `create_creative_visualization`, `create_rigorous_visualization`, `create_mode_aligned_visualization` |
+
+In addition, three workspace tools run in-process rather than over MCP:
+`read_file`, `write_file` and `list_files`, all scoped to a project workspace. Writes go
+through an approval callback that the CLI wires to the user prompt.
+
+## Model Selection
+
+Backbones live in a registry (`crystalyse.config.models.MODEL_REGISTRY`), one
+`ModelConfig` per entry:
+
+```python
+@dataclass(frozen=True)
+class ModelConfig:
+    name: str
+    backend: ModelBackend        # openai | litellm | openai-compat
+    model_id: str
+    api_key_env_var: str
+    context_window: int = 128_000
+    reasoning_effort: str | None = None       # low | medium | high
+    thinking_budget_tokens: int | None = None
+    supported_modes: frozenset[str] = frozenset({"explore", "validate", "auto"})
+    ...
+```
+
+Registered entries cover OpenAI (`openai_o4_mini`, `openai_o3`, `openai_gpt4o_mini`),
+Anthropic (`anthropic_claude_opus`, `anthropic_claude_sonnet`, `anthropic_claude_haiku`),
+OpenRouter, Mistral and a local Ollama backbone. Resolution goes through
+`resolve_model_name()` and `resolve_model_config()`; `get_effective_registry()` adds any
+`[models.<name>]` tables from `.crystalyse/config.toml`.
+
+```bash
+# Inspect the effective registry
+# Columns: Name, Backend, Model ID, Context, Modes, Env Var, Source, Usable
+crystalyse models list
+
+# Check that every entry's API key env var is set
+crystalyse models check
+
+# Select a backbone for one run
+crystalyse --model anthropic_claude_sonnet discover "Find stable perovskites"
+```
+
+With no `--model`, the mode picks the default: `openai_o4_mini` for `explore` and
+`auto`, `openai_o3` for `validate` (`MODE_DEFAULTS`). An unregistered string is passed
+through untouched, so a full LiteLLM model string works as an escape hatch.
+
+Some entries declare a narrower `supported_modes` — the Haiku and open-weights entries are
+`explore`/`auto` only, the local Ollama entry `explore` only. That field is declarative:
+it appears in the Modes column and is validated for config overrides, but resolution does
+not refuse a model whose modes exclude the one you asked for.
+
+API keys are read from real environment variables — `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`. There is no `.env` file
+support. Each entry's declared `reasoning_effort` / `thinking_budget_tokens` is carried
+into the provider call by `ModelConfig.agent_model_settings()`.
 
 ## Custom Tool Development
 
-### Creating Custom Tools
+### Adding a Tool to a Server
+
+Tools are supplied by the MCP servers, so a new tool is a decorated function in a
+server module. There is no in-package tool registry, base class or plugin loader:
 
 ```python
-from crystalyse.tools import BaseTool, ToolResult
+# dev/chemistry-unified-server/src/chemistry_unified/server.py
+from mcp.server.mcpserver import MCPServer   # mcp 2.0 renamed FastMCP -> MCPServer
 
-class CustomAnalysisTool(BaseTool):
-    name = "custom_analysis"
-    description = "Performs custom materials analysis"
-    
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.setup_external_software()
-    
-    def execute(self, material, parameters=None):
-        try:
-            # Tool implementation
-            result = self.run_analysis(material, parameters)
-            
-            return ToolResult(
-                success=True,
-                data=result,
-                metadata={
-                    "tool_version": self.version,
-                    "execution_time": time.time() - start
-                }
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                error=str(e),
-                error_type=type(e).__name__
-            )
-    
-    def validate_input(self, material):
-        # Input validation logic
-        if not self.is_valid_formula(material):
-            raise ValueError("Invalid chemical formula")
+mcp = MCPServer("Chemistry Unified")
+
+
+@mcp.tool(description="Comprehensive stability analysis using SMACT")
+def analyze_stability(
+    composition: str,
+    check_electronegativity: bool = True,
+    electronegativity_threshold: float = 0.5,
+) -> StabilityResult:
+    """Docstring and type hints become the tool schema the model sees."""
+    ...
 ```
 
-### Tool Registration
-
-```python
-from crystalyse import ToolManager
-
-# Register custom tool
-tool_manager = ToolManager()
-tool_manager.register_tool(CustomAnalysisTool())
-
-# Use in agent
-agent = CrystaLyseAgent(tools=["rdkit", "custom_analysis"])
-```
+Return types are Pydantic models where the server defines one (`ValidationResult`,
+`EnergyResult`, ...) or a plain `dict`; the visualisation server returns JSON strings.
+Shared result models live in `crystalyse.tools.models` — `ToolResult` there carries
+`success`, `timestamp`, `computation_time`, `errors` and `warnings`.
 
 ### MCP Server Development
 
-Create custom MCP servers:
+A server is a module that builds an `MCPServer`, registers tools and runs over stdio:
 
 ```python
-from crystalyse.mcp import BaseMCPServer
+from mcp.server.mcpserver import MCPServer
 
-class CustomMCPServer(BaseMCPServer):
-    def __init__(self, port=8004):
-        super().__init__(name="custom_server", port=port)
-        self.register_endpoints()
-    
-    def register_endpoints(self):
-        @self.route("/analyse", methods=["POST"])
-        def analyse_endpoint():
-            material = request.json.get("material")
-            result = self.perform_analysis(material)
-            return {"result": result}
-    
-    def perform_analysis(self, material):
-        # Custom materials analysis implementation
-        return analysis_results
+from .tools import create_pymatviz_analysis_suite
 
-# Start server
-server = CustomMCPServer()
-server.start()
+mcp = MCPServer("visualization")
+mcp.tool()(create_pymatviz_analysis_suite)
+
+if __name__ == "__main__":
+    mcp.run()
 ```
+
+Register it in `CrystaLyseConfig.mcp_servers` with `command`, `args` and `cwd`, and the
+agent can start it alongside the others.
 
 ## Tool Configuration
 
 ### Basic Configuration
 
-```python
-# Configure tools
-tool_config = {
-    "chemistry_unified_server": {
-        "timeout": 120,
-        "cache_enabled": True,
-        "tools": ["smact", "chemeleon", "mace"]
-    },
-    "chemistry_creative_server": {
-        "timeout": 60,
-        "cache_enabled": True,
-        "tools": ["chemeleon", "mace"]
-    },
-    "visualization_server": {
-        "timeout": 90,
-        "cache_enabled": True,
-        "tools": ["3dmol", "pymatviz"]
-    },
-    "creative_server": {
-        "host": "localhost",
-        "port": 8001,
-        "max_generations": 100
-    }
-}
-
-agent = CrystaLyseAgent(tool_config=tool_config)
-```
-
-### Advanced Configuration
+`CrystaLyseConfig` is the whole configuration surface for tools; individual tool
+parameters are per-call arguments on the MCP tools themselves:
 
 ```python
-# MCP Server-specific parameters
-creative_server_config = {
-    "chemeleon": {
-        "num_structures": 3,
-        "space_groups": "auto",
-        "optimization_steps": 100
-    },
-    "mace": {
-        "calculation_type": "formation_energy",
-        "uncertainty_quantification": False
-    }
-}
+from crystalyse.config import CrystaLyseConfig
 
-unified_server_config = {
-    "smact": {
-        "use_pauling_test": True,
-        "include_alloys": True,
-        "oxidation_states_set": "icsd24"
-    },
-    "chemeleon": {
-        "num_structures": 5,
-        "space_groups": "all",
-        "optimization_steps": 500
-    },
-    "mace": {
-        "calculation_type": "formation_energy",
-        "uncertainty_quantification": True
-    }
-}
+config = CrystaLyseConfig.load()
+
+config.mcp_servers        # command / args / cwd per server
+config.mode_timeouts      # {"explore": 120, "auto": 180, "validate": 300}
+config.visualization      # enable_html, cif_only, default_color_scheme
+config.provenance         # output_dir, capture_raw, show_summary, ...
+config.render_gate        # enabled, log_violations (see render gate doc)
 ```
+
+`CrystaLyseConfig` also carries `default_model`, `max_turns`, `parallel_batch_size`,
+`max_candidates` and `structure_samples`, but nothing in the agent path reads them: the
+model comes from `--model` or the per-mode default, and the turn cap is a hard-coded 1000.
+The `strictness` and `block_unprovenanced` render-gate keys are likewise parsed and unused.
+
+### Environment Variables
+
+```bash
+# Interpreter used to launch the MCP servers (e.g. a conda env)
+CRYSTALYSE_PYTHON_PATH=/path/to/python
+
+# Visualisation
+CRYSTALYSE_ENABLE_HTML_VIZ=false
+CRYSTALYSE_CIF_ONLY=true
+CRYSTALYSE_COLOR_SCHEME=vesta
+
+# Diagnostics
+CRYSTALYSE_DEBUG=false
+CRYSTALYSE_METRICS=true
+```
+
+On zsh, put API keys and these variables in `~/.zshenv` so non-interactive shells (and
+therefore the MCP subprocesses) see them; `~/.zshrc` is interactive-only.
 
 ## Tool Orchestration
 
-### Sequential Tool Execution
+### Mode-Based Server Selection
+
+The mode chooses the chemistry server; the visualisation server always starts:
 
 ```python
-# Crystalyse handles workflow automatically
-# Rigorous mode workflow:
-rigorous_workflow = [
-    "SMACT composition validation",
-    "Chemeleon structure generation", 
-    "MACE energy calculations",
-    "Comprehensive visualisation and analysis"
-]
-
-# Creative mode workflow:
-creative_workflow = [
-    "Chemeleon structure generation",
-    "MACE energy calculations", 
-    "Basic 3D visualisation"
-]
-
-# Execute through natural language
-results = await agent.analyse("Analyse LiFePO4 for battery applications", mode="rigorous")
-```
-
-### Parallel Tool Execution
-
-```python
-# Crystalyse automatically parallelises where possible
-# Creative mode: Chemeleon + MACE run in parallel for multiple structures
-# Unified mode: Full pipeline with optimised tool orchestration
-# Visualisation: 3D rendering + analysis plots generated concurrently
-
-# Tools are invoked automatically based on query and mode
-# No manual parallel task management required
-results = await agent.analyse("Compare olivine vs spinel structures for LiFePO4")
-```
-
-### Conditional Tool Selection
-
-```python
-# Crystalyse automatically selects appropriate tools based on:
-# 1. Analysis mode (creative vs rigorous)
-# 2. Query requirements (structure, energy, validation)
-# 3. Material complexity (number of elements, structure type)
-
-# Mode-based tool selection:
-mode_tools = {
-    "creative": ["chemeleon", "mace", "basic_viz"],
-    "rigorous": ["smact", "chemeleon", "mace", "comprehensive_viz"]
+# crystalyse.config.modes.MODE_MCP_SERVERS
+{
+    Mode.EXPLORE:  "chemistry_creative",
+    Mode.VALIDATE: "chemistry_unified",
+    Mode.AUTO:     "chemistry_unified",
 }
-
-# Automatic selection - no manual configuration needed
-query = "Design cathode materials for Na-ion batteries"
-results = await agent.analyse(query, mode="rigorous")  # Auto-selects full tool suite
 ```
+
+`explore`, `validate` and `auto` are the canonical mode names. `creative`, `rigorous`
+and `adaptive` still resolve, with a `DeprecationWarning`, and will be removed in v2.0.
+The resolved mode is also written into the agent's instructions, which require the model
+to pass `mode="<mode>"` to any tool that accepts one.
+
+### Timeouts and Turn Budget
+
+```python
+# Per-mode timeout budgets (seconds)
+mode_timeouts = {"explore": 120, "auto": 180, "validate": 300}
+```
+
+The whole discovery — every tool call included — runs inside that budget; exceeding it
+returns `{"status": "failed", "error": "The operation timed out."}`. Within the budget the
+model decides which tools to call, up to 1000 turns.
 
 ## Error Handling and Resilience
 
 ### Tool Failure Management
 
-```python
-from crystalyse.tools import ToolManager
+Resilience is deliberately simple, and there is no fallback chain between servers:
 
-tool_manager = ToolManager(
-    fallback_strategy="graceful",
-    retry_attempts=3,
-    timeout_seconds=60
-)
-
-# Fallback configuration
-# Crystalyse built-in resilience
-fallbacks = {
-    "chemistry_unified_server": ["chemistry_creative_server", "individual_tools"],
-    "chemistry_creative_server": ["individual_oldmcpservers"],
-    "visualization_server": ["basic_cif_output", "text_descriptions"]
-}
-
-# Individual tool fallbacks from oldmcpservers
-individual_fallbacks = {
-    "smact-mcp-server": ["basic_composition_validation"],
-    "chemeleon-mcp-server": ["simple_structure_templates"],
-    "mace-mcp-server": ["approximate_energy_estimates"]
-}
-
-tool_manager.configure_fallbacks(fallbacks)
-```
-
-### Monitoring and Logging
-
-```python
-# Enable tool monitoring
-tool_manager.enable_monitoring(
-    log_level="INFO",
-    track_performance=True,
-    alert_on_failures=True
-)
-
-# Get tool statistics
-stats = tool_manager.get_statistics()
-print(f"Success rate: {stats.success_rate}%")
-print(f"Average response time: {stats.avg_response_time}ms")
-print(f"Tool usage: {stats.tool_usage}")
-```
+- A server that fails to start is logged as a warning and omitted from the run; the
+  agent proceeds with whatever servers did start.
+- The visualisation tools catch their own failures and return
+  `{"status": "error", ...}`, so the model sees the failure as tool output and can retry
+  or choose another tool.
+- Exceeding the mode timeout, or any unhandled exception, returns a
+  `{"status": "failed", "error": ...}` result rather than raising.
+- MCP servers are started and stopped per `discover()` call, so a wedged subprocess
+  cannot leak into the next run.
 
 ## Performance Optimisation
 
-### Caching
+### Output Caching
 
-```python
-# Enable result caching
-tool_manager.enable_caching(
-    cache_type="redis",
-    ttl_seconds=3600,
-    max_cache_size="1GB"
-)
-
-# Cache hit monitoring
-cache_stats = tool_manager.get_cache_statistics()
-print(f"Cache hit rate: {cache_stats.hit_rate}%")
-```
-
-### Rate Limiting
-
-```python
-# Configure rate limits
-# Crystalyse MCP server rate limits
-rate_limits = {
-    "chemistry_unified_server": {"requests_per_minute": 10},
-    "chemistry_creative_server": {"requests_per_minute": 20},
-    "visualization_server": {"requests_per_minute": 15}
-}
-
-# Local computation limits
-computation_limits = {
-    "max_concurrent_structures": 5,
-    "max_atoms_per_structure": 200,
-    "timeout_per_calculation": 300  # seconds
-}
-
-tool_manager.configure_rate_limits(rate_limits)
-```
+The visualisation server checks for existing files before regenerating them: a CIF or a
+complete `<formula>_analysis/` directory is reported as `cached: true` and reused. Model
+weights are cached on disk too — Chemeleon checkpoints in
+`~/.cache/crystalyse/chemeleon_checkpoints/`, MACE foundation models in `~/.cache/mace/`,
+phase-diagram data in `~/.cache/crystalyse/`.
 
 ### Async Execution
 
 ```python
 # Crystalyse handles async execution internally
-# Agent automatically manages:
-# - Concurrent MCP server connections
-# - Parallel structure generation and energy calculations
-# - Asynchronous visualisation rendering
-# - Session persistence and memory management
+# The agent automatically manages:
+# - MCP server subprocess lifecycles
+# - Streaming of tool-call events to the trace handler
+# - Provenance capture and the render gate pass
+# - Session persistence between calls
 
-# Simple interface for complex async operations
-result = await agent.analyse(
-    "Find stable perovskites for photovoltaic applications",
-    mode="rigorous"
-)
-
-# Result includes all tool outputs integrated and validated
+result = await agent.discover("Find stable perovskites for photovoltaic applications")
 ```
 
 ## Best Practices
 
-### 1. Tool Selection
+### 1. Mode Selection
 
-- Use minimal tool set for efficiency
-- Configure fallbacks for critical tools
-- Monitor tool performance regularly
-- Update tools and configurations periodically
+- Use `explore` for breadth: structure generation and energies, no SMACT gate.
+- Use `validate` when a candidate needs the full validation chain.
+- Use `auto` when you would rather not choose; it starts from the unified server.
 
 ### 2. Data Flow
 
 ```python
-# Crystalyse optimised data flow
-# Tools communicate through standardised CIF format:
-# SMACT (composition) -> Chemeleon (structure/CIF) -> MACE (energy) -> Visualisation
+# Tools communicate through standardised formats:
+# SMACT (composition) -> Chemeleon (structure) -> MACE (energy) -> visualisation (CIF + PDFs)
 
-# Memory-efficient streaming:
-# - Structures passed as CIF strings
-# - Incremental result building
-# - Automatic cleanup of intermediate files
-# - Session-based caching for repeated queries
-
-# Single interface for complete pipeline
-result = await agent.analyse(material_query)
+# Structures move as CIF strings or as {numbers, positions, cell, pbc} dicts,
+# so intermediate results can be handed between servers without a shared database.
 ```
 
 ### 3. Resource Management
 
-- Set appropriate timeouts
-- Limit concurrent tool executions
-- Monitor memory usage
-- Clean up temporary files
+- Give long validation runs the `validate` timeout budget rather than raising `explore`'s.
+- Expect the first run to download model checkpoints and phase-diagram data.
+- Keep an eye on the working directory: CIFs and analysis suites accumulate there.
 
 ### 4. Security
 
-```python
-# Secure tool configuration
-# Crystalyse security configuration
-tool_config = {
-    "mcp_servers": {
-        "chemistry_unified_server": {
-            "host": "localhost",
-            "port": 8001,
-            "timeout": 120
-        },
-        "chemistry_creative_server": {
-            "host": "localhost",  
-            "port": 8002,
-            "timeout": 60
-        },
-        "visualization_server": {
-            "host": "localhost",
-            "port": 8003,
-            "timeout": 90
-        }
-    },
-    "sandbox_enabled": True,
-    "local_computation_only": True,
-    "no_external_apis": True
-}
-```
+- All three MCP servers are local stdio subprocesses. Nothing listens on a port.
+- The only outbound network traffic is the model provider API and the one-off checkpoint
+  and phase-diagram downloads.
+- File writes through the agent's `write_file` tool ask for approval first. MCP tools
+  that write CIFs and analysis PDFs write them directly, with no prompt.
 
 ## Next Steps
 
 - Explore [Agent Integration](agents.md) with tools
+- Read the [Render Gate System](render_gate_system.md) for how numeric claims are checked
 - Check [API Reference](../reference/index.md) for detailed documentation

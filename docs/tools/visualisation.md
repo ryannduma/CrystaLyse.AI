@@ -1,103 +1,97 @@
-# Visualisation Suite - 3D Structures and Analysis
+# Visualisation Suite - Structure Files and Analysis Plots
 
-The Crystalyse visualisation suite combines 3D molecular viewing with comprehensive materials analysis, providing interactive visualisations and professional analysis plots for crystal structures and their properties.
+The Crystalyse visualisation suite writes crystal structures to disk as CIF files and
+generates a set of quantitative analysis plots as PDFs.
 
 ## Overview
 
-The visualisation suite integrates multiple tools to provide complete visual analysis of materials:
+> **Interactive 3D viewing is disabled for v2.0-alpha.** `create_3dmol_visualization` is
+> now a CIF writer: it saves `{formula}.cif` and returns a payload carrying the note
+> *"3dmol.js visualization disabled for v2.0-alpha - CIF file provided instead"*. Its
+> `color_scheme` argument is accepted and ignored, and no HTML file is produced by any
+> tool. The only 3D output is a static PDF rendering.
 
-- **3dmol.js**: Interactive 3D molecular structures in web browsers
-- **Pymatviz**: Materials analysis plots (XRD, RDF, coordination analysis)
-- **CIF Export**: Standard crystallographic file format for compatibility
-- **Analysis Reports**: Professional PDF reports with comprehensive structural analysis
+What the suite actually provides:
 
-**Key Strength**: Seamless integration of interactive 3D visualisation with quantitative structural analysis.
+- **Pymatviz**: materials analysis plots (3D structure, XRD, RDF, coordination)
+- **Plotly + Kaleido**: the plots are Plotly figures exported to PDF through Kaleido
+- **CIF Export**: standard crystallographic file format for compatibility
+
+**Key Strength**: quantitative structural analysis in publication-ready static output,
+generated without a display server.
 
 ## Integration in Crystalyse
 
 ### Availability by Mode
-- **Creative Mode**: ✅ 3D molecular visualisation
-- **Rigorous Mode**: ✅ Complete suite with 3D views + analysis plots
+- **explore**: ✅ CIF export
+- **validate**: ✅ CIF export plus the full analysis suite
+- **auto**: ✅ Same server as validate
 
 ### MCP Server Integration
-Both analysis modes use the **Visualisation Server** (`visualization-mcp-server`) which provides:
+All modes use the **Visualisation Server** (`visualization-mcp-server`), which registers
+five tools:
 
-- **Creative Mode**: Basic 3D molecular viewers
-- **Rigorous Mode**: Full analysis suite with XRD patterns, RDF analysis, and coordination studies
+| Tool | Output |
+|------|--------|
+| `create_3dmol_visualization` | `{formula}.cif` only (3dmol.js disabled) |
+| `create_pymatviz_analysis_suite` | CIF + four analysis PDFs |
+| `create_creative_visualization` | CIF only (delegates to the first tool) |
+| `create_rigorous_visualization` | CIF + analysis suite |
+| `create_mode_aligned_visualization` | Routes by `mode` - see below |
+
+**A trap worth knowing about.** The visualisation server's own tool names and its `mode`
+parameter still use the *old* vocabulary, and were deliberately left alone.
+`create_mode_aligned_visualization(mode=...)` recognises exactly three values:
+
+- `"rigorous"` → CIF + full analysis suite
+- `"adaptive"` → CIF only
+- `"creative"` → CIF only (also the default)
+
+Anything else - **including the canonical names `"explore"`, `"validate"` and `"auto"`** -
+falls through the final `else` branch to CIF-only output. Passing a canonical mode name
+here therefore silently downgrades the result rather than raising. Use `"rigorous"` when
+you want the plots.
 
 ## Core Functionality
 
-### 3D Molecular Visualisation
+### Structure Files
 
-#### Interactive Structure Viewing
-- **Ball-and-stick models**: Clear representation of atomic positions and bonds
-- **Space-filling models**: Visualise atomic packing and void spaces
-- **Unit cell display**: Show crystallographic unit cell boundaries
-- **Multiple viewing modes**: Rotate, zoom, pan for detailed examination
-
-#### Customisable Rendering
-- **Colour schemes**: Element-based, property-based, or custom colouring
-- **Atom sizing**: Van der Waals radii, ionic radii, or uniform sizing
-- **Bond representation**: Single/multiple bonds, bond length visualisation
-- **Transparency effects**: Highlight specific structural features
+`create_3dmol_visualization(cif_content, formula, output_dir, title, color_scheme)` writes
+`{output_dir}/{formula}.cif` and returns a JSON payload with the output path, a `cached`
+flag (true if the file was already there) and the 3dmol-disabled note. `title` and
+`color_scheme` are accepted for API compatibility; neither affects the output.
 
 ### Materials Analysis Plots
 
-#### X-Ray Diffraction (XRD) Patterns
-Simulate powder diffraction patterns from crystal structures:
+There are no individual plot functions to call. `create_pymatviz_analysis_suite` generates
+all four figures internally, each from a single pymatviz call with no user-tunable
+parameters:
 
-```python
-# XRD pattern generation
-xrd_pattern = generate_xrd_pattern(
-    structure_cif,
-    wavelength="Cu_Ka",  # 1.5406 Å
-    two_theta_range=[10, 80],
-    peak_broadening="standard"
-)
-```
+| Figure | Call | Output file |
+|--------|------|-------------|
+| 3D structure | `pmv.structure_3d_plotly(structure, elem_colors=..., show_bonds=True)` | `3D_Structure_{formula}.pdf` |
+| XRD pattern | `pmv.xrd_pattern(structure, annotate_peaks=5)` | `XRD_Pattern_{formula}.pdf` |
+| Element-pair RDFs | `pmv.element_pair_rdfs(structure)` | `RDF_Analysis_{formula}.pdf` |
+| Coordination histogram | `pmv.coordination_hist(structure)` | `Coordination_Analysis_{formula}.pdf` |
 
-**Output Features**:
-- Peak positions and intensities
-- Miller indices for major reflections
-- Peak broadening from crystallite size effects
-- Comparison with experimental databases
+There is no exposed wavelength, 2θ range, peak-broadening, cutoff distance or resolution
+setting - and no comparison against experimental patterns or databases. The XRD plot
+annotates its five strongest peaks; that count is fixed in the code.
 
-#### Radial Distribution Function (RDF)
-Analyse local atomic environments and bonding:
+`color_scheme` does reach the 3D structure figure, where `"vesta"` selects
+`ElemColorScheme.vesta` and anything else falls back to `ElemColorScheme.jmol`.
 
-```python
-# RDF calculation
-rdf_analysis = calculate_rdf(
-    structure_cif,
-    max_distance=10.0,  # Å
-    resolution=0.1,     # Å
-    include_partial=True
-)
-```
+### How the PDFs Are Made
 
-**Analysis Features**:
-- Total RDF showing all atom-atom correlations
-- Partial RDFs for specific element pairs
-- Coordination number analysis
-- Bond length distribution
+The figures are Plotly objects. They are exported to PDF through **Kaleido**, which drives
+a headless Chromium, and this is the source of most failure modes in this part of the
+system. The server configures Chromium defensively - disabling `VizDisplayCompositor`,
+`UseOzonePlatform`, `WebGL` and `WebGL2`, with a 30 s timeout - and batches the exports
+through a shared browser session pool when one is available, so a single browser instance
+serves all four figures. If a figure fails to render, the suite logs a warning and carries
+on with the rest.
 
-#### Coordination Analysis
-Detailed local environment characterisation:
-
-```python
-# Coordination environment analysis
-coord_analysis = analyse_coordination(
-    structure_cif,
-    coordination_cutoff="automatic",
-    analysis_depth="detailed"
-)
-```
-
-**Output Features**:
-- Coordination numbers for each atomic site
-- Bond length statistics
-- Bond angle distributions
-- Polyhedral analysis (tetrahedral, octahedral, etc.)
+PDF is the output format because of this pipeline, not by preference.
 
 ### Available Tools
 
@@ -114,7 +108,7 @@ result = CrystaLyseVisualizer.save_cif_file(
     output_dir="./output"
 )
 
-# Create analysis suite (prepares files for server analysis)
+# Create analysis directory (Phase 1 placeholder - writes the CIF only)
 suite = CrystaLyseVisualizer.create_analysis_suite(
     cif_content="...",
     formula="CsSnI3",
@@ -122,259 +116,142 @@ suite = CrystaLyseVisualizer.create_analysis_suite(
 )
 ```
 
-**Output**: `VisualizationResult` object containing paths and status.
+**Output**: `VisualizationResult` with `success`, `visualization_type`, `output_path`,
+`formula`, `cached`, `description` and `error`.
 
-> **Note**: Advanced visualisation features (3D viewing, XRD plots, RDF analysis) are primarily handled by the **Visualisation Server** and the frontend interface. The Python tools prepare the necessary data structures for these services.
+> **Note**: `create_analysis_suite` here is an explicit Phase-1 placeholder. Its own
+> docstring says so, and its body creates `{output_dir}/{formula}_analysis/` and writes
+> `{formula}.cif` into it - nothing else. Its `title` and `color_scheme` arguments are
+> marked `noqa: ARG004`: accepted and unused. No plots are produced. The plots come from
+> `create_pymatviz_analysis_suite` on the **Visualisation Server**; this class is only for
+> getting the CIF onto disk.
 
 ## Practical Usage
 
 ### In Crystalyse Workflows
 
-#### Creative Mode Visualisation
+#### Explore Mode Visualisation
 ```bash
-crystalyse analyse "Generate CsSnI3 structure" --mode creative
+crystalyse discover "Generate CsSnI3 structure" --mode explore
 ```
 
 **Visualisation Output**:
-- `CsSnI3_3dmol.html`: Interactive 3D viewer
-- Basic structural information
-- Quick visual assessment capability
+- `CsSnI3.cif`: structure file, openable in VESTA, Jmol, OVITO, ASE, pymatgen
+- Quick assessment by loading the CIF in whatever viewer you already use
 
-#### Rigorous Mode Complete Analysis
+#### Validate Mode Complete Analysis
 ```bash
-crystalyse analyse "Characterise CsSnI3 structure comprehensively" --mode rigorous
+crystalyse discover "Characterise CsSnI3 structure comprehensively" --mode validate
 ```
 
-**Complete Output Package**:
+**Complete Output Package** - exactly five files, all inside the analysis directory:
 ```
 CsSnI3_analysis/
-├── CsSnI3_3dmol.html                   # Interactive 3D viewer
 ├── CsSnI3.cif                          # Structure file
+├── 3D_Structure_CsSnI3.pdf             # Static 3D rendering
 ├── XRD_Pattern_CsSnI3.pdf              # Simulated diffraction
-├── RDF_Analysis_CsSnI3.pdf             # Radial distribution
-└── Coordination_Analysis_CsSnI3.pdf    # Local environments
+├── RDF_Analysis_CsSnI3.pdf             # Element-pair radial distributions
+└── Coordination_Analysis_CsSnI3.pdf    # Coordination-number histogram
 ```
 
-### Interactive 3D Viewing
+If all four PDFs already exist, the suite short-circuits and returns `cached: true` without
+re-rendering anything - useful when re-running a workflow, and worth knowing if you expect
+a regenerated plot and get the old one. Delete the PDFs to force a rebuild.
 
-#### Standard Molecular Viewer
-```html
-<!-- Example 3dmol.js integration -->
-<div id="viewer" style="width: 800px; height: 600px;"></div>
-<script>
-var viewer = $3Dmol.createViewer("viewer", {backgroundColor: "white"});
-viewer.addModel(cif_data, "cif");
-viewer.setStyle({}, {stick: {radius: 0.15}, sphere: {scale: 0.3}});
-viewer.addUnitCell();
-viewer.zoomTo();
-viewer.render();
-</script>
+### Viewing the Structure
+
+No HTML viewer is generated. Open the CIF in any crystallographic viewer, or load it
+programmatically:
+
+```python
+from pymatgen.core import Structure
+
+structure = Structure.from_file("CsSnI3_analysis/CsSnI3.cif")
 ```
 
-#### Multi-Structure Comparison
-```html
-<!-- Side-by-side structure comparison -->
-<div class="structure-comparison">
-    <div id="viewer1">Structure 1: CsSnI3</div>
-    <div id="viewer2">Structure 2: CsPbI3</div>
-    <div id="viewer3">Structure 3: CsGeI3</div>
-</div>
-```
+For a quick look without leaving the output directory, `3D_Structure_CsSnI3.pdf` is a
+static rendering of the same structure.
 
 ## Analysis Capabilities
 
 ### XRD Pattern Analysis
 
 #### Powder Diffraction Simulation
-```python
-# Comprehensive XRD analysis
-XRD Pattern for CsSnI3 (Cubic Pm3m):
-├── Peak 1: 14.2° (2θ) - (001) reflection
-├── Peak 2: 20.1° (2θ) - (110) reflection  
-├── Peak 3: 28.4° (2θ) - (200) reflection
-├── Peak 4: 34.8° (2θ) - (220) reflection
-└── Peak 5: 40.2° (2θ) - (222) reflection
 
-Calculated d-spacings match cubic perovskite structure
-Intensity pattern consistent with Cs occupancy at A-site
-```
+`XRD_Pattern_{formula}.pdf` is a simulated powder pattern with its five strongest peaks
+annotated (`annotate_peaks=5`, fixed). The output is the plot itself - intensity against
+2θ, with those five peaks labelled. There is no accompanying peak table, no d-spacing
+listing and no Miller indices in machine-readable form; read them off the plot, or compute
+them yourself from the CIF with `pymatgen.analysis.diffraction.xrd`.
 
 #### Experimental Comparison
-```python
-# Compare with experimental data
-experimental_peaks = [14.3, 20.0, 28.5, 34.9, 40.1]  # 2θ degrees
-calculated_peaks = [14.2, 20.1, 28.4, 34.8, 40.2]   # 2θ degrees
-peak_matching_score = 0.94  # Excellent agreement
-```
+
+Not provided. There is no experimental pattern database in the visualisation server and no
+peak-matching score. Comparing a calculated pattern to your own measurement is a manual
+step: read the peak positions off the PDF, or regenerate the pattern yourself with
+`pymatgen.analysis.diffraction.xrd` to get the numbers.
 
 ### Structural Analysis
 
-#### RDF Analysis Example
-```python
-CsSnI3 Radial Distribution Function:
-├── Sn-I bonds: 3.14 Å (first coordination shell)
-├── Cs-I bonds: 3.87 Å (next-nearest neighbours)
-├── I-I distances: 4.43 Å (halide framework)
-└── Cs-Cs distances: 6.23 Å (A-site separation)
+#### RDF Analysis
 
-Coordination Numbers:
-├── Sn coordination: 6 (octahedral SnI6)
-├── Cs coordination: 12 (cuboctahedral)
-└── I coordination: 4 (2 Sn + 2 Cs neighbours)
-```
+`RDF_Analysis_{formula}.pdf` plots **element-pair** radial distribution functions - one
+panel per element pair, so for CsSnI₃ that is Cs-Sn, Cs-I, Sn-I, Cs-Cs, Sn-Sn and I-I. The
+first peak in each panel is that pair's nearest-neighbour distance; the panels together
+show which pairs are genuinely bonded and which are only second-shell contacts.
 
 #### Coordination Environment Analysis
-```python
-CsSnI3 Coordination Analysis:
-├── Sn²⁺ site: Octahedral SnI6 with regular geometry
-│   ├── 6 Sn-I bonds: 3.14 ± 0.02 Å
-│   ├── Bond angles: 90° ± 1° (perfect octahedron)
-│   └── Distortion parameter: 0.003 (minimal distortion)
-│
-├── Cs⁺ site: Cuboctahedral coordination
-│   ├── 12 Cs-I contacts: 3.87 ± 0.05 Å
-│   └── Effective coordination: 8.4 (partial occupancy)
-│
-└── I⁻ site: Bridge coordination
-    ├── 2 Sn-I bonds: 3.14 Å (covalent)
-    └── 4 Cs-I contacts: 3.87 Å (ionic)
-```
+
+`Coordination_Analysis_{formula}.pdf` is a histogram of coordination numbers across the
+sites in the structure. It answers "how many neighbours do atoms in this structure have"
+- not "what is the geometry of each site". Bond angles, polyhedral distortion parameters
+and effective coordination numbers are not produced.
+
+For per-site numbers rather than a plot, use the `analyze_coordination` MCP tool on the
+chemistry-unified server, which runs a Voronoi analysis by default and returns structured
+data.
 
 ## Output Formats
 
-### 3D Visualisation Files
+### Structure Files
 
-#### Interactive HTML Viewer
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>CsSnI3 Structure Viewer</title>
-    <script src="3Dmol-min.js"></script>
-</head>
-<body>
-    <div id="structure-viewer" style="width: 100%; height: 600px;"></div>
-    <div class="controls">
-        <button onclick="viewer.setStyle({}, {stick:{}, sphere:{}})">Ball & Stick</button>
-        <button onclick="viewer.setStyle({}, {sphere:{}})">Space Filling</button>
-    </div>
-    <script>
-        // Embedded CIF data and viewer initialisation
-        var viewer = $3Dmol.createViewer("structure-viewer");
-        // ... structure loading and styling ...
-    </script>
-</body>
-</html>
-```
+`{formula}.cif` - standard CIF text, written verbatim from whatever the calling server
+produced. Nothing is added or reformatted.
 
 ### Analysis Plot Files
 
-#### Professional PDF Reports
-```python
-# XRD Pattern Report
-PDF Contents:
-├── Page 1: Simulated XRD pattern with peak indexing
-├── Peak table: 2θ, d-spacing, intensity, Miller indices
-├── Experimental comparison (if available)
-└── Pattern analysis summary
+Each PDF is a single Plotly figure exported by Kaleido, with a centred title of the form
+`"XRD Pattern: {formula}"`. There is no multi-page report, no peak table, no d-spacing or
+Miller-index listing and no written summary - the PDF contains the plot and its axes.
 
-# RDF Analysis Report  
-PDF Contents:
-├── Page 1: Total and partial RDF plots
-├── Peak assignment table
-├── Coordination number analysis
-└── Bond length statistics
-
-# Coordination Analysis Report
-PDF Contents:
-├── Page 1: Coordination environment diagrams
-├── Bond length and angle statistics
-├── Polyhedral analysis
-└── Local structure summary
+```
+3D_Structure_{formula}.pdf          # pmv.structure_3d_plotly, bonds shown
+XRD_Pattern_{formula}.pdf           # pmv.xrd_pattern, 5 peaks annotated
+RDF_Analysis_{formula}.pdf          # pmv.element_pair_rdfs
+Coordination_Analysis_{formula}.pdf # pmv.coordination_hist
 ```
 
 ## Performance Characteristics
 
-### Rendering Performance
+Crystalyse does not instrument the visualisation path, so no timing or file-size figures
+are quoted here. Two things do shape the cost in practice:
 
-```bash
-3D Visualisation Performance:
-├── Structure loading: 1-3 seconds
-├── Initial rendering: 2-5 seconds
-├── Interactive rotation: Real-time (60 FPS)
-├── Style changes: 1-2 seconds
-
-File Sizes:
-├── 3dmol HTML viewer: 500 KB - 2 MB
-├── XRD pattern PDF: 200-500 KB
-├── RDF analysis PDF: 300-600 KB
-└── Coordination PDF: 400-800 KB
-```
-
-### Analysis Performance
-
-```bash
-Analysis Generation Times:
-├── XRD pattern: 5-15 seconds
-├── RDF calculation: 10-30 seconds
-├── Coordination analysis: 15-45 seconds
-├── Complete suite: 1-3 minutes
-
-Supported Structure Sizes:
-├── Small structures (<50 atoms): Instant
-├── Medium structures (50-200 atoms): 10-60 seconds
-├── Large structures (200-500 atoms): 1-5 minutes
-└── Very large structures (>500 atoms): 5-20 minutes
-```
+- **Kaleido startup dominates small jobs.** Launching headless Chromium costs more than
+  drawing the figures, which is why the four exports are batched through one shared browser
+  session and why the Chromium timeout is set to 30 s
+- **Caching is aggressive.** `create_pymatviz_analysis_suite` returns immediately with
+  `cached: true` when all four PDFs already exist, so repeat calls on the same formula and
+  output directory are effectively free
 
 ## Advanced Features
 
-### Custom Visualisation Styles
+There are none beyond the five registered tools. In particular, the following do not exist
+anywhere in the repository, and were previously documented here in error: custom style
+creation, property-based colouring, structural animation, multi-structure overlay or
+alignment, and property-correlation plotting.
 
-#### Property-Based Colouring
-```python
-# Colour atoms by coordination number
-custom_style = create_custom_style(
-    structure_cif,
-    colouring="coordination_number",
-    colour_scale="viridis",
-    size_scaling="ionic_radius"
-)
-```
-
-#### Animation and Dynamics
-```python
-# Animate structural changes
-animation = create_structure_animation(
-    initial_structure=structure1,
-    final_structure=structure2,
-    animation_steps=50,
-    duration=5.0  # seconds
-)
-```
-
-### Comparative Analysis
-
-#### Structure Overlay
-```python
-# Overlay multiple structures for comparison
-overlay_view = create_structure_overlay(
-    reference_structure=experimental_cif,
-    comparison_structures=[predicted_cif1, predicted_cif2],
-    alignment_method="unit_cell"
-)
-```
-
-#### Property Correlation Plots
-```python
-# Correlate structural and energetic properties
-correlation_plot = create_property_correlation(
-    structures=structure_list,
-    x_property="formation_energy",
-    y_property="coordination_number",
-    colour_by="space_group"
-)
-```
+For comparative work, generate a suite per structure into separate output directories and
+compare the PDFs, or drive pymatviz directly against the CIFs the suite wrote.
 
 ## Integration with Other Tools
 
@@ -383,17 +260,19 @@ correlation_plot = create_property_correlation(
 ```mermaid
 graph LR
     A[Chemeleon Structures] --> B[MACE Energies]
-    B --> C[Visualisation Suite]
-    
-    C --> D[3D Molecular Viewer]
-    C --> E[XRD Analysis]
-    C --> F[RDF Analysis] 
-    C --> G[Coordination Analysis]
-    
-    D --> H[Interactive HTML]
-    E --> I[XRD PDF Report]
-    F --> J[RDF PDF Report]
-    G --> K[Coordination PDF Report]
+    B --> C[Visualisation Server]
+
+    C --> D[CIF File]
+    C --> E[3D Structure]
+    C --> F[XRD Pattern]
+    C --> G[Element-Pair RDFs]
+    C --> H[Coordination Histogram]
+
+    E --> I[Plotly + Kaleido]
+    F --> I
+    G --> I
+    H --> I
+    I --> J[Four PDFs]
 ```
 
 ### Automatic Integration
@@ -403,34 +282,39 @@ Visualisations are automatically generated in Crystalyse workflows:
 ```python
 # Automatic visualisation pipeline
 for structure_result in analysis_results:
-    # 3D viewer
-    html_viewer = create_3dmol_view(structure_result["cif"])
-    
-    # Analysis plots (rigorous mode only)
-    if analysis_mode == "rigorous":
-        xrd_plot = generate_xrd_pattern(structure_result["cif"])
-        rdf_plot = calculate_rdf_analysis(structure_result["cif"])
-        coord_plot = coordination_environment_analysis(structure_result["cif"])
-    
-    # Energy annotation
-    annotate_with_energy(html_viewer, structure_result["formation_energy"])
+    # CIF file (3dmol.js disabled - this writes {formula}.cif)
+    create_3dmol_visualization(
+        structure_result["cif"], formula, output_dir
+    )
+
+    # Analysis plots
+    if analysis_mode == "validate":
+        create_pymatviz_analysis_suite(
+            structure_result["cif"], formula, output_dir
+        )
 ```
+
+Note that `create_mode_aligned_visualization` expects `"rigorous"`, not `"validate"`, for
+the full suite - see [MCP Server Integration](#mcp-server-integration) above.
 
 ## Best Practices
 
 ### Visualisation Guidelines
 
-1. **Use appropriate rendering styles**: Ball-and-stick for bonding analysis, space-filling for packing
-2. **Include unit cell boundaries**: Essential for understanding crystallographic structure
-3. **Provide multiple viewing angles**: Enable comprehensive structural understanding
-4. **Add energy annotations**: Connect visual and energetic information
+1. **Keep the CIF**: it is the portable artefact; every plot can be regenerated from it
+2. **Use a real viewer for inspection**: load the CIF in VESTA, Jmol or OVITO rather than
+   relying on the static 3D PDF
+3. **Watch the cache**: delete the PDFs when you want them rebuilt, or the suite returns
+   the previous ones
+4. **Pass `mode="rigorous"`** to `create_mode_aligned_visualization` when you want plots
 
 ### Analysis Recommendations
 
-1. **Always generate XRD patterns**: Essential for experimental validation
-2. **Include RDF analysis**: Critical for understanding local environments
-3. **Perform coordination analysis**: Validates chemical reasonableness
-4. **Compare with known structures**: Use structural databases for validation
+1. **Always generate XRD patterns**: essential for comparison against experiment
+2. **Include RDF analysis**: element-pair RDFs reveal the local environments
+3. **Check the coordination histogram**: a quick sanity check on chemical reasonableness
+4. **Compare with known structures**: by loading reference CIFs yourself - no database
+   comparison is built in
 
 ## Research Applications
 
@@ -439,28 +323,25 @@ for structure_result in analysis_results:
 Visual and quantitative validation of predicted structures:
 
 ```python
-# Comprehensive structure validation
-validation_suite = {
-    "visual_inspection": create_3dmol_view(structure),
-    "xrd_comparison": compare_with_experimental_xrd(structure),
-    "bond_validation": analyse_bond_lengths(structure),
-    "coordination_check": validate_coordination_environments(structure)
-}
+# Structure validation, using tools that exist
+create_pymatviz_analysis_suite(cif_content, formula, output_dir)
+# -> CIF + 3D structure, XRD, RDF and coordination PDFs to inspect
+
+# Quantitative checks live on the chemistry-unified server, not here:
+#   analyze_space_group, analyze_coordination, validate_oxidation_states
 ```
 
 ### Materials Characterisation
 
 Complete characterisation package for research:
 
-```python
-# Research-grade analysis package
-characterisation = {
-    "3d_structures": interactive_viewers,
-    "diffraction_patterns": xrd_analyses,
-    "local_environments": rdf_analyses,
-    "coordination_geometries": coordination_analyses,
-    "comparison_studies": comparative_visualisations
-}
+```
+{formula}_analysis/
+├── {formula}.cif                       # portable structure file
+├── 3D_Structure_{formula}.pdf          # static 3D rendering
+├── XRD_Pattern_{formula}.pdf           # simulated diffraction
+├── RDF_Analysis_{formula}.pdf          # local environments
+└── Coordination_Analysis_{formula}.pdf # coordination geometries
 ```
 
 ## Citation
@@ -477,23 +358,27 @@ If you use the Crystalyse visualisation suite, please cite the underlying tools:
   doi = {10.5281/zenodo.7486816},
   url = {https://github.com/janosh/pymatviz},
   note = {10.5281/zenodo.7486816 - https://github.com/janosh/pymatviz},
-  version = {0.8.2}
 }
 ```
 
-### 3Dmol.js (Interactive 3D Visualisation)
-3Dmol.js is used for interactive molecular visualisation. Please see the [3Dmol.js website](https://3dmol.csb.pitt.edu/) for citation information.
+Crystalyse pins `pymatviz>=0.8.5,<0.19.0`; cite the version you actually have installed.
+
+### 3Dmol.js
+Not currently used - 3dmol.js visualisation is disabled for v2.0-alpha and no 3dmol.js code
+ships in the output.
 
 ## Summary
 
-The Crystalyse visualisation suite provides comprehensive visual and analytical tools for understanding crystal structures and their properties. The integration of interactive 3D visualisation with quantitative structural analysis enables both rapid assessment and detailed research-grade characterisation.
+The Crystalyse visualisation suite turns a predicted structure into a portable CIF file and
+a set of quantitative analysis plots. Interactive 3D viewing is disabled for v2.0-alpha; the
+suite's value today is the static, reproducible output it leaves on disk.
 
 **Key Benefits**:
-- Interactive 3D molecular visualisation for immediate understanding
-- Professional analysis plots for research publication
-- Comprehensive structural characterisation
+- Portable CIF output that any crystallographic tool can open
+- Publication-quality analysis plots (3D structure, XRD, RDF, coordination)
+- Headless generation - no display server required
+- Aggressive caching, so re-running a workflow costs nothing
 - Seamless integration with structure prediction and energy analysis
-- Support for comparative studies and validation
 
 The visualisation suite completes the Crystalyse analysis pipeline, providing the critical visual and analytical tools needed to understand and validate computational materials design results.
 

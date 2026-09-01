@@ -1,37 +1,54 @@
 # Chemeleon - Crystal Structure Prediction
 
-Chemeleon is a state-of-the-art crystal structure prediction (CSP) tool that generates high-quality crystal structures from chemical compositions. It serves as the core structure generation engine in both Crystalyse analysis modes.
+Chemeleon is a state-of-the-art crystal structure prediction (CSP) tool that generates crystal structures from chemical compositions. It serves as the core structure generation engine in every Crystalyse analysis mode.
 
 ## Overview
 
-Chemeleon combines machine learning with crystallographic principles to predict the most likely crystal structures for a given chemical composition. It generates multiple candidate structures with different space groups, atomic positions, and lattice parameters.
+Chemeleon is a generative denoising diffusion model over crystal structures. Given a
+composition it samples candidate structures directly - each a unit cell, a set of Cartesian
+atomic positions, and the atomic numbers that occupy them. Asking for several samples gives
+several independent candidates.
 
-**Key Strength**: Chemeleon excels at generating physically realistic crystal structures that respect chemical bonding principles and crystallographic constraints.
+**Key Strength**: Chemeleon generates structures in a single learned sampling step, with no
+hand-written crystallographic rules, template library or refinement stage in the loop.
 
 ## Integration in Crystalyse
 
 ### Availability by Mode
-- **Creative Mode**: ✅ Core structure prediction
-- **Rigorous Mode**: ✅ Complete structure generation with validation
+- **explore**: ✅ Core structure prediction
+- **validate**: ✅ Structure generation, alongside SMACT screening and PyMatgen analysis
+- **auto**: ✅ Same server as validate
 
 ### MCP Server Integration
-- **Creative Mode**: Chemistry Creative Server (`chemistry-creative-server`)
-- **Rigorous Mode**: Chemistry Unified Server (`chemistry-unified-server`)
+- **explore**: Chemistry Creative Server (`chemistry-creative-server`), tool
+  `generate_crystal_structure(formula, num_samples=3, prefer_gpu=True)`
+- **validate** and **auto**: Chemistry Unified Server (`chemistry-unified-server`), tool
+  `generate_crystal_csp(formulas, num_samples=1, prefer_gpu=True)` - which also accepts a
+  list of formulas
 
-Both servers provide the same Chemeleon functionality with identical structure quality.
+Both servers call the same `ChemeleonPredictor`, so structure quality is identical; they
+differ only in the tool name, defaults, and what else the server offers alongside. The
+legacy mode names `creative`, `rigorous` and `adaptive` still resolve, with a
+`DeprecationWarning`. Note that the server *directory* is still named
+`chemistry-creative-server` - a package name, unchanged.
 
 ## Core Functionality
 
 ### Structure Prediction Pipeline
 
-Chemeleon follows a systematic approach to crystal structure generation:
+The path from formula to structure is short:
 
-1. **Composition Analysis**: Parse chemical formula and identify constituent elements
-2. **Space Group Selection**: Choose appropriate crystallographic space groups
-3. **Lattice Parameter Estimation**: Predict unit cell dimensions based on ionic/atomic radii
-4. **Atomic Position Optimisation**: Place atoms in chemically reasonable positions
-5. **Structure Refinement**: Optimise atomic positions and lattice parameters
-6. **Quality Assessment**: Rank structures by crystallographic and chemical criteria
+1. **Composition Parsing**: `pymatgen.Composition` expands the formula into a flat list of
+   atomic numbers (one entry per atom), repeated once per requested sample
+2. **Diffusion Sampling**: a single batched call to the cached diffusion module,
+   `model.sample(task="csp", atom_types=..., num_atoms=...)`
+3. **Conversion**: each returned ASE `Atoms` object becomes a `CrystalStructure` record
+
+That is the whole pipeline. There is no space-group selection step, no ionic-radius lattice
+estimate, no refinement pass and no quality scoring - the sampled structures are returned
+as they come out of the model. Analysis of what came back (symmetry, coordination,
+oxidation states) is the job of the separate PyMatgen-backed tools on the unified server:
+`analyze_space_group`, `analyze_coordination` and `validate_oxidation_states`.
 
 ### Available Tools
 
@@ -65,164 +82,142 @@ result = predictor.predict_structure_sync(
 - `prefer_gpu`: Use GPU if available (default: True)
 
 **Output**:
-`PredictionResult` object containing:
-- List of `CrystalStructure` objects (cell, positions, atomic numbers)
-- Computation time
-- Success status and error messages
+`PredictionResult` containing:
+- `success` and, on failure, `error`
+- `formula` as requested
+- `predicted_structures`: a list of `CrystalStructure` records, each with `formula`,
+  `cell` (3x3 matrix), `positions` (Cartesian), `numbers`, `symbols`, `volume` and
+  `confidence`
+- `computation_time` in seconds
+- `method`, which is `"chemeleon-dng"`
+- `checkpoint_used`
+
+The `confidence` field exists on the model but is never computed - it takes its default of
+`1.0` for every structure. Do not read it as a quality signal.
+
+Structures are returned in memory. `ChemeleonPredictor` performs no file I/O; CIF text is
+produced downstream (`structure_dict_to_cif` on the creative server, or `save_cif_file` and
+the visualisation server).
 
 ### Checkpoint Management
 
-Chemeleon automatically manages model checkpoints:
-- **Auto-download**: Downloads models from Figshare on first use
-- **Caching**: Stores models in `~/.cache/crystalyse/chemeleon_checkpoints/`
-- **Custom Path**: Can use `CHEMELEON_CHECKPOINT_DIR` environment variable
+`chemeleon-dng` is a plain PyPI dependency, pinned `>=0.1.5,<0.2.0`. Crystalyse manages the
+model checkpoints itself rather than relying on the upstream downloader:
+
+- **Auto-download**: on first use, a 523 MB archive is fetched from Figshare and expanded
+  to roughly 604 MB on disk
+- **Caching**: checkpoints live in `~/.cache/crystalyse/chemeleon_checkpoints/`
+- **Two checkpoints**: `chemeleon_csp_alex_mp_20_v0.0.2.ckpt` (task `csp`) and
+  `chemeleon_dng_alex_mp_20_v0.0.2.ckpt` (task `dng`) are both downloaded and verified.
+  `predict_structure` uses only `csp`
+- **Custom Path**: `CHEMELEON_CHECKPOINT_DIR` points at a directory that must *already*
+  contain the expected filename. Setting it disables auto-download rather than relocating
+  it - if the file is not there, you get a `FileNotFoundError` naming the file it wanted
 
 ## Structure Prediction Methodology
 
 ### Machine Learning Framework
 
-Chemeleon employs advanced ML models trained on crystallographic databases:
+The object Crystalyse loads is a `chemeleon_dng` `DiffusionModule`: a denoising diffusion
+model over crystal structures, built from the hyperparameters stored in the checkpoint. The
+compatibility path constructs it explicitly via
+`chemeleon_dng.script_util.create_diffusion_module`, whose knobs are the diffusion ones -
+`num_timesteps`, `beta_schedule_ddpm`, `beta_schedule_d3pm`, `d3pm_hybrid_coeff`,
+`sigma_begin`, `sigma_end`, `max_atoms`.
 
-- **Training Data**: Materials Project, ICSD, and other curated structure databases
-- **Feature Engineering**: Chemical descriptors, ionic radii, electronegativity, etc.
-- **Model Architecture**: Graph neural networks for structure representation
-- **Validation**: Cross-validation against experimental structures
+The upstream work is a text-guided generative diffusion model for crystal chemical space;
+see the [citation](#citation) below. Crystalyse drives only its structure-prediction
+(`csp`) task, feeding it a composition rather than text.
 
-### Space Group Intelligence
+The model runs on CUDA where available, then MPS on Apple Silicon, then CPU. It is cached
+per `(task, checkpoint)` pair, so the load cost is paid once per process.
 
-Systematic space group selection based on composition:
+### What the Model Does Not Give You
 
-```python
-# Example: Perovskite structures
-Composition: "CsSnI3"
-Likely space groups: 
-- Pm3m (cubic perovskite, high symmetry)
-- P4/mmm (tetragonal, intermediate)  
-- Pnma (orthorhombic, distorted)
-- P1 (triclinic, lowest symmetry)
-```
+Because sampling is a single call with no post-processing, the following are simply absent
+from Chemeleon's output and must come from elsewhere if you need them:
 
-### Lattice Parameter Prediction
-
-Initial lattice parameters estimated from:
-
-```python
-# Ionic radius approach for CsSnI3
-Cs⁺ radius: 1.67 Å
-Sn²⁺ radius: 1.02 Å  
-I⁻ radius: 2.20 Å
-
-# Perovskite lattice parameter estimate
-a ≈ 2 × (r_A + r_X) = 2 × (1.67 + 2.20) = 7.74 Å
-# Refined through ML prediction: a ≈ 6.23 Å
-```
+- **Space group**: not recorded. Use `analyze_space_group` (PyMatgen `SpacegroupAnalyzer`)
+  on the returned structure
+- **Decomposed lattice parameters**: the output carries the 3x3 `cell` matrix, not
+  a/b/c/alpha/beta/gamma
+- **Fractional coordinates**: `positions` are Cartesian, as ASE supplies them
+- **Coordination and oxidation states**: use `analyze_coordination` and
+  `validate_oxidation_states`
 
 ## Practical Usage
 
 ### In Crystalyse Workflows
 
-#### Creative Mode Structure Generation
+#### Explore Mode Structure Generation
 ```bash
-crystalyse analyse "Generate structures for CsSnI3" --mode creative
+crystalyse discover "Generate structures for CsSnI3" --mode explore
 ```
 
 **Chemeleon Workflow**:
-1. Parse composition: Cs₁Sn₁I₃
-2. Identify structure type: Perovskite (ABX₃)
-3. Generate 5 candidate structures
-4. Output CIF files for MACE energy calculation
+1. Parse composition into atomic numbers: Cs, Sn, I, I, I
+2. Sample the requested number of candidate structures in one batched call
+3. Return the structures in memory
+4. Convert to CIF on the server for MACE energy calculation
 
-#### Rigorous Mode with Validation
+#### Validate Mode with Screening
 ```bash
-crystalyse analyse "Predict CsSnI3 crystal structure" --mode rigorous
+crystalyse discover "Predict CsSnI3 crystal structure" --mode validate
 ```
 
 **Enhanced Workflow**:
 1. SMACT validation confirms composition feasibility
 2. Chemeleon generates multiple structure candidates
-3. Structures validated for chemical reasonableness
-4. Best structures passed to MACE for energy ranking
+3. PyMatgen tools analyse symmetry, coordination and oxidation states
+4. Structures passed to MACE for energy ranking
 
 ### Typical Structure Generation
 
-#### Perovskite Example: CsSnI₃
+Each sample comes back as a `CrystalStructure`. Asking for three samples of CsSnI₃ gives
+three independent records of this shape:
 
 ```python
-Structure 1: Cubic Pm3m
-Lattice: a = 6.234 Å, α = 90°
-Atomic positions:
-- Cs: (0.5, 0.5, 0.5)
-- Sn: (0.0, 0.0, 0.0)  
-- I: (0.5, 0.0, 0.0), (0.0, 0.5, 0.0), (0.0, 0.0, 0.5)
-
-Structure 2: Tetragonal P4/mmm  
-Lattice: a = 6.18 Å, c = 6.45 Å
-Atomic positions:
-- Cs: (0.5, 0.5, 0.5)
-- Sn: (0.0, 0.0, 0.0)
-- I: (0.5, 0.0, 0.5), (0.0, 0.5, 0.5), (0.0, 0.0, 0.0)
+CrystalStructure(
+    formula="CsSnI3",
+    cell=[[6.21, 0.00, 0.00],
+          [0.00, 6.24, 0.00],
+          [0.00, 0.00, 6.19]],   # 3x3 lattice matrix, as sampled
+    positions=[...],              # Cartesian, one triple per atom
+    numbers=[55, 50, 53, 53, 53],
+    symbols=["Cs", "Sn", "I", "I", "I"],
+    volume=239.8,
+    confidence=1.0,               # default, never computed
+)
 ```
 
-#### Battery Material Example: LiCoO₂
+The numbers above are illustrative of the *shape* of the output, not measured values -
+sampling is stochastic and every run differs. Note what is not there: no space group label,
+no a/b/c/alpha/beta/gamma breakdown, no Wyckoff assignment. If you want a symmetry label
+for a sampled structure, run `analyze_space_group` on it.
 
-```python
-Structure 1: Layered R3m (α-NaFeO2 type)
-Lattice: a = 2.82 Å, c = 14.05 Å  
-Atomic positions:
-- Li: (0.0, 0.0, 0.0)
-- Co: (0.0, 0.0, 0.5)
-- O: (0.0, 0.0, 0.262), (0.0, 0.0, 0.738)
+## Assessing What Came Back
 
-Structure 2: Spinel Fd3m
-Lattice: a = 8.15 Å (cubic)
-Atomic positions:
-- Li: (0.125, 0.125, 0.125)  
-- Co: (0.5, 0.5, 0.5)
-- O: (0.25, 0.25, 0.25), etc.
-```
+Chemeleon itself performs no validation of its samples: no bond-length check, no Wyckoff
+analysis, no density check, no ML-confidence output. The `confidence` field is a default,
+not a score. Judging a sampled structure is therefore a separate step, and Crystalyse
+provides three PyMatgen-backed tools on the unified server for it:
 
-## Quality Assessment
+| Tool | What it reports |
+|------|-----------------|
+| `analyze_space_group` | Symmetry analysis via PyMatgen's `SpacegroupAnalyzer` |
+| `analyze_coordination` | Coordination environments (Voronoi by default) |
+| `validate_oxidation_states` | Whether a consistent oxidation-state assignment exists |
 
-### Structure Validation Metrics
-
-Chemeleon provides comprehensive quality assessment:
-
-#### Geometric Validation
-- **Bond lengths**: Check against known chemical bonds
-- **Bond angles**: Validate coordination geometries  
-- **Atomic overlaps**: Ensure no unphysical atomic positions
-- **Density check**: Compare to experimental/theoretical densities
-
-#### Crystallographic Validation
-- **Space group symmetry**: Verify symmetry constraints are satisfied
-- **Wyckoff positions**: Check atomic site assignments
-- **Lattice constraints**: Validate unit cell parameters
-- **Multiplicity**: Ensure correct atom counts per unit cell
-
-#### Chemical Validation
-- **Coordination numbers**: Check local coordination environments
-- **Electronegativity**: Validate charge distributions
-- **Ionic radii**: Compare to tabulated ionic radii
-- **Chemical bonding**: Assess bond network topology
-
-### Quality Scoring
-
-```python
-Structure Quality Score: 0.87/1.0
-├── Geometric validity: 0.92
-├── Crystallographic validity: 0.89  
-├── Chemical reasonableness: 0.83
-└── ML confidence: 0.85
-
-Assessment: HIGH QUALITY
-Recommendation: Suitable for energy calculations
-```
+Energetic ranking is MACE's job - see [MACE](mace.md). In practice, sampling several
+structures and ranking them by MACE formation energy is the standard way to pick one.
 
 ## Output Formats
 
 ### CIF (Crystallographic Information File)
 
-Standard crystallographic format with complete structural information:
+`ChemeleonPredictor` returns structure records, not files. CIF text is generated one step
+later - by `structure_dict_to_cif` on the creative server, or by `save_cif_file` and the
+visualisation server - and looks like this:
 
 ```cif
 data_CsSnI3_structure1
@@ -254,52 +249,59 @@ Machine-readable format for computational pipelines:
 
 ```json
 {
+  "success": true,
   "formula": "CsSnI3",
-  "structure_id": "CsSnI3_structure1",
-  "space_group": "Pm3m",
-  "lattice_parameters": {
-    "a": 6.234, "b": 6.234, "c": 6.234,
-    "alpha": 90.0, "beta": 90.0, "gamma": 90.0
-  },
-  "atomic_positions": [
-    {"element": "Cs", "x": 0.5, "y": 0.5, "z": 0.5},
-    {"element": "Sn", "x": 0.0, "y": 0.0, "z": 0.0},
-    {"element": "I", "x": 0.5, "y": 0.0, "z": 0.0}
+  "predicted_structures": [
+    {
+      "formula": "CsSnI3",
+      "cell": [[6.21, 0.0, 0.0], [0.0, 6.24, 0.0], [0.0, 0.0, 6.19]],
+      "positions": [[3.10, 3.12, 3.10], [0.0, 0.0, 0.0], "..."],
+      "numbers": [55, 50, 53, 53, 53],
+      "symbols": ["Cs", "Sn", "I", "I", "I"],
+      "volume": 239.8,
+      "confidence": 1.0
+    }
   ],
-  "quality_score": 0.87,
-  "confidence": 0.85
+  "computation_time": 18.4,
+  "method": "chemeleon-dng",
+  "checkpoint_used": "default",
+  "error": null
 }
 ```
+
+These are the complete field sets for `PredictionResult` and `CrystalStructure`. There is
+no `structure_id`, `space_group`, `lattice_parameters` or `quality_score` key.
 
 ## Performance Characteristics
 
 ### Computational Requirements
 
-```bash
-Structure Generation Performance:
-├── Single composition: 10-30 seconds
-├── 5 structures per composition: 30-60 seconds
-├── Multiple compositions (5): 2-5 minutes
-└── Batch processing (50): 15-30 minutes
+Sampling cost scales with the diffusion timestep count and the number of atoms, and depends
+heavily on whether a GPU is available. Crystalyse does not benchmark it, but every result
+carries a measured `computation_time`, so the honest way to size a run is to time one
+composition on your own hardware and multiply.
 
-Resource Usage:
-├── CPU: Moderate (ML inference)
-├── Memory: 2-4 GB per composition
-├── Storage: 1-5 MB per structure (CIF files) + ~600MB for checkpoints (one-time)
-└── Network: Checkpoint auto-download (~523 MB from Figshare, cached in ~/.cache/crystalyse/chemeleon_checkpoints/)
-```
-
-### Accuracy Benchmarks
-
-Performance against experimental structures:
+What is fixed and known:
 
 ```bash
-Structure Prediction Accuracy:
-├── Lattice parameters: ±5% RMSD from experimental
-├── Space group prediction: 78% exact match
-├── Atomic positions: ±0.2 Å RMSD for framework atoms
-└── Overall structure match: 71% correct within tolerance
+Storage:
+├── Checkpoints: 523 MB archive from Figshare, ~604 MB expanded (one-time)
+│   └── ~/.cache/crystalyse/chemeleon_checkpoints/
+└── Structures: returned in memory; CIF files are written only downstream
+
+Compute:
+├── Device: CUDA if available, else MPS on Apple Silicon, else CPU
+└── Model cache: loaded once per process, per (task, checkpoint) pair
 ```
+
+### Accuracy
+
+Crystalyse ships no benchmark harness, reference dataset or accuracy metric for Chemeleon,
+so this page quotes no accuracy figures. (The tool records no space group at all, so a
+space-group match rate could not be produced by this code even in principle.) For
+published accuracy, see the upstream paper in the [citation](#citation) section. To judge a
+particular structure in your own workflow, rank samples by MACE formation energy and check
+the symmetry and coordination with the PyMatgen tools.
 
 ## Limitations and Considerations
 
@@ -315,32 +317,27 @@ Structure Prediction Accuracy:
 1. **Multiple Candidates**: Always generate 3-5 structures for ranking
 2. **Validate Results**: Use MACE energy calculations to rank structures
 3. **Chemical Sense Check**: Verify structures are chemically reasonable
-4. **Space Group Diversity**: Include multiple space groups for comprehensive search
+4. **Sample, Then Filter**: sampling is the only knob - there is no way to constrain the
+   search, so generate more candidates and discard the poor ones downstream
 
 ### Common Issues and Solutions
 
 #### Issue: Unrealistic Bond Lengths
+
+Sampling cannot be constrained. Increase `num_samples`, then screen the results with
+`analyze_coordination` and MACE energies and keep what survives:
+
 ```python
-# Check and adjust if needed
-bond_analysis = chemeleon_analyse_structure(cif_content)
-if bond_analysis["min_bond_length"] < 1.0:  # Too short
-    # Regenerate with adjusted parameters
-    structures = chemeleon_predict_structure(
-        formula=formula,
-        min_bond_length=1.5
-    )
+result = await predictor.predict_structure(formula="CsSnI3", num_samples=10)
+# Screen result.predicted_structures downstream; there is no
+# min_bond_length or geometry constraint to pass in.
 ```
 
-#### Issue: Low Quality Scores
-```python
-# Strategies for improvement
-if quality_score < 0.6:
-    # Try different space groups
-    structures = chemeleon_predict_structure(
-        formula=formula,
-        space_groups=["cubic", "tetragonal", "orthorhombic"]
-    )
-```
+#### Issue: Checkpoint Not Found
+
+If `CHEMELEON_CHECKPOINT_DIR` is set, auto-download is disabled and the expected filename
+must already be present in that directory. Unset the variable to fall back to the managed
+cache in `~/.cache/crystalyse/chemeleon_checkpoints/`.
 
 ## Integration with Other Tools
 
@@ -354,75 +351,50 @@ graph LR
     D --> E[Structure Ranking]
     E --> F[Best Structures]
     
-    B --> G[Structure Analysis]
-    G --> H[Quality Assessment]
-    H --> C
+    C --> G[PyMatgen Analysis]
+    G --> H[Space Group / Coordination]
 ```
 
 ### Data Flow with MACE
 
 Chemeleon structures are automatically formatted for MACE energy calculations:
 
+On the servers, the Chemeleon structure record is turned into CIF text and handed to the
+MACE tool:
+
 ```python
-# Chemeleon output → MACE input conversion
-cif_structure = chemeleon_predict_structure("CsSnI3")
-mace_input = convert_cif_to_mace_input(cif_structure)
-formation_energy = mace_calculate_energy(mace_input)
+# Chemeleon output -> CIF -> MACE (creative server)
+result = await predictor.predict_structure("CsSnI3", num_samples=3)
+cif = structure_dict_to_cif(result.predicted_structures[0].model_dump())
+energy = await calculate_formation_energy(cif)
 ```
 
 ### Visualisation Integration
 
-Structures are automatically prepared for 3D visualisation:
+Structures are written out as CIF files; interactive 3D viewing is disabled for
+v2.0-alpha:
 
 ```python
-# Automatic visualisation generation
-cif_files = chemeleon_predict_structure("CsSnI3", num_structures=3)
-for cif in cif_files:
-    html_view = create_3dmol_visualisation(cif)
-    save_visualisation(f"{formula}_{structure_id}_3dmol.html")
+# create_3dmol_visualization writes {formula}.cif and nothing else
+create_3dmol_visualization(cif_content, formula="CsSnI3", output_dir=".")
 ```
 
-## Advanced Features
+For plots, `create_pymatviz_analysis_suite` produces a CIF plus four PDFs (3D structure,
+XRD, RDF, coordination). See [Visualisation](visualisation.md).
 
-### Custom Structure Templates
+## Controlling Generation
 
-Chemeleon can be guided with structural templates:
+`predict_structure` takes four arguments and no more:
 
-```python
-# Perovskite template guidance
-perovskite_structures = chemeleon_predict_structure(
-    formula="CsSnI3",
-    template="perovskite",
-    space_groups=["Pm3m", "P4/mmm", "Pnma"]
-)
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `formula` | - | Chemical composition to sample for |
+| `num_samples` | `1` | How many independent structures to sample |
+| `checkpoint_path` | `None` | Use a specific checkpoint file instead of the managed one |
+| `prefer_gpu` | `True` | Use CUDA/MPS when available, else CPU |
 
-# Layered structure guidance  
-layered_structures = chemeleon_predict_structure(
-    formula="LiCoO2", 
-    template="layered",
-    enforce_layers=True
-)
-```
-
-### Symmetry Constraints
-
-Apply specific crystallographic constraints:
-
-```python
-# High-symmetry search
-cubic_structures = chemeleon_predict_structure(
-    formula="CsSnI3",
-    symmetry_constraint="cubic",
-    min_symmetry="mmm"
-)
-
-# Low-symmetry exploration
-distorted_structures = chemeleon_predict_structure(
-    formula="CsSnI3",
-    allow_distortion=True,
-    max_distortion=0.3
-)
-```
+There is no template, space-group, symmetry or distortion control. Structure diversity
+comes from the stochasticity of sampling, so the practical lever is `num_samples`.
 
 ## Research Applications
 
@@ -446,8 +418,8 @@ substituents = ["Pb", "Ge", "Si"]
 
 for element in substituents:
     modified_formula = base_formula.replace("Sn", element)
-    structures = chemeleon_predict_structure(modified_formula)
-    # Analyse structural trends
+    result = await predictor.predict_structure(modified_formula, num_samples=5)
+    # Rank result.predicted_structures with MACE, then analyse trends
 ```
 
 ## Future Developments
@@ -480,14 +452,14 @@ If you use Chemeleon through Crystalyse, please cite the original publication:
 
 ## Summary
 
-Chemeleon provides the critical structure prediction capability that enables Crystalyse to generate realistic crystal structures from chemical compositions. Its integration in both analysis modes ensures that all materials analysis workflows begin with high-quality structural models.
+Chemeleon provides the structure prediction capability that lets Crystalyse turn a chemical composition into a concrete crystal structure. It is available in every mode, so all materials analysis workflows can begin from a structural model.
 
 **Key Benefits**:
-- High-quality crystal structure prediction
-- Multiple candidate generation for ranking
-- Integration with energy calculation pipeline
-- Comprehensive structure validation
-- Support for diverse structure types
+- Generative crystal structure prediction in a single sampling call
+- Multiple candidate generation for downstream ranking
+- In-memory output, no temporary files
+- Integration with the energy calculation and analysis pipeline
+- Zero-configuration checkpoint management
 
 The combination of Chemeleon's structure prediction with MACE's energy calculations provides the foundation for reliable computational materials design in Crystalyse.
 

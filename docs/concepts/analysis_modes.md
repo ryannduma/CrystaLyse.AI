@@ -1,239 +1,229 @@
-# Analysis Modes - Crystalyse v1.0.0
+# Analysis Modes
 
-Crystalyse v1.0.0 provides three intelligent analysis modes powered by multi-agent orchestration and enhanced UX, allowing you to balance speed, accuracy, and user experience based on your research needs.
+Crystalyse has three operating modes - `explore`, `validate` and `auto` - that trade breadth of validation against speed. They are defined in `crystalyse/config/modes.py`, and `auto` is the default.
+
+The legacy names `creative`, `rigorous` and `adaptive` still resolve to `explore`, `validate` and `auto`, but they emit a `DeprecationWarning` and will be removed in v2.0. (The MCP package directory `chemistry-creative-server` and the server name `chemistry_creative` keep their original names and are unaffected by the rename.)
 
 ## Overview
 
-| Mode | Speed | Tools Used | Use Case | v1.0.0 Features |
-|------|-------|------------|----------|---------------------|
-| **Adaptive** (Default) | Variable | Context-aware selection | General research, learning preferences | Enhanced clarification, workspace management |
-| **Creative** | ~50 seconds | Chemeleon + MACE + Basic Viz | Fast exploration, initial screening | Multi-agent coordination, transparent operations |
-| **Rigorous** | 2-5 minutes | SMACT + Chemeleon + MACE + Advanced Viz + Analysis | Complete validation, publication-ready | Specialized agent validation, anti-hallucination |
+| Mode | Chemistry MCP server | Default model | Timeout | Use case |
+|------|---------------------|---------------|---------|----------|
+| **Auto** (Default) | `chemistry_unified` (20 tools) | `openai_o4_mini` (`o4-mini`) | 180 s | General research: full tool set, faster backbone |
+| **Explore** | `chemistry_creative` (4 tools) | `openai_o4_mini` (`o4-mini`) | 120 s | Fast exploration and initial screening, no SMACT |
+| **Validate** | `chemistry_unified` (20 tools) | `openai_o3` (`o3`) | 300 s | Complete validation with the strongest reasoning model |
 
-## Adaptive Mode (Default) - NEW in v1.0.0
+The `visualization` server (5 tools) is started in **every** mode, so a session has either 4 + 5 tools (explore) or 20 + 5 tools (validate and auto).
 
-### Purpose
-Intelligent balance of speed and accuracy with enhanced user experience. Features:
-- **Enhanced Clarification**: LLM-powered adaptive questioning based on expertise level
-- **Context-Aware Tool Selection**: Automatically chooses optimal tools for each query
-- **Learning Preferences**: Adapts behavior based on user patterns and feedback
-- **Workspace Management**: Transparent file operations with preview/approval
-- **Intelligent Tool Coordination**: Single agent manages specialized tools seamlessly
+## What the Mode Actually Changes
 
-### Enhanced Agent Capabilities
-Adaptive mode leverages the full feature set of EnhancedCrystaLyseAgent:
-- **Intelligent Tool Selection**: Automatically chooses optimal MCP servers and tools
-- **Context-Aware Processing**: Adapts responses based on query complexity and user expertise
-- **Workspace Coordination**: Manages file operations with transparent preview/approval
-- **Memory Integration**: Utilizes session history and discovery cache for informed decisions
-- **Anti-Hallucination Validation**: Ensures all numerical results have computational basis
+Exactly three things:
 
-### Enhanced UX Features
-```bash
-# Adaptive clarification examples:
-User: "Find battery materials"
-System: "What type of battery application? (Li-ion cathode, Na-ion anode, solid electrolyte, etc.)"
+1. **Which chemistry MCP server is started** - `chemistry_creative` for `explore`, `chemistry_unified` for `validate` and `auto`. The `visualization` server is always started alongside it.
+2. **Which model backbone is selected by default** - `explore` and `auto` use `openai_o4_mini`, `validate` uses `openai_o3`. A `--model` value, or `/model` inside chat, overrides this.
+3. **The timeout** - 120 s, 180 s and 300 s respectively, after which the run returns a `failed` status.
 
-User: "Perovskites for solar cells"  
-System: "For single-junction or tandem cells? Any specific efficiency targets?"
-```
+Everything else follows from those. Tool choice *within* the running servers is left to the model (`tool_choice="auto"`); there is no context-aware tool selector. The resolved mode is also injected into the agent's instructions and pinned in a global mode manager, so the mode argument the MCP tools receive stays consistent for the life of the agent.
 
-## Creative Mode
+## Auto Mode (Default)
 
 ### Purpose
-Fast materials exploration with multi-agent coordination. Enhanced in v1.0.0 for:
-- Initial concept exploration with transparent operations
-- Rapid prototyping with workspace management
-- Interactive sessions with real-time progress visualization
-- Educational demonstrations with adaptive explanations
+The balanced default: the complete `chemistry_unified` tool set with the faster `o4-mini` backbone and a 180-second ceiling. Use it when you do not want to think about mode selection - the model can reach SMACT validation, hull energies and the full analysis suite if the query calls for them, without paying for `o3` reasoning on every turn.
 
 ### MCP Server Mapping
-Creative mode uses the **Chemistry Creative Server** (`chemistry-creative-server`):
+Auto mode uses the same servers as validate mode: the **Chemistry Unified Server** (`chemistry-unified-server`) plus the **Visualization Server**. The difference is the default backbone and the timeout, not the tools.
 
-```python
-# Tools available in creative mode
-- Chemeleon CSP: Crystal structure prediction
-- MACE: Formation energy calculations  
-- Visualisation: 3D structure rendering
-# Not included: SMACT validation (for speed)
+## Explore Mode
+
+### Purpose
+Fast materials exploration:
+
+- Initial concept exploration and idea generation
+- Rapid screening before committing to a full validation run
+- Interactive sessions where turnaround matters more than completeness
+- Teaching and demonstrations
+
+### MCP Server Mapping
+Explore mode uses the **Chemistry Creative Server** (`chemistry-creative-server`), which exposes four tools:
+
+```text
+generate_crystal_structure      # Chemeleon CSP structure prediction
+calculate_formation_energy      # MACE formation energies
+creative_discovery_pipeline     # Chemeleon + MACE in one call
+comprehensive_materials_analysis# Pipeline wrapper with unified-server-shaped output
+# Not included: SMACT validation and hull calculations (deliberately, for speed)
 ```
+
+The **Visualization Server** is started as well, so CIF output and the pymatviz analysis suite are still reachable in explore mode.
 
 ### Workflow
 1. **Input**: Natural language materials query
-2. **Structure Generation**: Chemeleon generates multiple candidate structures
+2. **Structure Generation**: Chemeleon generates candidate structures
 3. **Energy Evaluation**: MACE calculates formation energies for ranking
-4. **Visualisation**: Automatic 3D structure files created
-5. **Output**: Ranked structures with energies and interactive visualisations
+4. **Output Files**: CIF files written to the working directory, optionally with the pymatviz analysis suite
+5. **Output**: Ranked structures with energies
 
 ### Example Usage
 
 ```bash
-# Command line
-crystalyse analyse "Find perovskite solar cell materials" --mode creative
+# Single-shot
+crystalyse discover "Find perovskite solar cell materials" --mode explore
 
-# In unified interface
-crystalyse
-> /mode creative
+# Interactive session (--mode is a global option, so it precedes the subcommand)
+crystalyse --mode explore chat
+
+# Or switch inside a running session
+> /mode explore
 > Design high-capacity battery cathodes
-
-# In chat session
-crystalyse chat -m creative
 ```
 
 ### Output Structure
 ```
-Creative Mode Results:
-├── Structure Generation: 3-5 candidates per composition
-├── Energy Ranking: Formation energies (eV/atom)
-├── 3D Visualisations: Interactive HTML files
-└── Summary: Most stable structures identified
+Explore Mode Results:
+├── Structure Generation: candidate structures per composition
+├── Energy Ranking: formation energies (eV/atom)
+├── Files: [formula].cif in the working directory
+└── Summary: most stable structures identified
 ```
 
-## Rigorous Mode
+## Validate Mode
 
 ### Purpose
-Complete materials validation with specialized agent validation. Enhanced in v1.0.0 for:
-- Publication-quality research with anti-hallucination safeguards
-- Detailed materials characterisation with multi-agent cross-validation
-- Validation of creative/adaptive mode results with specialized agents
-- Professional materials design projects with comprehensive documentation
+Complete materials validation:
+
+- Work you intend to report, with the full composition-to-analysis pipeline
+- Detailed characterisation of a shortlist produced in explore mode
+- Cases where SMACT screening and hull energies matter
+- Runs where the strongest available reasoning model is worth the wall-clock cost
 
 ### MCP Server Mapping
-Rigorous mode uses the **Chemistry Unified Server** (`chemistry-unified-server`):
+Validate mode uses the **Chemistry Unified Server** (`chemistry-unified-server`), which exposes 20 tools, including:
 
-```python
-# Complete tool suite in rigorous mode
-- SMACT: Composition validation and screening
-- Chemeleon CSP: Crystal structure prediction
-- MACE: Formation energy calculations
-- Visualisation: 3D structures + analysis plots
-- Pymatviz: XRD patterns, RDF analysis, coordination analysis
+```text
+validate_composition, smact_validate_fast   # SMACT composition validation and screening
+generate_crystal_csp                        # Chemeleon CSP structure prediction
+calculate_formation_energy, relax_structure # MACE energetics and relaxation
+calculate_energy_above_hull                 # Phase-diagram stability
+analyze_space_group, analyze_coordination   # Structural analysis
+validate_oxidation_states                   # Chemical sanity checks
+save_cif_file, create_analysis_suite        # Output and analysis bundles
 ```
+
+The **Visualization Server** is started alongside it, as in every mode.
 
 ### Workflow
 1. **Input**: Natural language materials query
 2. **Composition Validation**: SMACT screens for chemically reasonable compositions
 3. **Structure Generation**: Chemeleon generates structures for valid compositions
-4. **Energy Evaluation**: MACE calculates detailed energetics
-5. **Comprehensive Analysis**: XRD patterns, radial distribution functions, coordination analysis
-6. **Visualisation**: 3D structures + professional analysis plots
-7. **Output**: Complete materials characterisation package
+4. **Energy Evaluation**: MACE calculates formation energies and, where relevant, energy above hull
+5. **Analysis**: XRD patterns, radial distribution functions and coordination analysis
+6. **Output**: A complete characterisation package on disk
 
 ### Example Usage
 
 ```bash
-# Command line
-crystalyse analyse "Validate CsSnI3 for photovoltaic applications" --mode rigorous
+# Single-shot
+crystalyse discover "Validate CsSnI3 for photovoltaic applications" --mode validate
 
-# In unified interface
-crystalyse
-> /mode rigorous
+# Interactive session
+crystalyse --mode validate chat -s detailed_study
+
+# Or switch inside a running session
+> /mode validate
 > Analyse LiCoO2 cathode stability
-
-# In chat session
-crystalyse chat -m rigorous -s detailed_study
 ```
 
 ### Output Structure
 ```
-Rigorous Mode Results:
-├── SMACT Validation: Composition feasibility screening
-├── Structure Generation: Multiple candidates with validation
-├── Energy Analysis: Formation energies + stability metrics
-├── 3D Visualisations: Interactive molecular viewers
-├── Analysis Suite:
+Validate Mode Results:
+├── SMACT Validation: composition feasibility screening
+├── Structure Generation: multiple candidates
+├── Energy Analysis: formation energies + stability metrics
+├── Analysis Suite, when the pymatviz suite is run ([formula]_analysis/):
 │   ├── XRD_Pattern_[formula].pdf
 │   ├── RDF_Analysis_[formula].pdf
 │   ├── Coordination_Analysis_[formula].pdf
 │   └── [formula].cif
-└── Comprehensive Report: Complete materials characterisation
+└── Provenance summary: tool calls and materials found
 ```
 
 ## Mode Switching
 
-### In Unified Interface
+### In a Chat Session
 
 ```bash
-crystalyse  # Launch unified interface
+crystalyse chat -s project_name
 
-# Switch modes during session
-> /mode creative    # Fast exploration
-> /mode rigorous    # Complete validation
+# Change mode mid-session
+➤ /mode validate
+✓ Mode changed from 'auto' to 'validate'
+Note: Agent recreated with new mode. Model will be auto-selected based on mode. Use /model to override.
 ```
 
-### In Chat Sessions
+`/mode <name>` sets the new mode, recreates the agent, re-arms mode injection, and lets the mode's default backbone be reselected unless `/model` has overridden it. Because the agent is recreated, the conversation store also follows the new mode key.
+
+`/mode` with no argument (or `/mode show`) prints a table of the three modes with their default model and description. An unrecognised name prints `Unknown mode: ...` followed by `Available modes: explore, validate, auto`; legacy names are accepted but deprecated.
+
+Mode is otherwise fixed for the lifetime of an agent: nothing in Crystalyse switches modes on its own, and there is no performance-, confidence- or keyword-based adaptation.
+
+### On the Command Line
 
 ```bash
-crystalyse chat -u researcher -s project_name
+# Global option, applies to whichever subcommand follows
+crystalyse --mode explore chat
+crystalyse --mode validate discover "query"
 
-# Switch modes within session
-🔬 You: /mode rigorous
-✅ System: Mode switched to Rigorous
-🔬 You: Now analyse the stability in detail
-```
-
-### Command Line
-
-```bash
-# Specify mode per analysis
-crystalyse analyse "query" --mode creative
-crystalyse analyse "query" --mode rigorous
+# discover also has its own --mode, which overrides the global one
+crystalyse discover "query" --mode explore
+crystalyse discover "query" --mode validate
 ```
 
 ## Choosing the Right Mode
 
-### Use Adaptive Mode When: (Recommended Default)
-- **General research**: Most research scenarios benefit from intelligent tool selection
-- **Learning systems**: System adapts to your expertise level and preferences  
-- **Mixed workflows**: Combining exploration with validation in one session
-- **First-time users**: Enhanced clarification helps guide effective queries
-- **Project organization**: Workspace management keeps research organized
+### Use Auto Mode When: (Recommended Default)
+- **General research**: The full tool set is available if the query needs it
+- **Mixed workflows**: Exploration and checking in the same session
+- **Cost/latency balance**: The `o4-mini` backbone with the complete unified server
 
-### Use Creative Mode When:
-- **Rapid exploration**: Need many quick results for initial screening
-- **Time-sensitive**: Presentations or decision-making with tight deadlines
-- **Brainstorming**: Generating ideas and concepts rapidly
-- **Educational demos**: Quick visual feedback for teaching
-- **Iterative design**: Fast cycles of concept → evaluation → refinement
+### Use Explore Mode When:
+- **Rapid exploration**: Many quick results for initial screening
+- **Time-sensitive work**: The shortest timeout and the smallest tool surface
+- **Brainstorming**: Generating candidates before narrowing down
+- **Educational demos**: Quick feedback while teaching
+- **Iterative design**: Fast concept → evaluation → refinement cycles
 
-### Use Rigorous Mode When:
-- **Research publications**: Need comprehensive validation with cross-checking
-- **Professional projects**: Client work requiring complete documentation
-- **Critical validation**: High-stakes decisions requiring maximum confidence
-- **Regulatory submissions**: Complete traceability and anti-hallucination safeguards
-- **Deep analysis**: Understanding complex materials properties in detail
+### Use Validate Mode When:
+- **Results you will report**: SMACT screening and hull energies included
+- **Critical decisions**: The strongest reasoning backbone (`o3`)
+- **Deep analysis**: Coordination, oxidation states and the full analysis suite
+- **Following up explore**: Confirming a shortlist with the complete pipeline
 
-## Performance Characteristics
+## Timeouts
 
-### Creative Mode Performance
-```bash
-Typical Execution Times:
-├── Simple queries: 30-50 seconds
-├── Complex materials: 1-2 minutes
-├── Multiple compositions: 2-3 minutes
-└── Batch analysis: 5-10 minutes
+The only per-mode timing numbers in the code are timeouts. They are ceilings, not expected runtimes; exceeding one returns `{"status": "failed", "error": "The operation timed out."}`.
 
-Resource Usage:
-├── CPU: Moderate (structure prediction)
-├── GPU: Optional (MACE calculations)
-├── Memory: 4-6 GB
-└── Storage: ~50 MB per analysis
-```
+| Mode | Timeout |
+|------|---------|
+| `explore` | 120 s |
+| `auto` | 180 s |
+| `validate` | 300 s |
 
-### Rigorous Mode Performance
-```bash
-Typical Execution Times:
-├── Simple queries: 2-3 minutes
-├── Complex materials: 3-5 minutes
-├── Detailed analysis: 5-10 minutes
-└── Batch analysis: 15-30 minutes
+Real runtimes depend on the query, the number of compositions, the model backbone, and whether Chemeleon and MACE find a GPU.
 
-Resource Usage:
-├── CPU: High (full analysis suite)
-├── GPU: Recommended (MACE + visualisation)
-├── Memory: 6-8 GB
-└── Storage: ~200 MB per analysis
-```
+## Models and Reasoning Effort
+
+Mode selects the default backbone, but it is only a default:
+
+| Mode | Default backbone | Model ID |
+|------|------------------|----------|
+| `explore` | `openai_o4_mini` | `o4-mini` |
+| `auto` | `openai_o4_mini` | `o4-mini` |
+| `validate` | `openai_o3` | `o3` |
+
+Override it globally with `--model <name>`, or per session with `/model <name>` in chat. `crystalyse models list` prints the effective registry (Name, Backend, Model ID, Context, Modes, Env Var, Source, Usable) and `crystalyse models check` validates that the required API keys are set, exiting non-zero if any is missing.
+
+Registry entries can restrict which modes they support - `anthropic_claude_haiku` and `openrouter_llama3_70b` are `explore`/`auto` only, and `ollama_llama3_70b_direct` is `explore` only, because validate is where the reasoning gap matters most.
+
+Each entry can also declare a reasoning effort, which is what actually makes a validate run more thorough: `ModelConfig.agent_model_settings()` forwards it to the provider - as `reasoning=Reasoning(effort=...)` for OpenAI reasoning models, as `thinking={"type": "adaptive"}` plus `output_config={"effort": ...}` for Anthropic Claude 5 models, and as `thinking={"type": "enabled", "budget_tokens": N}` for Claude 4.x.
 
 ## Technical Implementation
 
@@ -241,94 +231,100 @@ Resource Usage:
 
 ```mermaid
 graph TB
-    A[CrystaLyse Agent] --> B{Mode Selection}
-    B -->|Creative| C[Chemistry Creative Server]
-    B -->|Rigorous| D[Chemistry Unified Server]
-    
+    A[CrystaLyse Agent] --> B{Mode}
+    B -->|explore| C[Chemistry Creative Server<br/>4 tools]
+    B -->|validate / auto| D[Chemistry Unified Server<br/>20 tools]
+    A --> V[Visualization Server<br/>5 tools - always started]
+
     C --> E[Chemeleon CSP]
-    C --> F[MACE Energy]
-    C --> G[Basic Visualisation]
-    
-    D --> H[SMACT Validation]
-    D --> I[Chemeleon CSP]
-    D --> J[MACE Energy]
-    D --> K[Comprehensive Visualisation]
-    D --> L[Analysis Suite]
+    C --> F[MACE Energies]
+
+    D --> G[SMACT Validation]
+    D --> H[Chemeleon CSP]
+    D --> I[MACE Energies + Hull]
+    D --> J[Structural Analysis]
+
+    V --> K[CIF Output]
+    V --> L[pymatviz Analysis Suite]
 ```
 
 ### Tool Availability by Mode
 
-| Tool | Creative Mode | Rigorous Mode | Purpose |
-|------|---------------|---------------|---------|
-| SMACT | ❌ | ✅ | Composition validation |
-| Chemeleon | ✅ | ✅ | Structure prediction |
-| MACE | ✅ | ✅ | Energy calculations |
-| 3D Visualisation | ✅ | ✅ | Interactive structures |
-| XRD Analysis | ❌ | ✅ | Diffraction patterns |
-| RDF Analysis | ❌ | ✅ | Structural analysis |
-| Coordination Analysis | ❌ | ✅ | Local environment |
+| Capability | Explore | Validate / Auto | Server |
+|------------|---------|-----------------|--------|
+| SMACT composition validation | ❌ | ✅ | `chemistry_unified` |
+| Chemeleon structure prediction | ✅ | ✅ | both chemistry servers |
+| MACE formation energies | ✅ | ✅ | both chemistry servers |
+| Structure relaxation, energy above hull | ❌ | ✅ | `chemistry_unified` |
+| Space group, coordination, oxidation states | ❌ | ✅ | `chemistry_unified` |
+| CIF file output | ✅ | ✅ | `visualization` |
+| XRD / RDF / coordination PDFs | ✅ | ✅ | `visualization` |
+
+The pymatviz analysis suite lives on the `visualization` server, which every mode starts, so `XRD_Pattern_<formula>.pdf`, `RDF_Analysis_<formula>.pdf` and `Coordination_Analysis_<formula>.pdf` are reachable in explore mode too. What is genuinely validate-only is the unified server's own analysis tools.
+
+Interactive 3D rendering is currently switched off: `create_3dmol_visualization` writes `<formula>.cif` and reports `3dmol.js visualization disabled for v2.0-alpha - CIF file provided instead`. The defaults match - `cif_only` is true and `enable_html` is false. So visualisation output is a CIF file, plus the pymatviz PDFs whenever `create_pymatviz_analysis_suite` (or `create_rigorous_visualization`, which wraps it) is called. The `visualization` server's tools still take the pre-rename mode strings, so `create_mode_aligned_visualization` only produces the analysis suite when it is passed `mode="rigorous"`; ask for the analysis suite explicitly if you want the PDFs.
 
 ## Best Practices
 
 ### Mode Selection Strategy
 
-1. **Start with Creative**: Use for initial exploration and idea generation
-2. **Validate with Rigorous**: Confirm promising results with complete analysis
-3. **Iterate**: Use creative mode for rapid iteration, rigorous for final validation
-4. **Match Context**: Consider time constraints, audience, and required detail level
+1. **Start in explore**: Generate and rank candidates cheaply
+2. **Confirm in validate**: Re-run the shortlist through SMACT, hull energies and the analysis suite
+3. **Stay in auto** if you do not want to choose: it has the full tool set with the faster backbone
+4. **Match the constraint**: Timeout, cost and the need for SMACT screening are what actually differ
 
 ### Workflow Recommendations
 
 ```bash
-# Recommended research workflow
-1. Initial Exploration (Creative)
-   crystalyse analyse "broad query" --mode creative
+# 1. Initial exploration
+crystalyse discover "broad query" --mode explore
 
-2. Focused Investigation (Creative)
-   crystalyse chat -m creative
-   > Refine based on initial results
+# 2. Focused investigation, interactively
+crystalyse --mode explore chat
+> Refine based on the initial results
 
-3. Detailed Validation (Rigorous)
-   crystalyse discover "specific material" --mode rigorous
+# 3. Detailed validation
+crystalyse discover "specific material" --mode validate
 
-4. Final Analysis (Rigorous)
-   crystalyse chat -m rigorous -s final_study
-   > Complete characterisation
+# 4. Final analysis, interactively
+crystalyse --mode validate chat -s final_study
+> Complete characterisation
 ```
 
 ### Performance Optimisation
 
-- **Creative Mode**: Reduce `num_samples` for faster iteration
-- **Rigorous Mode**: Use GPU acceleration for MACE calculations
-- **Both Modes**: Enable result caching to avoid redundant calculations
-- **Batch Processing**: Group similar queries for efficiency
+- **Explore mode**: Reduce `num_samples` on structure generation for faster iteration
+- **Validate mode**: Use GPU acceleration for MACE calculations
+- **Either mode**: Use `--model` to trade backbone cost against reasoning depth
+- **Batch processing**: Give scripted runs their own `--project` so they do not share a session store with your chat sessions
 
 ## Examples
 
-### Creative Mode Example
+### Explore Mode Example
 
 ```bash
-crystalyse analyse "Design sodium-ion battery cathodes" --mode creative
+crystalyse discover "Design sodium-ion battery cathodes" --mode explore
 ```
 
 Output focus:
-- Quick structure generation (3-5 candidates)
+
+- Quick structure generation
 - Energy ranking for stability
-- 3D visualisations for immediate insight
-- Recommendations for further investigation
+- CIF files for immediate inspection
+- Candidates worth a validate run
 
-### Rigorous Mode Example
+### Validate Mode Example
 
 ```bash
-crystalyse discover "Characterise Na2FePO4F cathode material" --mode rigorous
+crystalyse discover "Characterise Na2FePO4F cathode material" --mode validate
 ```
 
 Output focus:
-- SMACT validation of composition
-- Multiple structure polymorphs
-- Detailed energetic analysis
-- Complete structural characterisation
-- Professional analysis plots
-- Publication-ready results
 
-The choice between creative and rigorous modes allows Crystalyse to adapt to your specific research needs, from rapid exploration to comprehensive validation.
+- SMACT validation of the composition
+- Multiple structure candidates
+- Detailed energetics, including energy above hull
+- Coordination and oxidation-state analysis
+- pymatviz analysis plots on disk
+
+Choosing between explore and validate is a choice about how much of the pipeline to run and which backbone to pay for; `auto` sits in between and is what you get if you choose nothing.

@@ -69,7 +69,7 @@ The provenance system provides complete audit trails for all materials discovery
                    ▼
         ┌────────────────────────────────┐
         │  ProvenanceTraceHandler        │
-        │  (from provenance_system)      │
+        │  (from crystalyse.provenance)  │
         └──────────┬─────────────────────┘
                    │
         ┌──────────┴──────────┬──────────────────┐
@@ -95,29 +95,38 @@ The provenance system provides complete audit trails for all materials discovery
 ### Component Hierarchy
 
 ```
-provenance_system/                 # Standalone module
-├── __init__.py                    # Module exports
+dev/crystalyse/provenance/         # Provenance package (crystalyse.provenance)
+├── __init__.py                    # Package exports
 ├── core/                          # Core utilities
 │   ├── __init__.py
-│   ├── jsonl_logger.py           # Event logging
-│   ├── materials_tracker.py      # Materials extraction
-│   └── mcp_detector.py           # MCP tool detection
+│   ├── event_logger.py            # Event dataclass + JSONLLogger
+│   ├── materials_tracker.py       # Materials extraction
+│   ├── mcp_detector.py            # MCP tool detection
+│   └── pydantic_serializer.py     # Pydantic output serialisation
 ├── handlers/                      # Trace handlers
 │   ├── __init__.py
-│   └── enhanced_trace.py         # ProvenanceTraceHandler
-└── integration/                   # Integration helpers
-    ├── __init__.py
-    └── agent_wrapper.py          # (Not used - circular import avoided)
+│   └── enhanced_trace.py          # ProvenanceTraceHandler
+├── integration/                   # Integration helpers
+│   ├── __init__.py
+│   └── agent_wrapper.py           # (Not used - circular import avoided)
+├── artifact_tracker.py            # ArtifactTracker (computational artefacts)
+├── value_registry.py              # ProvenanceValueRegistry
+└── render_gate.py                 # IntelligentRenderGate
 
 dev/crystalyse/                    # CrystaLyse integration
 ├── ui/
-│   ├── provenance_bridge.py      # CrystaLyseProvenanceHandler
-│   └── chat_ui.py                # Interactive chat integration
+│   ├── provenance_bridge.py       # CrystaLyseProvenanceHandler
+│   └── chat_ui.py                 # Interactive chat integration
 ├── agents/
-│   └── agents_bridge.py   # Agent discover() method
+│   └── agents_bridge.py           # Agent discover() method
 ├── cli.py                         # CLI entry points
-└── config.py                      # Provenance configuration
+└── config/
+    └── __init__.py                # CrystaLyseConfig (provenance settings)
 ```
+
+The package is imported as `crystalyse.provenance` and uses relative imports
+internally (`from ..core import JSONLLogger, MaterialsTracker, MCPDetector`).
+There is no standalone top-level `provenance_system` module.
 
 ---
 
@@ -125,7 +134,7 @@ dev/crystalyse/                    # CrystaLyse integration
 
 ### 1. ProvenanceTraceHandler
 
-**Location**: `provenance_system/handlers/enhanced_trace.py`
+**Location**: `dev/crystalyse/provenance/handlers/enhanced_trace.py`
 
 **Purpose**: Main trace handler that captures all events from OpenAI Agents SDK
 
@@ -157,11 +166,17 @@ def finalize() -> Dict[str, Any]
 - Creates summary JSON
 
 **Event Lifecycle**:
-1. `session_start` - Initialize session
-2. `tool_start` - Tool invocation begins
-3. `tool_end` - Tool completes, extract materials
-4. `assistant_output` - Response generated
-5. `session_end` - Finalize and summarize
+1. `session_start` - Initialize session (records output_dir and capture_mcp_logs)
+2. `user_query` - Original query, recorded by `set_user_query()`
+3. `tool_start` - Tool invocation begins
+4. `tool_end` - Tool completes, materials extracted (carries `has_pydantic`)
+5. `ttfb` - First assistant message output observed
+6. `assistant_output` - Response generated
+7. `session_end` - Finalize and summarize
+
+Also emitted where they apply: `enhanced_material` (Phase 1.5 tools whose name
+starts `validate_`, `calculate_`, `analyze_`, `predict_` or `generate_`),
+`reasoning` (reasoning items) and `error` (event processing failed).
 
 ### 2. CrystaLyseProvenanceHandler
 
@@ -174,10 +189,18 @@ def finalize() -> Dict[str, Any]
 def __init__(
     console: Optional[Console] = None,
     config: Optional['CrystaLyseConfig'] = None,
-    mode: str = "adaptive",
+    mode: str = "auto",                # explore / auto / validate
     session_id: Optional[str] = None,
     **kwargs
 )
+
+# Module-level factory with the same defaults
+def create_provenance_handler(
+    mode: str = "auto",
+    config: Optional['CrystaLyseConfig'] = None,
+    console: Optional[Console] = None,
+    session_id: Optional[str] = None
+) -> CrystaLyseProvenanceHandler
 ```
 
 **Responsibilities**:
@@ -203,7 +226,7 @@ super().__init__(
 
 ### 3. JSONLLogger
 
-**Location**: `provenance_system/core/jsonl_logger.py`
+**Location**: `dev/crystalyse/provenance/core/event_logger.py`
 
 **Purpose**: Structured event logging in JSON Lines format
 
@@ -212,8 +235,17 @@ super().__init__(
 def log(event_type: str, data: Dict[str, Any]) -> None
     """Write event to JSONL file"""
 
+def log_session_start(session_id: str, metadata: Optional[dict] = None) -> None
+    """Session start event (session_id, timestamp, event_count + metadata)"""
+
 def log_session_end(session_id: str, summary: Dict[str, Any]) -> None
     """Final session summary event"""
+
+def get_event_count() -> int
+    """Number of events written so far"""
+
+def read_events() -> list
+    """Read every event back from the file"""
 ```
 
 **Event Format**:
@@ -231,55 +263,105 @@ def log_session_end(session_id: str, summary: Dict[str, Any]) -> None
 
 ### 4. MaterialsTracker
 
-**Location**: `provenance_system/core/materials_tracker.py`
+**Location**: `dev/crystalyse/provenance/core/materials_tracker.py`
 
 **Purpose**: Extract and track materials from tool outputs
 
 **Key Methods**:
 ```python
-def extract_materials(tool_output: Any, tool_name: str) -> List[Dict[str, Any]]
-    """Parse tool output for materials data"""
-
-def add_material(material: Dict[str, Any]) -> None
-    """Add material to tracking"""
+def extract_from_output(output: Any, tool_name: Optional[str] = None) -> List[Material]
+    """Parse tool output for materials, then track and de-duplicate them"""
 
 def get_summary() -> Dict[str, Any]
-    """Generate materials statistics"""
+    """Counts, energy coverage and min/max/avg formation energy"""
 
-def save_catalog(path: Path) -> None
+def to_catalog() -> List[Dict[str, Any]]
+    """Unique materials as a plain list"""
+
+def to_enhanced_catalog() -> Dict[str, Any]
+    """Versioned catalogue with metadata and statistics"""
+
+def save_catalog(path: str, enhanced: bool = True) -> None
     """Save materials_catalog.json"""
 ```
 
 **Extraction Patterns**:
+- Per-tool extractors dispatched on the detected MCP tool name, with a generic fallback
 - Detects composition strings (e.g., "MgFe2O4", "Li2CoO3")
-- Extracts formation energies from various formats
-- Parses JSON outputs from MCP tools
-- Handles both single materials and batches
+- Extracts formation energies, including an `energy_calculations` lookup keyed on `structure_id`
+- Records Phase 1.5 properties: energy above hull, stability, band gap, bulk modulus,
+  stress tensor, dopants, oxidation states, coordination environments
+- De-duplicates on a normalised (alphabetically ordered) composition, merging repeat
+  observations of the same material
 
 ### 5. MCPDetector
 
-**Location**: `provenance_system/core/mcp_detector.py`
+**Location**: `dev/crystalyse/provenance/core/mcp_detector.py`
 
-**Purpose**: Detect actual MCP tool names from SDK wrapper names
+**Purpose**: Detect actual MCP tool names from SDK-wrapped outputs
 
 **Key Methods**:
 ```python
-def detect_mcp_tool(tool_args: Dict[str, Any], tool_output: Any) -> Optional[str]
-    """Identify actual MCP tool from args or output"""
+@classmethod
+def detect_tool(output: Any) -> Optional[str]
+    """Identify the actual MCP tool from the (serialised) tool output"""
+
+@classmethod
+def get_tool_category(tool_name: str) -> str
+    """Group a tool for metrics: generation, validation, calculation, ..."""
 ```
 
-**Detection Strategy**:
-1. Check tool args for `server_name` or `tool_name`
-2. Parse tool output for tool signatures
-3. Match against known MCP tool patterns
-4. Return actual tool name or None
+**Detection Strategy** (the detector only ever sees the output, never the tool args):
+1. Unwrap any SDK `{"type": "text", "text": "..."}` envelope and parse the JSON inside
+2. Check for an explicit `server_type` field: `chemistry-creative-server` →
+   `creative_discovery_pipeline`, `chemistry-unified-server` →
+   `comprehensive_materials_analysis`
+3. Check for `analysis_mode` in (`explore`, `creative`) → `creative_discovery_pipeline`
+4. Score the output's keys against `TOOL_SIGNATURES`, accepting the best match at ≥ 50%
+5. Fall back on `generated_structures` (+ `energy_calculations`) being present,
+   otherwise return None
 
-**Known Tools**:
-- `generate_structures`
-- `comprehensive_materials_analysis`
-- `creative_discovery_pipeline`
-- `validate_composition`
-- `calculate_formation_energy`
+**Known Tools**: `TOOL_SIGNATURES` holds 20 entries -
+`comprehensive_materials_analysis`, `creative_discovery_pipeline`,
+`validate_composition`, `estimate_band_gap`, `predict_dopants`,
+`smact_validate_fast`, `generate_ml_representation`, `filter_compositions`,
+`generate_crystal_csp`, `calculate_formation_energy`, `relax_structure`,
+`calculate_stress`, `fit_equation_of_state`, `list_foundation_models`,
+`analyze_space_group`, `calculate_energy_above_hull`, `analyze_coordination`,
+`analyze_oxidation_states`, `save_structure_as_cif` and `visualize_structure`.
+A call the detector cannot identify is recorded under its SDK wrapper name
+(usually `unknown_tool`).
+
+### 6. ProvenanceValueRegistry and the Render Gate
+
+**Location**: `dev/crystalyse/provenance/value_registry.py`,
+`dev/crystalyse/provenance/artifact_tracker.py`,
+`dev/crystalyse/provenance/render_gate.py`
+
+**Purpose**: Make individual numbers traceable back to the tool call that produced them
+
+Every identified MCP tool output is registered with the global registry as the
+tool call ends:
+
+```python
+registry = get_global_registry()
+if registry and mcp_tool:
+    registry.register_tool_output(
+        tool_name=mcp_tool,
+        tool_call_id=call_id,
+        input_data={},
+        output_data=serialized_output,
+        timestamp=datetime.now().isoformat(),
+    )
+```
+
+`ProvenanceValueRegistry` delegates to an `ArtifactTracker`, which registers each
+tool output as an artifact and extracts the numeric values it contains, so a value
+can be traced back to its source call. `EnhancedCrystaLyseAgent.discover()` then
+builds an `IntelligentRenderGate(provenance_tracker=get_global_registry())` when
+`config.render_gate["enabled"]`, runs the assistant response through it, and returns
+a `render_gate` block alongside the provenance block. See
+[Render Gate System](render_gate_system.md) for the gate itself.
 
 ---
 
@@ -293,28 +375,41 @@ def detect_mcp_tool(tool_args: Dict[str, Any], tool_output: Any) -> Optional[str
 
 ```python
 @app.command()
-def discover(query: str, provenance_dir: Optional[str] = None, hide_summary: bool = False):
+def discover(
+    query: str,
+    provenance_dir: Optional[str] = None,   # --provenance-dir
+    hide_summary: bool = False,             # --hide-summary
+    mode: Optional[str] = None,             # --mode explore|validate|auto
+    project: Optional[str] = None,          # --project / -p
+):
     """Single-shot discovery with automatic provenance"""
+
+    # Per-command options override the global ones
+    effective_mode = resolve_mode_name(mode) if mode is not None else state["mode"]
+    effective_project = project if project is not None else state["project"]
 
     config = Config.load()
     if provenance_dir:
-        config.provenance['output_dir'] = Path(provenance_dir)
+        config.provenance["output_dir"] = Path(provenance_dir)
 
     agent = EnhancedCrystaLyseAgent(
         config=config,
-        project_name=state['project'],
-        mode=state['mode'].value,
-        model=state['model']
+        project_name=effective_project,
+        mode=effective_mode.value,
+        model=state["model"],
     )
 
     # Agent auto-creates provenance handler
     results = await agent.discover(query)
 
-    # Display summary if enabled
-    show_summary = config.provenance['show_summary'] and not hide_summary
-    if show_summary and results.get('provenance_summary'):
-        display_provenance_summary(results['provenance_summary'])
+    # display_results() reaches into results["provenance"]
+    show_summary = config.provenance["show_summary"] and not hide_summary
+    display_results(results, show_provenance_summary=show_summary)
 ```
+
+`--mode` takes the canonical modes (`explore`, `validate`, `auto`); the legacy
+names `creative`, `rigorous` and `adaptive` still resolve through
+`resolve_mode_name()` with a `DeprecationWarning`.
 
 #### Interactive Chat
 
@@ -360,18 +455,23 @@ def analyse_provenance(
     display_session_analysis(session_dir)
 ```
 
-**Path Initialization** (Critical for module import):
+**Legacy Path Initialization** (inert):
+
+`cli.py` still carries an early `sys.path` block from the days when provenance
+lived in a standalone top-level module:
 
 ```python
-# Lines 13-19 in cli.py
-# Add provenance_system to path for installed package
-# This ensures provenance works when using 'crystalyse' command
-# Need to add parent directory of provenance_system to sys.path
+# dev/crystalyse/cli.py
 crystalyse_root = Path(__file__).parent.parent.parent
 provenance_system_path = crystalyse_root / "provenance_system"
 if provenance_system_path.exists() and str(crystalyse_root) not in sys.path:
     sys.path.insert(0, str(crystalyse_root))
 ```
+
+No `provenance_system/` directory exists any more, so the guard never fires.
+Provenance is imported as an ordinary subpackage
+(`from ..provenance.handlers import ProvenanceTraceHandler`), which needs no
+`sys.path` manipulation.
 
 ### 2. ChatExperience Integration
 
@@ -389,7 +489,7 @@ def __init__(self, project: str, mode: str, model: str, user_id: str = "default"
 ```python
 async def run_loop(self):
     while True:
-        query = Prompt.ask("➤")
+        query = self.console.input("[bold green]➤ [/bold green]")
 
         # Create provenance handler for this query (always-on)
         if PROVENANCE_AVAILABLE:
@@ -399,12 +499,14 @@ async def run_loop(self):
                 mode=self.mode
             )
             self.provenance_handler = trace_handler
+            # Record the user's original query -> user_query event
+            trace_handler.set_user_query(query)
         else:
             trace_handler = ToolTraceHandler(self.console)
 
-        # Discover with provenance
+        # Query goes straight to the agent with no preprocessing
         results = await self.agent.discover(
-            enriched_query,
+            query,
             history=self.history,
             trace_handler=trace_handler
         )
@@ -479,44 +581,56 @@ async def discover(
     # Auto-create provenance handler if not provided
     if trace_handler is None and PROVENANCE_AVAILABLE and CrystaLyseProvenanceHandler:
         try:
-            from rich.console import Console
             trace_handler = CrystaLyseProvenanceHandler(
-                config=self.config,
-                mode=self.mode,
-                console=Console()
+                config=self.config, mode=self.mode, console=Console()
             )
         except Exception as e:
-            logger.warning(f"Could not create provenance handler: {e}")
-            trace_handler = ToolTraceHandler(Console())
+            logger.warning(f"Failed to create provenance handler: {e}")
+            trace_handler = None  # discovery proceeds without provenance
 
-    # Create RunConfig with fixed trace_id
-    try:
-        from agents import RunConfig
-        import time
+    # Record the user's query (auto-created or caller-supplied handler)
+    if trace_handler is not None and hasattr(trace_handler, "set_user_query"):
+        trace_handler.set_user_query(query)
 
-        # Use integer timestamp to avoid dots in trace_id (SDK requirement)
+    async with self._managed_mcp_servers() as mcp_servers:
+        # ... resolve_model_name() / resolve_model_config(), build the SDK Agent ...
+
+        # trace_id must start with 'trace_' (OpenAI API) and contain no dots
         trace_timestamp = int(time.time())
-        trace_id = f"crystalyse_{self.session_id}_{trace_timestamp}"
-
+        trace_id = f"trace_crystalyse_{self.session_id}_{trace_timestamp}"
         run_config = RunConfig(trace_id=trace_id)
-    except Exception as e:
-        logger.warning(f"Could not create RunConfig: {e}")
-        run_config = None
 
-    # Run discovery with provenance
-    result = await self.agent.run(
-        query,
-        trace_handler=trace_handler,
-        run_config=run_config
-    )
+        async with asyncio.timeout(self.config.mode_timeouts.get(self.mode, 180)):
+            # Always streamed, so provenance capture works for every model
+            result = Runner.run_streamed(**stream_args)
+            async for event in result.stream_events():
+                if trace_handler:
+                    trace_handler.on_event(event)
 
-    # Return results with provenance summary
-    return {
-        "status": "completed",
-        "response": result,
-        "provenance_summary": trace_handler.finalize() if hasattr(trace_handler, 'finalize') else None
-    }
+        # ... render gate over final_response ...
+
+        result = {
+            "status": "completed",
+            "query": query,
+            "response": final_response,
+            "render_gate": render_gate_stats,
+        }
+
+        if isinstance(trace_handler, CrystaLyseProvenanceHandler):
+            result["provenance"] = {
+                "session_id": trace_handler.session_id,
+                "output_dir": str(trace_handler.output_dir),
+                "summary": trace_handler.finalize(),
+                "materials_catalogue": str(trace_handler.get_materials_catalogue_path()),
+                "summary_file": str(trace_handler.get_summary_path()),
+                "events_file": str(trace_handler.get_events_path()),
+            }
+
+        return result
 ```
+
+The finalised summary is nested under `results["provenance"]["summary"]`; there is
+no top-level `provenance_summary` key.
 
 ---
 
@@ -530,39 +644,46 @@ async def discover(
        │
 2. Handler Creation
    └─> CrystaLyseProvenanceHandler(config, mode, console)
+       ├─> JSONLLogger.log_session_start(...)
+       └─> set_user_query(query) → JSONLLogger.log("user_query", ...)
        │
 3. Agent Discovery
    └─> EnhancedCrystaLyseAgent.discover(query, trace_handler)
        │
-4. SDK Events
-   ├─> session_start → ProvenanceTraceHandler.on_event()
-   │                    └─> JSONLLogger.log("session_start", ...)
-   │
-   ├─> tool_start → ProvenanceTraceHandler.on_event()
+4. SDK Stream Events (run_item_stream_event)
+   ├─> tool_call_item → ProvenanceTraceHandler.on_event()
    │                 └─> JSONLLogger.log("tool_start", {...})
    │                 └─> Track tool call (EnhancedToolCall)
    │
-   ├─> tool_end → ProvenanceTraceHandler.on_event()
-   │               └─> MCPDetector.detect_mcp_tool(args, output)
-   │               └─> MaterialsTracker.extract_materials(output, tool)
-   │               └─> JSONLLogger.log("tool_end", {...})
+   ├─> tool_call_output_item → ProvenanceTraceHandler.on_event()
+   │               └─> serialize_pydantic_model(output)
    │               └─> Save raw output (if enabled)
+   │               └─> MCPDetector.detect_tool(output)
+   │               └─> MaterialsTracker.extract_from_output(output, tool)
+   │               └─> get_global_registry().register_tool_output(...)
+   │               └─> JSONLLogger.log("enhanced_material", ...) (Phase 1.5 tools)
+   │               └─> JSONLLogger.log("tool_end", {...})
    │
-   ├─> assistant_output → ProvenanceTraceHandler.on_event()
+   ├─> message_output_item → ProvenanceTraceHandler.on_event()
+   │                       └─> JSONLLogger.log("ttfb", ...) on the first message
    │                       └─> Buffer response content
+   │
+   ├─> reasoning_item → JSONLLogger.log("reasoning", {...})
    │
    └─> session_end (implicit via finalize)
        │
 5. Finalization
    └─> ProvenanceTraceHandler.finalize()
        ├─> Save assistant_full.md
-       ├─> MaterialsTracker.save_catalog() → materials_catalog.json
+       ├─> Save conversation_full.md (and conversation.json when non-empty)
+       ├─> MaterialsTracker.save_catalog(..., enhanced=True) → materials_catalog.json
        ├─> Generate summary statistics
        ├─> Save summary.json
        └─> JSONLLogger.log_session_end(...)
        │
 6. Display Summary
-   └─> ChatExperience._display_provenance_summary(summary)
+   ├─> cli.display_provenance_summary(results["provenance"])  (crystalyse discover)
+   └─> ChatExperience._display_provenance_summary(summary)     (interactive chat)
        └─> Rich Table with metrics
 ```
 
@@ -570,47 +691,57 @@ async def discover(
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OpenAI Agents SDK                         │
-│                                                              │
-│  agent.run() generates events:                              │
-│    - AgentSessionStart                                      │
-│    - ToolCallStart                                          │
-│    - ToolCallEnd                                            │
-│    - MessageChunk (streaming)                               │
-│    - AgentSessionEnd                                        │
+│                    OpenAI Agents SDK                        │
+│                                                             │
+│  Runner.run_streamed() emits stream events; the handler     │
+│  reacts to exactly one of them:                             │
+│    - run_item_stream_event, dispatched on event.item.type:  │
+│        · tool_call_item                                     │
+│        · tool_call_output_item                              │
+│        · message_output_item                                │
+│        · reasoning_item                                     │
 └──────────────────┬──────────────────────────────────────────┘
                    │ events
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
 │         ProvenanceTraceHandler.on_event(event)              │
-│                                                              │
-│  if event.type == "tool_call_start":                        │
+│                                                             │
+│  if event.type == "run_item_stream_event":                  │
+│      self._process_stream_event(event.item)                 │
+│                                                             │
+│  tool_call_item        → _on_tool_call_start(item)          │
 │      tool_call = EnhancedToolCall(...)                      │
-│      self.tool_calls[call_id] = tool_call                   │
 │      self.event_logger.log("tool_start", ...)               │
-│                                                              │
-│  elif event.type == "tool_call_end":                        │
-│      mcp_tool = MCPDetector.detect_mcp_tool(...)            │
-│      tool_call.mcp_tool = mcp_tool                          │
-│      materials = MaterialsTracker.extract_materials(...)    │
-│      tool_call.materials_extracted = materials              │
+│                                                             │
+│  tool_call_output_item → _on_tool_call_end(item)            │
+│      mcp_tool = self.mcp_detector.detect_tool(output)       │
+│      materials = self.materials_tracker                     │
+│          .extract_from_output(output, mcp_tool or wrapper)  │
+│      get_global_registry().register_tool_output(...)        │
 │      self.event_logger.log("tool_end", ...)                 │
-│                                                              │
-│  elif event.type == "message_chunk":                        │
-│      self.assistant_buffer.append(chunk.content)            │
+│                                                             │
+│  message_output_item   → _on_message_output(item)           │
+│      self.assistant_buffer.append(                          │
+│          ItemHelpers.text_message_output(item))             │
+│                                                             │
+│  reasoning_item        → _on_reasoning(item)                │
+│                                                             │
+│  Every other event type is ignored.                         │
 └──────────────────┬──────────────────────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Provenance Output Files                         │
-│                                                              │
-│  provenance_output/runs/crystalyse_adaptive_YYYYMMDD_HHMMSS/│
-│  ├── events.jsonl                ← All events               │
-│  ├── summary.json                ← Session summary          │
-│  ├── materials_catalog.json     ← Materials found           │
-│  ├── assistant_full.md           ← Full response            │
-│  └── raw_outputs/                ← Raw tool outputs         │
-│      └── tool_call_fc_xyz.json                              │
+│              Provenance Output Files                        │
+│                                                             │
+│  provenance_output/runs/crystalyse_explore_YYYYMMDD_HHMMSS/ │
+│  ├── events.jsonl              ← All events                 │
+│  ├── summary.json              ← Session summary            │
+│  ├── materials_catalog.json    ← Materials found            │
+│  ├── materials.jsonl           ← One line per material      │
+│  ├── assistant_full.md         ← Full response              │
+│  ├── conversation_full.md      ← Query + response           │
+│  ├── conversation.json         ← Conversation log           │
+│  └── raw_output_<call_id>.json ← Raw tool outputs           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -623,114 +754,126 @@ async def discover(
 ```
 provenance_output/
 └── runs/
-    └── crystalyse_{mode}_{timestamp}/        # e.g., crystalyse_adaptive_20251008_205944
+    └── crystalyse_{mode}_{timestamp}/        # e.g., crystalyse_explore_20260120_015444
         ├── events.jsonl                      # Sequential event log
         ├── summary.json                      # Session summary
-        ├── materials_catalog.json            # Materials discovered
-        ├── materials_catalog.jsonl           # Materials event log
+        ├── materials_catalog.json            # Materials discovered (enhanced catalogue)
+        ├── materials.jsonl                   # One line per extracted material
         ├── assistant_full.md                 # Complete assistant response
-        └── raw_outputs/                      # Raw tool outputs (if enabled)
-            ├── tool_call_fc_abc123.json
-            └── tool_call_fc_def456.json
+        ├── conversation_full.md              # Query and response as markdown
+        ├── conversation.json                 # Conversation log (when non-empty)
+        └── raw_output_{call_id}.json         # Raw tool output, one per call (if enabled)
 ```
+
+Raw outputs are written flat into the session directory as
+`raw_output_{call_id[:8]}.json`, not into a subdirectory.
 
 ### File Formats
 
 #### events.jsonl
 
-Sequential log of all events (JSON Lines format - one JSON object per line):
+Sequential log of all events (JSON Lines format - one JSON object per line).
+The sample below is the run committed at
+`dev/provenance_output/runs/crystalyse_creative_20260120_015444/`; it was captured
+before the mode rename, so its session id still carries the deprecated `creative`
+alias, and new sessions are named `crystalyse_explore_*`, `crystalyse_validate_*`
+or `crystalyse_auto_*`:
 
 ```jsonl
-{"type": "session_start", "ts": "2025-10-08T20:59:44.286765", "data": {"session_id": "crystalyse_adaptive_20251008_205944", "timestamp": "2025-10-08T20:59:44.286755", "event_count": 0, "output_dir": "provenance_output/runs/crystalyse_adaptive_20251008_205944"}}
-{"type": "tool_start", "ts": "2025-10-08T21:01:24.311996", "data": {"wrapper": "unknown_tool", "call_id": "fc_045c549e...", "timestamp": "2025-10-08T21:01:24.311992"}}
-{"type": "tool_end", "ts": "2025-10-08T21:01:24.314270", "data": {"wrapper": "unknown_tool", "mcp_tool": "generate_structures", "duration_ms": 0.129, "materials_count": 16, "call_id": "fc_045c549e...", "timestamp": "2025-10-08T21:01:24.314268"}}
-{"type": "assistant_output", "ts": "2025-10-08T21:01:34.750850", "data": {"length": 2847, "timestamp": "2025-10-08T21:01:34.750848", "session_id": "crystalyse_adaptive_20251008_205944"}}
-{"type": "session_end", "ts": "2025-10-08T21:01:34.750877", "data": {"session_id": "crystalyse_adaptive_20251008_205944", "total_time_s": 110.464, "tool_calls_total": 1, "materials_found": 16}}
+{"type": "session_start", "ts": "2026-01-20T01:54:44.452377", "data": {"session_id": "crystalyse_creative_20260120_015444", "timestamp": "2026-01-20T01:54:44.452370", "event_count": 0, "output_dir": "provenance_output/runs/crystalyse_creative_20260120_015444", "capture_mcp_logs": false}}
+{"type": "user_query", "ts": "2026-01-20T01:54:44.452511", "data": {"query": "Find stable thermoelectric", "timestamp": "2026-01-20T01:54:44.452509"}}
+{"type": "tool_start", "ts": "2026-01-20T01:54:56.347302", "data": {"wrapper": "unknown_tool", "call_id": "fc_09583ad4b8700c8500696ee06f51e481a18ecabc96f6d7846c", "timestamp": "2026-01-20T01:54:56.347295"}}
+{"type": "tool_end", "ts": "2026-01-20T01:55:03.397454", "data": {"wrapper": "unknown_tool", "mcp_tool": "creative_discovery_pipeline", "duration_ms": 7047.950029373169, "materials_count": 0, "call_id": "fc_09583ad4b8700c8500696ee06f51e481a18ecabc96f6d7846c", "has_pydantic": false, "timestamp": "2026-01-20T01:55:03.397449"}}
+{"type": "ttfb", "ts": "2026-01-20T01:55:08.055359", "data": {"time_ms": 23602.98442840576, "timestamp": "2026-01-20T01:55:08.055353"}}
+{"type": "assistant_output", "ts": "2026-01-20T01:55:08.061122", "data": {"length": 1128, "timestamp": "2026-01-20T01:55:08.061118", "session_id": "crystalyse_creative_20260120_015444"}}
+{"type": "session_end", "ts": "2026-01-20T01:55:08.061434", "data": {"session_id": "crystalyse_creative_20260120_015444", "timestamp": "2026-01-20T01:55:08.061379", "event_count": 6, "total_time_s": 23.60901117324829, "ttfb_ms": 23602.98442840576, "tool_calls_total": 1, "materials_found": 0, "unique_compositions": 0, "mcp_operations": 1, "mcp_tools": {"creative_discovery_pipeline": {"count": 1, "total_ms": 7047.950029373169, "materials": 0, "avg_ms": 7047.950029373169}}, "materials_summary": {"total": 0, "with_energy": 0, "min_energy": null, "max_energy": null, "avg_energy": null}}}
 ```
+
+That is 7 events for a single one-tool query. `reasoning`,
+`enhanced_material` and `error` events appear when the run produces them.
 
 #### summary.json
 
-High-level session statistics:
+High-level session statistics, exactly the keys
+`ProvenanceTraceHandler.finalize()` writes (same committed sample run):
 
 ```json
 {
-  "session_id": "crystalyse_adaptive_20251008_205944",
-  "total_time_s": 110.46412205696106,
-  "ttfb_ms": 108030.28106689453,
+  "session_id": "crystalyse_creative_20260120_015444",
+  "total_time_s": 23.60901117324829,
+  "ttfb_ms": 23602.98442840576,
   "tool_calls_total": 1,
-  "materials_found": 16,
-  "unique_compositions": 1,
+  "materials_found": 0,
+  "unique_compositions": 0,
   "mcp_operations": 1,
-  "timestamp": "2025-10-08T21:01:34.750877",
+  "timestamp": "2026-01-20T01:55:08.061379",
   "mcp_tools": {
-    "generate_structures": {
+    "creative_discovery_pipeline": {
       "count": 1,
-      "total_ms": 0.12969970703125,
-      "materials": 16,
-      "avg_ms": 0.12969970703125
+      "total_ms": 7047.950029373169,
+      "materials": 0,
+      "avg_ms": 7047.950029373169
     }
   },
   "materials_summary": {
-    "total": 16,
+    "total": 0,
     "with_energy": 0,
     "min_energy": null,
     "max_energy": null,
     "avg_energy": null
-  },
-  "mode": "adaptive",
-  "output_dir": "provenance_output/runs/crystalyse_adaptive_20251008_205944",
-  "session_info": {
-    "session_id": "crystalyse_adaptive_20251008_205944",
-    "mode": "adaptive",
-    "output_dir": "provenance_output/runs/crystalyse_adaptive_20251008_205944",
-    "summary_file": "provenance_output/runs/.../summary.json",
-    "materials_file": "provenance_output/runs/.../materials_catalog.json",
-    "events_file": "provenance_output/runs/.../events.jsonl"
   }
 }
 ```
+
+`CrystaLyseProvenanceHandler.finalize()` adds `mode`, `session_info` and
+`output_dir` to the dictionary it *returns*, after summary.json has already been
+written - so those three keys reach the CLI summary table, not the file.
 
 #### materials_catalog.json
 
-All materials discovered with metadata:
+`finalize()` calls `save_catalog(..., enhanced=True)`, which writes
+`to_enhanced_catalog()`. `Material.to_dict()` drops `None` values, so unset fields
+are absent rather than null. From the committed sample run (which extracted no
+materials):
 
 ```json
 {
-  "materials": [
-    {
-      "composition": "MgFe2O4",
-      "formula": "MgFe2O4",
-      "source_tool": "generate_structures",
-      "timestamp": "2025-10-08T21:01:24.314268",
-      "formation_energy": null,
-      "additional_data": {}
-    },
-    {
-      "composition": "Mg2Fe4O8",
-      "formula": "Mg2Fe4O8",
-      "source_tool": "generate_structures",
-      "timestamp": "2025-10-08T21:01:24.314268",
-      "formation_energy": null,
-      "additional_data": {}
-    }
-  ],
-  "summary": {
-    "total_materials": 16,
-    "unique_compositions": 1,
+  "version": "1.5.0",
+  "timestamp": "2026-01-20T01:55:08.061314",
+  "total_materials": 0,
+  "materials": [],
+  "materials_by_method": {},
+  "statistics": {
+    "total_materials": 0,
+    "unique_compositions": 0,
     "materials_with_energy": 0,
-    "by_tool": {
-      "generate_structures": 16
-    }
-  }
+    "energy_coverage": 0.0,
+    "total_observations": 0,
+    "methods_used": [],
+    "materials_with_band_gap": 0,
+    "materials_with_dopants": 0,
+    "stable_materials": 0,
+    "materials_with_stress": 0
+  },
+  "unique_compositions": []
 }
 ```
+
+For a run that does find materials, `materials` holds one record per unique
+(normalised) composition - `composition`, `formula`, `formation_energy`,
+`energy_unit`, `structure_id`, `space_group`, `source_tool`, `timestamp`, `method`,
+plus whichever Phase 1.5 fields were measured (`energy_above_hull`, `is_stable`,
+`band_gap`, `bulk_modulus`, `stress_tensor`, `dopants`, `oxidation_states`,
+`coordination_environments`) - and `materials_by_method` groups the same records
+by `method`. There is no `summary` or `by_tool` key; the counts live under
+`statistics`.
 
 #### assistant_full.md
 
 Complete assistant response (markdown format):
 
 ```markdown
-I have completed an adaptive-mode comprehensive analysis for the spinel series
+I have completed an auto-mode comprehensive analysis for the spinel series
 Mg₁₊ₓFe₂₋ₓO₄ (x = 0–3), focusing on MgFe₂O₄ as the baseline photocatalyst
 composition. Key findings:
 
@@ -751,19 +894,21 @@ composition. Key findings:
 - ✅ `crystalyse discover` - Non-interactive single queries
 - ✅ `crystalyse` (interactive chat) - Multi-query sessions
 - ✅ Automatic handler creation when none provided
-- ✅ Graceful fallback to basic trace handler if provenance unavailable
+- ✅ Graceful degradation: interactive chat falls back to the basic trace handler,
+  `discover()` proceeds with `trace_handler = None`
 
 #### Complete Data Capture
 - ✅ All events logged to `events.jsonl`
-  - session_start, tool_start, tool_end, assistant_output, session_end
-  - 8 events captured per typical query
+  - session_start, user_query, tool_start, tool_end, ttfb, assistant_output, session_end
+  - plus reasoning, enhanced_material and error events where they apply
+  - 7 events for the single-tool query in the committed sample run
 - ✅ Materials tracked with compositions
   - Correct count (16 materials in test case)
   - Compositions extracted (MgFe2O4, Mg2Fe4O8, etc.)
   - Source tool attribution
 - ✅ MCP tool detection working
-  - `generate_structures` correctly detected
-  - Wrapper name → actual tool name mapping
+  - 20 tool signatures in `MCPDetector.TOOL_SIGNATURES`
+  - Wrapper name → actual tool name mapping (`unknown_tool` → `creative_discovery_pipeline`)
 - ✅ Performance metrics captured
   - Total runtime (110.46s in test case)
   - Time to first byte (TTFB: 108030ms)
@@ -774,11 +919,12 @@ composition. Key findings:
   - Removed ToolTraceHandler import from enhanced_trace.py
   - Using duck typing instead of actual inheritance
 - ✅ Module path issues fixed
-  - sys.path configured correctly in cli.py and provenance_bridge.py
-  - Parent directory added (not module directory itself)
+  - Provenance folded into the package as `crystalyse.provenance`
+  - Imported with ordinary relative imports; no sys.path manipulation needed
 - ✅ SDK trace_id validation errors fixed
   - Using `int(time.time())` instead of float
   - No dots in trace_id (SDK requirement satisfied)
+  - Prefixed with `trace_`, as the OpenAI API requires
 - ✅ Summary display shows correct values
   - Fixed key mismatches (mcp_operations, tool_calls_total)
   - All metrics display correctly
@@ -803,91 +949,31 @@ composition. Key findings:
 
 ## Known Limitations
 
-### Energy Extraction (Non-Critical)
+### Energy Extraction
 
-**Symptom**: Summary shows `with_energy: 0` even though energy calculations are performed.
+Formation energies are extracted. `MaterialsTracker` builds an energy lookup from
+`energy_calculations` keyed on `structure_id` and assigns `formation_energy` to each
+structure pulled out of `comprehensive_materials_analysis` and
+`creative_discovery_pipeline` output, and has dedicated extractors for
+`calculate_formation_energy`, `calculate_energy_above_hull` and
+`calculate_energy_mace`. An energy that arrives without a composition is held as
+`_orphaned_energy_data` and attached to the next material that lacks one.
+`get_summary()` fills in `min_energy` / `max_energy` / `avg_energy` whenever any
+tracked material carries an energy, and each `Material` also records
+`energy_above_hull`, `is_stable`, `band_gap`, `bulk_modulus`, `stress_tensor`,
+`dopants` and `oxidation_states`.
 
-**Details**:
-```json
-"materials_summary": {
-  "total": 16,
-  "with_energy": 0,     ← Should be 16
-  "min_energy": null,   ← Should be -5.18 eV/atom
-  "max_energy": null,
-  "avg_energy": null
-}
-```
+**What still limits coverage**:
 
-**Root Cause**:
-
-The `MaterialsTracker.extract_materials()` method in `provenance_system/core/materials_tracker.py` does not currently parse formation energies from the `comprehensive_materials_analysis` MCP tool output.
-
-**Current Extraction**:
-- ✅ Composition strings (MgFe2O4, etc.)
-- ✅ Material count (16 materials)
-- ✅ Tool attribution (generate_structures)
-- ❌ Formation energies (not extracted from tool output)
-
-**Why This Happens**:
-
-The MCP tool `comprehensive_materials_analysis` returns a complex JSON structure with nested energy data. The current extraction logic looks for simple patterns like:
-```python
-# Current patterns in materials_tracker.py
-"composition": "MgFe2O4"
-"formula": "MgFe2O4"
-```
-
-But formation energies are deeply nested:
-```json
-{
-  "structures": [
-    {
-      "composition": "MgFe2O4",
-      "analysis": {
-        "formation_energy_per_atom": -4.5365,
-        "energy_above_hull": 0.1183
-      }
-    }
-  ]
-}
-```
-
-**Impact Assessment**:
-
-✅ **NOT a Functional Issue**:
-- All energy data IS present in CIF files
-- All energy data IS present in analysis markdown reports
-- Provenance captures the complete tool output in `raw_outputs/`
-- Users can access all energy data through normal CrystaLyse outputs
-
-❌ **Provenance Tracking Detail**:
-- Provenance summary doesn't show energy statistics
-- Cannot filter provenance by energy range
-- Cannot quickly assess energy coverage from summary alone
-
-**Workaround**:
-
-Energy data is available in:
-1. **CIF files**: All relaxed structures with total energies
-2. **Analysis reports**: Formation energies, E_hull values
-3. **Raw outputs**: Complete tool responses in `raw_outputs/`
-4. **Session output**: `all-runtime-output/session_*/` directories
-
-**Should We Fix This?**:
-
-**Arguments FOR fixing**:
-- Complete provenance should include all computational results
-- Energy statistics are valuable for quick assessment
-- Enables filtering/sorting sessions by energy criteria
-- Makes provenance more self-contained
-
-**Arguments AGAINST fixing**:
-- Energy data is already accessible through normal outputs
-- Adds complexity to materials extraction logic
-- Tool output formats may vary across MCP servers
-- Provenance system is production-ready without it
-
-**Recommendation**: This is an **enhancement**, not a bug. The provenance system is production-ready as-is. Energy extraction can be added later if users request better energy-based filtering/analysis of provenance data.
+- Extraction is dispatched on the *detected* tool name. A call the detector cannot
+  identify falls through to `_extract_generic()`, which only reads top-level
+  `formula` / `composition` and top-level property fields - a nested payload
+  (a list of structures, say) yields nothing.
+- `with_energy` counts unique materials, so structures that were generated but
+  never costed pull the reported energy coverage down.
+- Raw tool outputs remain the ground truth. Each call is saved as
+  `raw_output_{call_id}.json` while `CRYSTALYSE_CAPTURE_RAW` is enabled, and the
+  same energies are in the CIF files and analysis reports.
 
 ---
 
@@ -895,7 +981,7 @@ Energy data is available in:
 
 ### CrystaLyse Config
 
-**File**: `dev/crystalyse/config.py`
+**File**: `dev/crystalyse/config/__init__.py` (the former `config.py`, promoted to a package to house `models.py`, `modes.py`, `settings.py` and `model_overrides.py`)
 
 ```python
 class CrystaLyseConfig:
@@ -938,7 +1024,7 @@ class CrystaLyseConfig:
 | `CRYSTALYSE_CAPTURE_MCP_LOGS` | `false` | Attempt to capture MCP server logs |
 | `CRYSTALYSE_SESSION_PREFIX` | `crystalyse` | Prefix for session IDs |
 | `CRYSTALYSE_SHOW_PROVENANCE_SUMMARY` | `true` | Display summary table after queries |
-| `CRYSTALYSE_VISUAL_TRACE` | `true` | Show real-time tool trace in console |
+| `CRYSTALYSE_VISUAL_TRACE` | `true` | Gates the duck-typed base handler, whose `on_event()` is a no-op - currently renders nothing |
 
 ### Customization Examples
 
@@ -972,19 +1058,19 @@ crystalyse discover "thermoelectrics"
 $ crystalyse discover "novel photocatalyst for water splitting"
 
 Starting non-interactive discovery: novel photocatalyst for water splitting
-Mode: adaptive | Project: crystalyse_session
+Mode: auto | Project: crystalyse_session
 
 [... discovery process ...]
 
                           Provenance Summary
 ┌──────────────────┬────────────────────────────────────────────────┐
-│ Session ID       │ crystalyse_adaptive_20251008_210500            │
+│ Session ID       │ crystalyse_auto_20251008_210500                │
 │ Materials Found  │ 16                                             │
-│ MCP Tool Calls   │ 1                                              │
-│ Total Tool Calls │ 1                                              │
-│ Output Directory │ provenance_output/runs/crystalyse_adaptive_... │
+│ With Energy Data │ 0                                              │
+│ Runtime          │ 110.5s                                         │
+│ MCP Tools Used   │ comprehensive_materials_analysis               │
+│ Output Location  │ provenance_output/runs/crystalyse_auto_2025... │
 └──────────────────┴────────────────────────────────────────────────┘
-Analyse with: crystalyse analyse-provenance --session crystalyse_adaptive_20251008_210500
 ```
 
 ### Example 2: Interactive Chat
@@ -1002,13 +1088,13 @@ $ crystalyse
 
                           Provenance Summary
 ┌──────────────────┬────────────────────────────────────────────────┐
-│ Session ID       │ crystalyse_adaptive_20251008_210600            │
+│ Session ID       │ crystalyse_auto_20251008_210600                │
 │ Materials Found  │ 16                                             │
 │ MCP Tool Calls   │ 1                                              │
 │ Total Tool Calls │ 1                                              │
-│ Output Directory │ provenance_output/runs/crystalyse_adaptive_... │
+│ Output Directory │ provenance_output/runs/crystalyse_auto_...     │
 └──────────────────┴────────────────────────────────────────────────┘
-Analyse with: crystalyse analyse-provenance --session crystalyse_adaptive_20251008_210600
+Analyse with: crystalyse analyse-provenance --session crystalyse_auto_20251008_210600
 
 ➤ [next query...]
 ```
@@ -1019,7 +1105,7 @@ Analyse with: crystalyse analyse-provenance --session crystalyse_adaptive_202510
 $ crystalyse analyse-provenance --latest
 
 ╭──────────────────────────────────────────────────────────╮
-│ Analysing Session: crystalyse_adaptive_20251008_210600  │
+│ Analysing Session: crystalyse_auto_20251008_210600       │
 ╰──────────────────────────────────────────────────────────╯
 
 Performance Metrics:
@@ -1037,13 +1123,13 @@ Materials Summary:
 
 MCP Tools Used:
 ╭───────────────────────────────────────────────────────╮
-│                  generate_structures                  │
+│           comprehensive_materials_analysis            │
 │ Calls: 1                                              │
 │ Average Time: 0.1ms                                   │
 │ Materials Generated: 16                               │
 ╰───────────────────────────────────────────────────────╯
 
-Session files located at: provenance_output/runs/crystalyse_adaptive_20251008_210600
+Session files located at: provenance_output/runs/crystalyse_auto_20251008_210600
 ```
 
 ### Example 4: List All Sessions
@@ -1055,9 +1141,9 @@ Available Provenance Sessions
 ┌─────────────────────────────────────────┬─────────────────────┬───────────┐
 │ Session ID                              │ Timestamp           │ Materials │
 ├─────────────────────────────────────────┼─────────────────────┼───────────┤
-│ crystalyse_adaptive_20251008_210600     │ 2025-10-08T21:06:00 │ 16        │
-│ crystalyse_adaptive_20251008_210500     │ 2025-10-08T21:05:00 │ 16        │
-│ crystalyse_creative_20251008_190619     │ 2025-10-08T19:06:19 │ 8         │
+│ crystalyse_auto_20251008_210600         │ 2025-10-08T21:06:00 │ 16        │
+│ crystalyse_auto_20251008_210500         │ 2025-10-08T21:05:00 │ 16        │
+│ crystalyse_explore_20251008_190619      │ 2025-10-08T19:06:19 │ 8         │
 └─────────────────────────────────────────┴─────────────────────┴───────────┘
 
 Use --latest or --session <id> to analyse a specific session
@@ -1069,17 +1155,14 @@ Use --latest or --session <id> to analyse a specific session
 $ crystalyse discover "thermoelectrics" --provenance-dir ./my_research/provenance
 
 Starting non-interactive discovery: thermoelectrics
-Mode: adaptive | Project: crystalyse_session
+Mode: auto | Project: crystalyse_session
 
 [... discovery process ...]
 
                           Provenance Summary
 ┌──────────────────┬────────────────────────────────────────────────┐
-│ Session ID       │ crystalyse_adaptive_20251008_210700            │
-│ Materials Found  │ 12                                             │
-│ MCP Tool Calls   │ 1                                              │
-│ Total Tool Calls │ 1                                              │
-│ Output Directory │ ./my_research/provenance/runs/crystalyse_...  │
+│ ...              │ (same rows as Example 1)                       │
+│ Output Location  │ ./my_research/provenance/runs/crystalyse_...   │
 └──────────────────┴────────────────────────────────────────────────┘
 ```
 
@@ -1090,7 +1173,7 @@ import json
 from pathlib import Path
 
 # Load session summary
-session_dir = Path("provenance_output/runs/crystalyse_adaptive_20251008_210600")
+session_dir = Path("provenance_output/runs/crystalyse_auto_20251008_210600")
 with open(session_dir / "summary.json") as f:
     summary = json.load(f)
 
@@ -1148,47 +1231,51 @@ for material in materials['materials']:
 
 ### 3. Duck Typing for ToolTraceHandler
 
-**Decision**: Define minimal ToolTraceHandler base class in enhanced_trace.py instead of importing from crystalyse.
+**Decision**: Define a minimal `ToolTraceHandler` base class in `enhanced_trace.py`
+instead of importing `crystalyse.ui.trace_handler.ToolTraceHandler`.
 
 **Rationale**:
-- Avoids circular import (provenance_system ↔ crystalyse)
-- Provenance system remains standalone
+- Avoids a circular import (`crystalyse.provenance` ↔ `crystalyse.ui`)
+- The provenance package stays importable on its own
 - Duck typing preserves interface contract
 - No runtime impact
+
+**Consequence**: the local base class's `on_event()` body is `pass`, so
+`enable_visual` (`CRYSTALYSE_VISUAL_TRACE`) renders nothing for
+`ProvenanceTraceHandler` or its subclass. The real console tracer lives in
+`crystalyse.ui.trace_handler`.
 
 **Alternative Considered**: Restructure imports
 - Rejected: Would require moving core CrystaLyse code
 - Duck typing is cleaner and more Pythonic
 
-### 4. Parent Directory in sys.path
+### 4. Provenance as a Subpackage
 
-**Decision**: Add parent directory of provenance_system to sys.path, not module itself.
+**Decision**: Fold the provenance module into the package as
+`crystalyse.provenance` rather than ship a standalone top-level module.
 
 **Rationale**:
-- Python module import requirement
-- `import provenance_system` requires parent in path
-- Common pattern for package imports
+- Installs with the package; there is nothing to add to `sys.path`
+- Relative imports (`from ..core import JSONLLogger`) keep the internals private
+- One import path across editable installs, wheels and tests
 
-**Code**:
-```python
-# Correct
-sys.path.insert(0, "/path/to/Crystalyse")  # Parent
-import provenance_system  # Works
-
-# Incorrect
-sys.path.insert(0, "/path/to/Crystalyse/provenance_system")  # Module itself
-import provenance_system  # ModuleNotFoundError!
-```
+**Legacy**: `cli.py` still contains a `sys.path` guard that looks for a
+`provenance_system/` directory. That directory no longer exists, so the guard is
+inert.
 
 ### 5. Integer Trace IDs
 
-**Decision**: Use `int(time.time())` for trace_id instead of `asyncio.get_event_loop().time()`.
+**Decision**: Build the trace_id from `int(time.time())` rather than
+`asyncio.get_event_loop().time()`, and prefix the whole id with `trace_`.
 
 **Rationale**:
 - OpenAI SDK requires trace_id with only letters, numbers, underscores, dashes
 - Float timestamps contain dots: `1234567890.123456` ❌
 - Integer timestamps have no dots: `1234567890` ✅
+- The OpenAI API additionally requires the id to start with `trace_`
 - Still unique (second-level granularity sufficient)
+
+**Result**: `trace_id = f"trace_crystalyse_{self.session_id}_{trace_timestamp}"`
 
 ### 6. JSONL for Events
 
@@ -1218,17 +1305,16 @@ vs JSON array (rejected):
 
 ## Future Enhancements
 
-### 1. Energy Extraction Enhancement
+### 1. Energy Coverage for Undetected Tools
 
-**Goal**: Extract formation energies into provenance materials catalog.
+**Goal**: Attach energies from tool outputs the detector cannot identify.
 
 **Implementation**:
-- Update `MaterialsTracker.extract_materials()` to parse comprehensive_materials_analysis output
-- Handle nested JSON structures
-- Extract: formation_energy_per_atom, energy_above_hull, relaxation details
-- Populate materials_summary with min/max/avg energy
+- Extend `MCPDetector.TOOL_SIGNATURES` as new MCP tools land
+- Teach `_extract_generic()` to walk nested payloads, not just top-level fields
+- Surface `energy_coverage` (already computed by `get_summary()`) in the CLI table
 
-**Benefit**: Complete energy statistics in provenance summaries.
+**Benefit**: Energy statistics that reflect every costed structure.
 
 ### 2. Unified Session Mode (Optional)
 
@@ -1242,7 +1328,7 @@ vs JSON array (rejected):
 
 **Structure**:
 ```
-crystalyse_adaptive_20251008_210000/
+crystalyse_auto_20251008_210000/
 ├── query_1/
 │   ├── events.jsonl
 │   └── materials_catalog.json
@@ -1258,7 +1344,6 @@ crystalyse_adaptive_20251008_210000/
 
 **Features**:
 - Track user preference evolution
-- Identify repeated clarification patterns
 - Compare discovery strategies across queries
 - Session-wide materials deduplication
 
@@ -1269,7 +1354,7 @@ crystalyse_adaptive_20251008_210000/
 **Implementation**:
 - Compress old sessions (gzip)
 - Archive by date (weekly/monthly)
-- Prune old raw_outputs/ while keeping summaries
+- Prune old `raw_output_*.json` files while keeping summaries
 - Configurable retention policies
 
 ### 5. Web UI for Provenance
@@ -1305,23 +1390,25 @@ crystalyse discover "test"
 # Should show correct values
 ```
 
-### Issue: ModuleNotFoundError: No module named 'provenance_system'
+### Issue: Provenance System Handlers Not Available
 
 **Symptom**:
 ```
-WARNING: Provenance system handlers not available: No module named 'provenance_system'
+WARNING: Provenance system handlers not available: <import error>
 ```
 
-**Cause**: sys.path not configured correctly.
+**Cause**: `from ..provenance.handlers import ProvenanceTraceHandler` failed - a
+broken install or a missing dependency of the provenance package. (The old
+`No module named 'provenance_system'` failure can no longer happen: provenance is
+a subpackage of `crystalyse`.)
 
 **Solution**:
-1. Check `cli.py` has path initialization (lines 13-19)
-2. Ensure parent directory is added to sys.path (not module itself)
-3. Reinstall: `pip install -e .`
+1. Reinstall: `pip install -e .`
+2. Check the reported import error for the missing dependency
 
 **Verify**:
 ```bash
-python -c "import provenance_system; print('OK')"
+python -c "from crystalyse.provenance.handlers import ProvenanceTraceHandler; print('OK')"
 ```
 
 ### Issue: Circular Import Errors
@@ -1331,13 +1418,13 @@ python -c "import provenance_system; print('OK')"
 ImportError: cannot import name 'ProvenanceTraceHandler' from partially initialized module
 ```
 
-**Cause**: Circular dependency between provenance_system and crystalyse.
+**Cause**: Circular dependency between `crystalyse.provenance` and `crystalyse.ui`.
 
 **Solution**: Fixed by using duck typing in enhanced_trace.py (no import of ToolTraceHandler from crystalyse).
 
 **Verify**:
 ```python
-from provenance_system.handlers import ProvenanceTraceHandler
+from crystalyse.provenance.handlers import ProvenanceTraceHandler
 print("Import successful")
 ```
 
@@ -1353,7 +1440,7 @@ Expected letters, numbers, underscores, or dashes
 
 **Solution**: Fixed by using `int(time.time())` instead of `asyncio.get_event_loop().time()`.
 
-**Verify**: Check `agents_bridge.py` line 183 uses `int(time.time())`.
+**Verify**: Check that `agents_bridge.py` builds `trace_id` from `trace_timestamp = int(time.time())` and prefixes it with `trace_`.
 
 ### Issue: No Provenance in Interactive Chat
 
