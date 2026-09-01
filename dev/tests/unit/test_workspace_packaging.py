@@ -92,7 +92,7 @@ class TestWorkspaceToolsSurface:
         """The three ``@function_tool``s the agent registers must exist.
 
         These are the symbols listed in
-        ``crystalyse.agents.openai_agents_bridge.EnhancedCrystaLyseAgent.discover``
+        ``crystalyse.agents.agents_bridge.EnhancedCrystaLyseAgent.discover``
         at the ``Agent(tools=[...])`` call site.
         """
         assert hasattr(workspace_tools, attr), (
@@ -136,7 +136,7 @@ class TestWorkspaceToolsSurface:
         """Two ``@function_tool``s were deleted as dead code.
 
         * ``request_user_clarification`` — the comment at
-          ``openai_agents_bridge.py`` explicitly says it was removed from
+          ``agents_bridge.py`` explicitly says it was removed from
           agent registration because queries are pre-processed by the
           adaptive clarification system.
         * ``extract_and_save_cif_from_structures`` — never registered with
@@ -148,7 +148,7 @@ class TestWorkspaceToolsSurface:
         for gone in ("request_user_clarification", "extract_and_save_cif_from_structures"):
             assert not hasattr(workspace_tools, gone), (
                 f"{gone} was deleted as dead code and must not be re-added without "
-                "wiring it up to an agent; see crystalyse.agents.openai_agents_bridge"
+                "wiring it up to an agent; see crystalyse.agents.agents_bridge"
             )
 
     def test_agent_bridge_imports_workspace(self) -> None:
@@ -158,7 +158,7 @@ class TestWorkspaceToolsSurface:
         packaging, this import fails with ModuleNotFoundError before the
         agent can even be constructed.
         """
-        import crystalyse.agents.openai_agents_bridge as bridge
+        import crystalyse.agents.agents_bridge as bridge
 
         # The module-level `from ..workspace import workspace_tools` must
         # have produced a real module object, not a stub.

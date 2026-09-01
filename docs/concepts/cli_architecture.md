@@ -9,7 +9,7 @@ Crystalyse v1.0.0 provides a unified CLI architecture built on a single enhanced
 ### Single Agent Implementation
 
 **Actual Implementation**: One main agent class - `EnhancedCrystaLyseAgent`
-- **Location**: `/dev/crystalyse/agents/openai_agents_bridge.py`
+- **Location**: `/dev/crystalyse/agents/agents_bridge.py`
 - **Role**: Handles all materials discovery functionality through intelligent tool coordination
 
 **Documentation Discrepancy**: Previous docs described multiple specialized agents (MaterialsOrchestrator, CompositionExplorer, etc.) that **do not exist as separate classes**

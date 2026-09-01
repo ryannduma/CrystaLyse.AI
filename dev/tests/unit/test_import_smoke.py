@@ -30,7 +30,7 @@ TOP_LEVEL_STARTUP_MODULES = [
     # Entrypoint module registered in pyproject.toml [project.scripts].
     "crystalyse.cli",
     # Built and wired into the CLI's non-interactive discover flow.
-    "crystalyse.agents.openai_agents_bridge",
+    "crystalyse.agents.agents_bridge",
     # Registered as the agent's read_file/write_file/list_files tools.
     "crystalyse.workspace.workspace_tools",
 ]

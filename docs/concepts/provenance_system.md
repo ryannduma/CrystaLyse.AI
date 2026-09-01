@@ -114,7 +114,7 @@ dev/crystalyse/                    # CrystaLyse integration
 │   ├── provenance_bridge.py      # CrystaLyseProvenanceHandler
 │   └── chat_ui.py                # Interactive chat integration
 ├── agents/
-│   └── openai_agents_bridge.py   # Agent discover() method
+│   └── agents_bridge.py   # Agent discover() method
 ├── cli.py                         # CLI entry points
 └── config.py                      # Provenance configuration
 ```
@@ -458,7 +458,7 @@ def _display_provenance_summary(self, summary: Dict[str, Any]):
 
 ### 3. Agent Integration
 
-**File**: `dev/crystalyse/agents/openai_agents_bridge.py`
+**File**: `dev/crystalyse/agents/agents_bridge.py`
 
 **Auto-Create Provenance Handler**:
 ```python
@@ -1353,7 +1353,7 @@ Expected letters, numbers, underscores, or dashes
 
 **Solution**: Fixed by using `int(time.time())` instead of `asyncio.get_event_loop().time()`.
 
-**Verify**: Check `openai_agents_bridge.py` line 183 uses `int(time.time())`.
+**Verify**: Check `agents_bridge.py` line 183 uses `int(time.time())`.
 
 ### Issue: No Provenance in Interactive Chat
 

@@ -31,7 +31,7 @@ from rich.text import Text
 from rich.prompt import Confirm
 
 from crystalyse.config import Config
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.workspace import workspace_tools
 from crystalyse.ui.progress import PhaseAwareProgress
 from crystalyse.ui.chat_ui import ChatExperience

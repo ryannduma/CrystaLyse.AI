@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.ui.ascii_art import get_responsive_logo
 from crystalyse.ui.provenance_bridge import PROVENANCE_AVAILABLE, CrystaLyseProvenanceHandler

@@ -28,7 +28,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.text import Text
 
-from crystalyse.agents.openai_agents_bridge import EnhancedCrystaLyseAgent
+from crystalyse.agents.agents_bridge import EnhancedCrystaLyseAgent
 from crystalyse.config import Config
 from crystalyse.config.models import MODEL_REGISTRY, get_effective_registry
 from crystalyse.config.modes import MODE_ALIASES, Mode, resolve_mode_name

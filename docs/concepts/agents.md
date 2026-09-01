@@ -27,7 +27,7 @@ Crystalyse v1.0.0 uses a single agent architecture built on the OpenAI Agents SD
 
 ## Core Agent: EnhancedCrystaLyseAgent
 
-**Location**: `/dev/crystalyse/agents/openai_agents_bridge.py`
+**Location**: `/dev/crystalyse/agents/agents_bridge.py`
 
 ### Key Features
 
