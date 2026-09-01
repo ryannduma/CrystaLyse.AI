@@ -39,8 +39,8 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 # The exact version specifier every openai-agents dep MUST contain.
 # Both the floor and the ceiling must be present.
-EXPECTED_FLOOR = ">=0.13.6"
-EXPECTED_CEILING = "<0.14"
+EXPECTED_FLOOR = ">=0.22.0"
+EXPECTED_CEILING = "<0.23"
 
 
 def _discover_pyproject_files() -> list[Path]:
@@ -117,12 +117,13 @@ def test_openai_agents_dep_discovery_finds_something() -> None:
 
 @pytest.mark.parametrize("pyproject_path", _discover_pyproject_files(), ids=str)
 def test_openai_agents_version_pin(pyproject_path: Path) -> None:
-    """Every openai-agents dep must be pinned to ``>=0.13.6,<0.14``.
+    """Every openai-agents dep must be pinned to ``>=0.22.0,<0.23``.
 
-    Rationale: versions before 0.13.6 lack LitellmModel, MultiProvider, and
-    Agent(output_type=...) which are required for the multi-provider model
-    resolver.  The <0.14 ceiling guards against breaking API changes between
-    minor versions.  See the module docstring for full context.
+    Rationale: 0.18.1 fixed the ``InputTokensDetails(cached_tokens=0)``
+    construction that made every ``Runner.run()`` raise against
+    ``openai>=2.45``, and 0.21+ moved to the openai 3.x line that this project
+    now installs.  The ``<0.23`` ceiling guards against breaking API changes
+    between minor versions.  See the module docstring for full context.
     """
     specs = _openai_agents_dep_specs_in(pyproject_path)
     if not specs:
@@ -132,8 +133,8 @@ def test_openai_agents_version_pin(pyproject_path: Path) -> None:
         assert EXPECTED_FLOOR in spec, (
             f"{pyproject_path.relative_to(PROJECT_ROOT)} declares "
             f'"openai-agents{spec}" which is missing the floor pin '
-            f'"{EXPECTED_FLOOR}". openai-agents < 0.13.6 lacks LitellmModel, '
-            f"MultiProvider, and Agent(output_type=...). "
+            f'"{EXPECTED_FLOOR}". openai-agents < 0.22.0 predates the openai 3.x baseline, '
+            f"the InputTokensDetails usage fix, and mcp 2.0 support. "
             f'Pin to "{EXPECTED_FLOOR},{EXPECTED_CEILING}".'
         )
         assert EXPECTED_CEILING in spec, (

@@ -9,6 +9,7 @@ This replaces the buggy upstream download_util to provide:
 - Clean error handling and progress reporting
 """
 
+import shutil
 import tarfile
 import logging
 from pathlib import Path
@@ -134,7 +135,15 @@ def ensure_checkpoints_downloaded(cache_dir: Path = DEFAULT_CACHE_DIR) -> Dict[s
 
         # Extract to cache directory
         logger.info("Extracting checkpoint files...")
-        _extract_tar_gz(tar_file, cache_dir.parent)  # Extracts to parent, creates ckpts/ or chemeleon_checkpoints/
+        # Extract into the cache directory.  The archive wraps the checkpoints in a
+        # top-level ``ckpts/`` directory, so stage the extraction and flatten every
+        # ``.ckpt`` into ``cache_dir`` -- the directory the verification below checks.
+        staging_dir = cache_dir / "_extract"
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        _extract_tar_gz(tar_file, staging_dir)
+        for extracted in staging_dir.rglob("*.ckpt"):
+            extracted.replace(cache_dir / extracted.name)
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
         # Clean up tar file
         tar_file.unlink()

@@ -44,15 +44,35 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     # Core AI and Agent Framework
-    "openai>=1.0.0",
-    "openai-agents>=0.13.6,<0.14",
+    # Capped below 2.45 because openai 2.45.0 made ``cache_write_tokens`` a
+    # required field on ``responses.InputTokensDetails``, while openai-agents
+    # 0.13.6 still constructs ``InputTokensDetails(cached_tokens=0)`` in
+    # agents/usage.py -- every Runner.run() raises a pydantic ValidationError
+    # before the model is even called. Raise this ceiling only together with
+    # the openai-agents pin below.
+    # openai-agents 0.21+ requires the openai 3.x major line; litellm >=1.84
+    # hard-caps openai<3 (and 1.83.1-1.83.14 pin it exactly), so litellm is
+    # held at 1.83.0 -- the only release with an unbounded openai upper bound.
+    # These three move together; see the litellm extra below.
+    "openai>=3.0.0,<4",
+    # Bumped to 0.22.0.  0.18.1 fixed the InputTokensDetails construction that
+    # made every Runner.run() raise on openai>=2.45, so no openai cap is needed.
+    "openai-agents>=0.22.0,<0.23",
 
     # Chemistry Core Libraries
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
 
     # AI-Powered Chemistry Tools
-    "smact>=3.0.0",
+    # Capped below 4.0 because smact 4.0.0 replaced the ``include_zero`` /
+    # ``consensus`` / ``commonality`` keywords of ``smact_validity`` with an
+    # ``ICSD24FilterConfig`` object.  crystalyse/tools/smact/screening.py still
+    # passes the 3.x keywords, so smact_validate_fast raises TypeError on 4.x.
+    # Raise this ceiling only together with porting that call site.
+    # smact 4.0 replaced the include_zero/consensus/commonality keywords of
+    # smact_validity with an ICSD24FilterConfig object; the call site in
+    # crystalyse/tools/smact/screening.py is ported to it.
+    "smact>=4.0.0,<5.0.0",
     # Capped below 2.11: torch 2.11 bumped its CUDA runtime to 13.0, which
     # requires an NVIDIA driver new enough to support CUDA 13 (e.g. driver
     # 555+). Drivers pinned at CUDA 12.x — common on HPC / clusters — then
@@ -62,10 +82,14 @@ dependencies = [
     # of real-world machines.
     "torch>=2.1.0,<2.11",
     "mace-torch>=0.3.0",
-    "chemeleon-dng>=0.1.2",
+    # chemeleon-dng 0.1.5+ ships complete subpackages on PyPI, so the git
+    # dependency that worked around the broken 0.1.2 sdist is no longer
+    # needed.  Installing from PyPI removes the git requirement at install
+    # time.  NOTE: this is the generative structure model -- changing it can
+    # change generated structures, so re-run any published case studies.
+    "chemeleon-dng>=0.1.5,<0.2.0",
 
     # Model Context Protocol
-    "fastmcp>=0.5.0",
     "python-mcp>=1.0.0",
     "fastapi>=0.104.0",
     "uvicorn>=0.23.0",
@@ -106,7 +130,7 @@ visualization = [
     "plotly>=5.18.0",
     "py3Dmol>=2.0.4",
     "kaleido>=0.2.1",
-    "pymatviz>=0.8.5,<0.17.0",
+    "pymatviz>=0.8.5,<0.19.0",
     "seaborn>=0.12.0",
 ]
 
@@ -124,7 +148,12 @@ dev = [
 
 # Multi-provider LLM support via LiteLLM
 litellm = [
-    "litellm>=1.81.0,<=1.82.6",
+    # Pinned to exactly 1.83.0: it is the newest litellm whose openai
+    # requirement (>=2.8.0, no upper bound) is satisfiable alongside
+    # openai-agents 0.22's openai>=3.0.0.  1.83.1-1.83.14 pin openai==2.x
+    # exactly and 1.84.0+ cap openai<3.0.0, so all of them conflict.
+    # Verified live against Anthropic (Opus 5) via LitellmModel.
+    "litellm==1.83.0",
 ]
 
 # All optional dependencies

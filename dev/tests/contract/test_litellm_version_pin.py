@@ -1,23 +1,28 @@
 """
 Contract test: every pyproject.toml that declares a ``[litellm]`` optional-
-dependency extra must pin ``litellm>=1.81.0,<=1.82.6``.
+dependency extra must pin ``litellm==1.83.0`` exactly.
 
 Why this pin exists
 -------------------
 
-The ``openai-agents`` SDK (0.13.x) bundles its own LiteLLM integration at
-``agents.extensions.models.litellm_model``.  That integration layer translates
-between the SDK's internal message format and each provider's API
-(Anthropic message ordering, Gemini thought fields, tool-call schemas, etc.).
+It is a transitive-dependency squeeze on the ``openai`` package, not a
+provider-translation problem.
 
-LiteLLM versions above 1.82.6 change the provider translation layer in ways
-that break this integration — specifically, Anthropic message ordering and
-Gemini thought fields stop round-tripping correctly.  The SDK itself pins
-``litellm<=1.82.6`` internally; if we install a newer version, the SDK's own
-provider routing silently degrades.
+``openai-agents`` 0.21+ requires ``openai>=3.0.0``.  Meanwhile:
 
-The ``>=1.81.0`` floor is the minimum version that supports the ``MultiProvider``
-prefix routing feature used by the model resolver.
+* litellm 1.84.0 and later cap ``openai<3.0.0``;
+* litellm 1.83.1 through 1.83.14 pin ``openai`` to an exact 2.x version
+  (``openai==2.30.0`` or ``==2.24.0``).
+
+That leaves ``litellm==1.83.0`` as the only release whose ``openai``
+requirement (``>=2.8.0``, no upper bound) can be satisfied alongside the
+agents SDK.  The pin is exact because both neighbours are unsatisfiable, so
+there is no range to express.
+
+An earlier revision of this file claimed litellm above 1.82.6 breaks the SDK's
+Anthropic message ordering.  That was not reproducible on 1.83.0: a live
+Anthropic call through ``LitellmModel`` (Claude Opus 5) round-trips correctly.
+The real constraint is the ``openai`` major version above.
 
 Pyproject files that do NOT declare a ``[litellm]`` extra are skipped — not
 every subproject needs LiteLLM (the MCP servers, for example, only need the
@@ -29,7 +34,7 @@ How to update
 1. Verify the new LiteLLM version still works with the SDK's ``LitellmModel``
    by running the smoke test at ``dev/tests/unit/config/test_models.py``.
 2. Update the pin in every pyproject.toml that declares ``[litellm]``.
-3. Update ``EXPECTED_FLOOR`` and ``EXPECTED_CEILING`` in this test.
+3. Update ``EXPECTED_PIN`` in this test.
 4. Run ``python -m pytest dev/tests/contract/ -v`` to confirm green.
 """
 
@@ -44,8 +49,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 # The exact bounds every litellm dep MUST contain.
-EXPECTED_FLOOR = ">=1.81.0"
-EXPECTED_CEILING = "<=1.82.6"
+EXPECTED_PIN = "==1.83.0"
 
 
 def _discover_pyproject_files() -> list[Path]:
@@ -137,12 +141,11 @@ def test_litellm_dep_discovery_finds_something() -> None:
 
 @pytest.mark.parametrize("pyproject_path", _discover_pyproject_files(), ids=str)
 def test_litellm_version_pin(pyproject_path: Path) -> None:
-    """Every [litellm] extra must pin litellm to ``>=1.81.0,<=1.82.6``.
+    """Every [litellm] extra must pin litellm to ``==1.83.0``.
 
-    Rationale: the openai-agents SDK's LitellmModel integration layer breaks
-    with litellm versions above 1.82.6 (Anthropic message ordering and Gemini
-    thought fields stop round-tripping correctly).  Versions below 1.81.0 lack
-    the MultiProvider prefix routing feature.  See the module docstring.
+    Rationale: it is the only litellm release whose ``openai`` requirement is
+    satisfiable alongside openai-agents' ``openai>=3.0.0``.  See the module
+    docstring.
 
     Pyprojects without a [litellm] extra are skipped — not every subproject
     needs LiteLLM.
@@ -159,18 +162,11 @@ def test_litellm_version_pin(pyproject_path: Path) -> None:
     )
 
     for spec in specs:
-        assert EXPECTED_FLOOR in spec, (
+        assert EXPECTED_PIN in spec, (
             f"{pyproject_path.relative_to(PROJECT_ROOT)} declares "
-            f'"litellm{spec}" which is missing the floor pin '
-            f'"{EXPECTED_FLOOR}". litellm < 1.81.0 lacks MultiProvider '
-            f"prefix routing. "
-            f'Pin to "{EXPECTED_FLOOR},{EXPECTED_CEILING}".'
-        )
-        assert EXPECTED_CEILING in spec, (
-            f"{pyproject_path.relative_to(PROJECT_ROOT)} declares "
-            f'"litellm{spec}" which is missing the ceiling pin '
-            f'"{EXPECTED_CEILING}". litellm > 1.82.6 breaks the SDK\'s '
-            f"provider translation layer (Anthropic message ordering, "
-            f"Gemini thought fields). "
-            f'Pin to "{EXPECTED_FLOOR},{EXPECTED_CEILING}".'
+            f'"litellm{spec}" but this project requires the exact pin '
+            f'"litellm{EXPECTED_PIN}". litellm 1.84.0+ caps openai<3.0.0 and '
+            f"1.83.1-1.83.14 pin openai==2.x exactly, both of which conflict "
+            f"with openai-agents' openai>=3.0.0 requirement. "
+            f"See the module docstring."
         )

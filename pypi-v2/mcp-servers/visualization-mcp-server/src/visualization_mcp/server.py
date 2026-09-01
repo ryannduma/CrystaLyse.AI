@@ -1,6 +1,6 @@
 """Visualization MCP Server for CrystaLyse.AI"""
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from .tools import (
     create_3dmol_visualization,
     create_pymatviz_analysis_suite,
@@ -9,7 +9,7 @@ from .tools import (
     create_mode_aligned_visualization
 )
 
-mcp = FastMCP("visualization")
+mcp = MCPServer("visualization")
 
 # Register tools
 mcp.tool()(create_3dmol_visualization)

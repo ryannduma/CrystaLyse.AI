@@ -13,13 +13,20 @@ dependencies = [
     # Core package with tool implementations
     "crystalyse",
     # MCP framework
-    "mcp>=1.0.0",
-    "fastmcp>=0.5.0",
+    # mcp 2.0 renamed mcp.server.fastmcp.FastMCP to
+    # mcp.server.mcpserver.MCPServer; the servers here use the new path.
+    # fastmcp (the separate package) is no longer needed.
+    "mcp>=2.0.0,<3.0.0",
     # Chemistry libraries (also declared in crystalyse, but explicit here for clarity)
     "ase>=3.22.0",
     "numpy>=1.21.0",
     # Pinned to v0.1.2 which includes fix for missing subpackages
-    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+    # chemeleon-dng 0.1.5+ ships complete subpackages on PyPI, so the git
+    # dependency that worked around the broken 0.1.2 sdist is no longer
+    # needed.  Installing from PyPI removes the git requirement at install
+    # time.  NOTE: this is the generative structure model -- changing it can
+    # change generated structures, so re-run any published case studies.
+    "chemeleon-dng>=0.1.5,<0.2.0",
     "mace-torch>=0.3.0",
     # Cap below 2.11 — torch 2.11 requires CUDA 13 drivers. See dev/pyproject.toml.
     "torch>=2.1.0,<2.11",

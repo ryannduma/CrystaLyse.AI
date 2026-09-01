@@ -5,11 +5,23 @@ description = "Crystalyse v1.0.0-dev - Intelligent Scientific AI Agent for Inorg
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "openai>=1.0.0",
+    # Capped below 2.45 because openai 2.45.0 made ``cache_write_tokens`` a
+    # required field on ``responses.InputTokensDetails``, while openai-agents
+    # 0.13.6 still constructs ``InputTokensDetails(cached_tokens=0)`` in
+    # agents/usage.py -- every Runner.run() raises a pydantic ValidationError
+    # before the model is even called. Raise this ceiling only together with
+    # the openai-agents pin below.
+    # openai-agents 0.21+ requires the openai 3.x major line; litellm >=1.84
+    # hard-caps openai<3 (and 1.83.1-1.83.14 pin it exactly), so litellm is
+    # held at 1.83.0 -- the only release with an unbounded openai upper bound.
+    # These three move together; see the litellm extra below.
+    "openai>=3.0.0,<4",
     # Bumped to 0.13.6 for LitellmModel + MultiProvider prefix routing + Agent.output_type.
     # The <0.14 ceiling keeps us within the tested API surface; if 0.14 ships with
     # breaking changes, update the contract test together with the pin.
-    "openai-agents>=0.13.6,<0.14",
+    # Bumped to 0.22.0.  0.18.1 fixed the InputTokensDetails construction that
+    # made every Runner.run() raise on openai>=2.45, so no openai cap is needed.
+    "openai-agents>=0.22.0,<0.23",
 
     "pymatgen>=2024.1.0",
     "ase>=3.22.0",
@@ -25,7 +37,12 @@ dependencies = [
 
     # Pinned to v0.1.2 which includes fix for missing subpackages in PyPI distribution
     # Can use GitHub source for now until PyPI package is published
-    "chemeleon-dng @ git+https://github.com/hspark1212/chemeleon-dng.git@v0.1.2",
+    # chemeleon-dng 0.1.5+ ships complete subpackages on PyPI, so the git
+    # dependency that worked around the broken 0.1.2 sdist is no longer
+    # needed.  Installing from PyPI removes the git requirement at install
+    # time.  NOTE: this is the generative structure model -- changing it can
+    # change generated structures, so re-run any published case studies.
+    "chemeleon-dng>=0.1.5,<0.2.0",
 
     # Cap below 2.11 because torch 2.11.0 bumped its CUDA runtime to 13.0,
     # which requires an NVIDIA driver new enough to support CUDA 13 (driver
@@ -37,7 +54,15 @@ dependencies = [
     # real-world machines. Raise this ceiling once the CUDA 13 driver floor
     # is actually the common case in the communities we ship to.
     "torch>=2.1.0,<2.11",
-    "smact>=2.7.0",
+    # Capped below 4.0 because smact 4.0.0 replaced the ``include_zero`` /
+    # ``consensus`` / ``commonality`` keywords of ``smact_validity`` with an
+    # ``ICSD24FilterConfig`` object.  crystalyse/tools/smact/screening.py still
+    # passes the 3.x keywords, so smact_validate_fast raises TypeError on 4.x.
+    # Raise this ceiling only together with porting that call site.
+    # smact 4.0 replaced the include_zero/consensus/commonality keywords of
+    # smact_validity with an ICSD24FilterConfig object; the call site in
+    # crystalyse/tools/smact/screening.py is ported to it.
+    "smact>=4.0.0,<5.0.0",
     "mace-torch>=0.3.0",
 ]
 
@@ -59,7 +84,7 @@ visualization = [
     "plotly>=5.18.0",
     "py3Dmol>=2.0.4",
     "kaleido>=0.2.1",
-    "pymatviz>=0.8.5,<0.17.0",
+    "pymatviz>=0.8.5,<0.19.0",
 ]
 
 docs = [
@@ -74,7 +99,12 @@ litellm = [
     # the SDK's provider translation layer (Anthropic message ordering, Gemini
     # thought fields, etc.).  Do not relax without updating the contract test
     # at dev/tests/contract/test_litellm_version_pin.py.
-    "litellm>=1.81.0,<=1.82.6",
+    # Pinned to exactly 1.83.0: it is the newest litellm whose openai
+    # requirement (>=2.8.0, no upper bound) is satisfiable alongside
+    # openai-agents 0.22's openai>=3.0.0.  1.83.1-1.83.14 pin openai==2.x
+    # exactly and 1.84.0+ cap openai<3.0.0, so all of them conflict.
+    # Verified live against Anthropic (Opus 5) via LitellmModel.
+    "litellm==1.83.0",
 ]
 
 all = [

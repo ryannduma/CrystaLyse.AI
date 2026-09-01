@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 from ase.io import write as ase_write
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # Suppress e3nn warning
 warnings.filterwarnings(
@@ -32,8 +32,8 @@ from crystalyse.tools.pymatgen import PyMatgenAnalyzer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastMCP server
-mcp = FastMCP("chemistry-creative")
+# Initialize the MCP server
+mcp = MCPServer("chemistry-creative")
 
 # Initialize tool instances
 chemeleon_predictor = ChemeleonPredictor()

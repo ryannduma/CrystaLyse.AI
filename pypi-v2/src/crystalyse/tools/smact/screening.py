@@ -15,11 +15,12 @@ from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 try:
-    from smact.screening import smact_validity, ml_rep_generator, smact_filter
+    from smact.screening import ICSD24FilterConfig, smact_validity, ml_rep_generator, smact_filter
     from smact import Element
     SMACT_AVAILABLE = True
 except ImportError:
     SMACT_AVAILABLE = False
+    ICSD24FilterConfig = None
     smact_validity = None
     ml_rep_generator = None
     smact_filter = None
@@ -138,16 +139,24 @@ class SMACTScreener:
                 )
 
             # Run SMACT validity check
+            # smact 4.0: the ICSD24 filter is honoured only when
+            # oxidation_states_set is None -- passing "icsd24" makes smact ignore
+            # it silently.  "icsd24" is smact's own default set, so map it to None
+            # and let the filter apply; pass any other named set straight through.
             is_valid = smact_validity(
                 composition=composition,
                 use_pauling_test=use_pauling_test,
                 include_alloys=include_alloys,
                 check_metallicity=check_metallicity,
                 metallicity_threshold=metallicity_threshold,
-                oxidation_states_set=oxidation_states_set,
-                include_zero=include_zero,
-                consensus=consensus,
-                commonality=commonality
+                oxidation_states_set=(
+                    None if oxidation_states_set == "icsd24" else oxidation_states_set
+                ),
+                icsd_filter=ICSD24FilterConfig(
+                    include_zero=include_zero,
+                    consensus=consensus,
+                    commonality=commonality,
+                )
             )
 
             return CompositionValidityResult(
